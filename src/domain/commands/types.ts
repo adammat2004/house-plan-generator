@@ -1,0 +1,103 @@
+import type { Door, ExternalWallPreference, FloorMaterial, Id, Opening, PlanDocument, Point2, RoomType, Window } from "../plan/types";
+
+export type IssueCode =
+  | "not-found"
+  | "invalid-value"
+  | "invalid-structure"
+  | "unsupported-version"
+  | "malformed-file"
+  | "zero-length-wall"
+  | "non-orthogonal-wall"
+  | "wall-overlap"
+  | "wall-clash"
+  | "duplicate-vertex"
+  | "outside-envelope"
+  | "envelope-invalid"
+  | "envelope-locked"
+  | "move-disconnects"
+  | "move-collapses-wall"
+  | "move-blocked"
+  | "shrink-conflict"
+  | "opening-out-of-bounds"
+  | "opening-crosses-junction"
+  | "opening-overlap"
+  | "opening-too-tall"
+  | "room-unmatched"
+  | "room-duplicate"
+  | "rear-wall-invalid";
+
+/** A structured validation or command failure. */
+export interface PlanIssue {
+  code: IssueCode;
+  message: string;
+  entityIds: Id[];
+}
+
+export type CommandResult =
+  | { ok: true; document: PlanDocument; createdIds: Id[]; changed: boolean }
+  | { ok: false; issues: PlanIssue[] };
+
+type OpeningCommon = Pick<Opening, "offset" | "width" | "height">;
+
+export type OpeningChanges = Partial<OpeningCommon> &
+  Partial<Pick<Door, "hinge" | "swingSide">> &
+  Partial<Pick<Window, "sillHeight">> & { wallId?: Id };
+
+/** Room metadata edits. `null` clears an optional program field. */
+export interface RoomChanges {
+  name?: string;
+  type?: RoomType;
+  targetArea?: number | null;
+  minArea?: number | null;
+  maxArea?: number | null;
+  floorMaterial?: FloorMaterial | null;
+  externalWall?: ExternalWallPreference | null;
+}
+
+/**
+ * Optional `idPrefix` lets the caller supply entropy for any IDs a command
+ * creates (vertices, rooms after a split). IDs are generated outside the
+ * transformation; without a prefix a deterministic, collision-free scheme
+ * based on the document's existing IDs is used.
+ */
+interface CommandBase {
+  idPrefix?: string;
+}
+
+export type PlanCommand = CommandBase &
+  (
+    | {
+        type: "createFootprint";
+        width: number;
+        depth: number;
+        externalThickness: number;
+        wallHeight: number;
+        name?: string;
+      }
+    | { type: "resizeFootprint"; width?: number; depth?: number }
+    | { type: "addWall"; wallId?: Id; start: Point2; end: Point2; thickness: number; height?: number }
+    | {
+        type: "moveWall";
+        wallId: Id;
+        /** Perpendicular displacement: Δy for horizontal walls, Δx for vertical walls. */
+        delta: number;
+      }
+    | {
+        type: "moveWallEndpoint";
+        wallId: Id;
+        end: "start" | "end";
+        /** New varying coordinate of that end: x for horizontal walls, y for vertical walls. */
+        position: number;
+      }
+    | { type: "updateWall"; wallId: Id; thickness?: number; height?: number }
+    | { type: "deleteWall"; wallId: Id }
+    | { type: "addOpening"; opening: Opening }
+    | { type: "updateOpening"; openingId: Id; changes: OpeningChanges }
+    | { type: "deleteOpening"; openingId: Id }
+    | { type: "updateRoom"; roomId: Id; changes: RoomChanges }
+    | { type: "setRearWall"; wallId: Id | null }
+    | { type: "renameDocument"; name: string }
+    | { type: "replaceDocument"; document: unknown }
+  );
+
+export type PlanCommandType = PlanCommand["type"];

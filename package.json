@@ -1,0 +1,39 @@
+{
+  "name": "floor-plan-editor",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -p 3100",
+    "build": "next build",
+    "start": "next start -p 3100",
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "next build && playwright test",
+    "check": "npm run typecheck && npm run lint && npm test && npm run test:e2e"
+  },
+  "dependencies": {
+    "@types/three": "^0.186.0",
+    "konva": "10.7.1",
+    "next": "16.4.0",
+    "polygon-clipping": "0.15.7",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "react-konva": "19.3.0",
+    "three": "^0.186.1",
+    "zod": "4.6.5",
+    "zustand": "5.0.15"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0",
+    "@types/node": "24.19.1",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "eslint": "9.39.5",
+    "eslint-config-next": "16.4.0",
+    "fake-indexeddb": "6.2.5",
+    "typescript": "5.9.3",
+    "vitest": "5.0.3"
+  }
+}
