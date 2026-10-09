@@ -265,18 +265,21 @@ function Presets({ brief, onPicked }: { brief: HouseBrief; onPicked: () => void 
   );
 }
 
+/** The example plans never change, so they are planned once per session rather than on every visit to the tab. */
+let inspirationExamples: Array<{ template: (typeof PROJECT_TEMPLATES)[number]; level: Level | null }> | null = null;
+
+function examplePlans() {
+  return (inspirationExamples ??= PROJECT_TEMPLATES.map((t) => {
+    const source = createPlanDocument({ id: `inspiration-${t.id}`, width: t.width, depth: t.depth });
+    const plan = planLayouts({ intent: { action: "generate_layouts", brief: t.brief, count: 1 }, source, brief: t.brief, idPrefix: t.id }).candidates[0]?.document;
+    return { template: t, level: plan?.levels[0] ?? null };
+  }));
+}
+
 /** Example homes to borrow a room list from. */
 function Inspiration({ onPicked }: { onPicked: () => void }) {
   const brief = useProjectState((s) => s.brief);
-  const examples = useMemo(
-    () =>
-      PROJECT_TEMPLATES.map((t) => {
-        const source = createPlanDocument({ id: `inspiration-${t.id}`, width: t.width, depth: t.depth });
-        const plan = planLayouts({ intent: { action: "generate_layouts", brief: t.brief, count: 1 }, source, brief: t.brief, idPrefix: t.id }).candidates[0]?.document;
-        return { template: t, level: plan?.levels[0] ?? null };
-      }),
-    [],
-  );
+  const examples = examplePlans();
   return (
     <ul className="preset-list" data-testid="inspiration">
       {examples.map(({ template: t, level }) => (

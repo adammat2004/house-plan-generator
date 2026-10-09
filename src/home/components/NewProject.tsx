@@ -426,20 +426,7 @@ function NewProjectForm({ initialMethod, onCreated }: { initialMethod: StartMeth
                     ))}
                   </div>
                 </fieldset>
-                <div className="field-pair">
-                  <SelectBox id={`${ids}-units`} label="Units" value="m" onChange={() => {}}>
-                    <option value="m">Metres (m)</option>
-                    <option value="ft" disabled>
-                      Feet and inches (coming soon)
-                    </option>
-                  </SelectBox>
-                  <SelectBox id={`${ids}-floors`} label="Floors" value="1" onChange={() => {}}>
-                    <option value="1">1</option>
-                    <option value="2" disabled>
-                      2 or more (coming soon)
-                    </option>
-                  </SelectBox>
-                </div>
+                <p className="field-hint">Plans are in metres, on one floor. Feet and inches, and more floors, are coming soon.</p>
               </div>
             </details>
           </div>
