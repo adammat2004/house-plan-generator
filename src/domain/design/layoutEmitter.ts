@@ -5,6 +5,7 @@ import { deriveLevelGeometry, openingHostIntervals, roomFaceIndices } from "../g
 import { analyzeEnvelope, type EnvelopeSide } from "../geometry/envelope";
 import { findFaceIndexContaining } from "../geometry/faces";
 import { EPS, roundToPrecision } from "../geometry/numeric";
+import { OPPOSITE_SIDE } from "../geometry/outline";
 import { pointInRing } from "../geometry/polygons";
 import { dot, sub } from "../geometry/vector";
 import { axialParam, pointOnAxis } from "../geometry/walls";
@@ -15,14 +16,19 @@ import type { LayoutPlan } from "./wingLayout";
 
 /**
  * Turns a labelled layout into a plan document. Walls go wherever two
- * labels meet; every room is named; each room gets a door to the hall (an
- * ensuite to its bedroom), windows on its outside walls, and the hall the
- * front door. Everything goes through applyCommand, so the result is as
- * valid and editable as a hand-drawn plan.
+ * labels meet; every room is named; each room gets a door into the room it
+ * is reached from (its `via`; by default the hall, and an ensuite its
+ * bedroom), windows on its outside walls, garden doors where asked, and the
+ * entrance room (the hall by default) the front door. Everything goes
+ * through applyCommand, so the result is as valid and editable as a
+ * hand-drawn plan.
  */
 
 const WINDOW_WIDTH: Record<WindowSize, number> = { large: 2.4, standard: 1.4, small: 0.7, none: 0 };
-const OPPOSITE: Record<EnvelopeSide, EnvelopeSide> = { north: "south", south: "north", east: "west", west: "east" };
+/** Garden doors from a living space: a pair of glazed doors. */
+const GARDEN_DOOR = 1.6;
+/** Clearance between a corner door and the end of its stretch of wall. */
+const CORNER_GAP = 0.15;
 
 export interface EmitOptions {
   prefix: string;
@@ -51,7 +57,7 @@ export function emitLayout(shell: PlanDocument, plan: LayoutPlan, opts: EmitOpti
   if (!env.ok) return { ok: false, reason: "the house outline is invalid." };
   const ring = env.info.axisRing;
   const rear: EnvelopeSide = (shell.levels[0].rearWallId && env.info.sideOfWall[shell.levels[0].rearWallId]) || "north";
-  const front = OPPOSITE[rear];
+  const front = OPPOSITE_SIDE[rear];
 
   // A grid through every corner of the outline and every room.
   const xs = [...new Map([...ring.map((p) => p.x), ...plan.rooms.flatMap((r) => r.rects.flatMap((q) => [q.minX, q.maxX]))].map((v) => [key(v), roundToPrecision(v)])).values()].sort((a, b) => a - b);
@@ -202,8 +208,11 @@ export function emitLayout(shell: PlanDocument, plan: LayoutPlan, opts: EmitOpti
   // Openings. One that doesn't fit is left out rather than failing the layout.
   let openingCount = 0;
   let skipped = 0;
-  /** Places an opening centred on the clear part of a run, as wide as it allows up to `width`. */
-  const place = (kind: "door" | "window", r: Run, width: number, margin: number, size: WindowSize = "standard"): boolean => {
+  /**
+   * Places an opening on the clear part of a run, as wide as it allows up to
+   * `width`: centred, or near the end of the clear stretch closest to `toward`.
+   */
+  const place = (kind: "door" | "window", r: Run, width: number, margin: number, size: WindowSize = "standard", toward?: Point2): boolean => {
     const mid = (r.lo + r.hi) / 2;
     const p = r.horizontal ? { x: mid, y: r.line } : { x: r.line, y: mid };
     const geometry = deriveLevelGeometry(doc.levels[0]);
@@ -232,7 +241,12 @@ export function emitLayout(shell: PlanDocument, plan: LayoutPlan, opts: EmitOpti
       skipped++;
       return false;
     }
-    const offset = roundToPrecision((span[0] + span[1]) / 2 - w / 2);
+    let offset = roundToPrecision((span[0] + span[1]) / 2 - w / 2);
+    if (toward && span[1] - span[0] >= w + 2 * CORNER_GAP) {
+      // Whichever end of the clear stretch lies nearer `toward`.
+      const t = axialParam(axis, toward);
+      offset = roundToPrecision(Math.abs(t - span[0]) <= Math.abs(t - span[1]) ? span[0] + CORNER_GAP : span[1] - CORNER_GAP - w);
+    }
     const id = `${opts.prefix}-o${++openingCount}`;
     const swingSide = dot(sub(r.inside, axis.start), axis.normal) < 0 ? "right" : "left";
     const opening: Opening =
@@ -249,37 +263,40 @@ export function emitLayout(shell: PlanDocument, plan: LayoutPlan, opts: EmitOpti
   };
 
   const hall = plan.rooms.findIndex((r) => r.kind === "hall");
+  const entry = plan.entrance ? plan.rooms.findIndex((r) => r.key === plan.entrance) : hall;
   const runsBetween = (a: number, b: number) => [...(between.get(`${Math.min(a, b)}:${Math.max(a, b)}`) ?? [])].map((r) => (a < b ? r : { ...r, inside: flip(r) }));
   const longest = (runs: Run[]) => [...runs].sort((p, q) => q.hi - q.lo - (p.hi - p.lo))[0];
   const light = opts.naturalLight ? 1.3 : 1;
   const notes: string[] = [];
+  // The entrance room's outside walls, street side first, then the sides, then the garden.
+  const rank = (o: Run) => (o.facing === front ? 0 : o.facing === rear ? 2 : 1);
+  const entryOuts = [...(entry >= 0 ? (outside.get(entry) ?? []) : [])].sort((p, q) => rank(p) - rank(q) || q.hi - q.lo - (p.hi - p.lo));
+  // With corner doors, each door sits at the end of its wall nearer the way in.
+  const wayIn = plan.cornerDoors && entryOuts[0] ? midpoint(entryOuts[0]) : undefined;
   for (const [r, room] of plan.rooms.entries()) {
-    if (room.kind === "hall") continue;
-    if (room.kind === "ensuite") {
-      const bedroom = plan.rooms.findIndex((x) => x.key === room.of);
-      const shared = longest(runsBetween(r, bedroom));
-      if (!shared || !place("door", { ...shared, inside: shared.inside }, 0.8, 0.4)) return { ok: false, reason: "the ensuite has no wall to its bedroom for a door." };
-    } else {
-      const toHall = longest(runsBetween(r, hall));
-      if (!toHall) return { ok: false, reason: `${room.name} doesn't reach the hall.` };
-      const narrow = room.type === "bathroom" || room.type === "wc" || room.type === "storage";
-      if (!place("door", toHall, narrow ? Math.min(opts.doorWidth, 0.8) : opts.doorWidth, 0.3)) return { ok: false, reason: `there's no room for a door into ${room.name.toLowerCase()}.` };
-    }
-    if (room.window === "none") continue;
+    if (room.kind === "hall" && !room.via) continue;
+    const parent = room.via ? plan.rooms.findIndex((x) => x.key === room.via) : room.kind === "ensuite" ? plan.rooms.findIndex((x) => x.key === room.of) : hall;
+    const shared = parent >= 0 ? longest(runsBetween(r, parent)) : undefined;
+    if (!shared) return { ok: false, reason: `${room.name} doesn't reach the ${parent >= 0 ? plan.rooms[parent].name.toLowerCase() : "hall"}.` };
+    const narrow = room.type === "bathroom" || room.type === "wc" || room.type === "storage" || room.type === "ensuite";
+    const width = narrow ? Math.min(opts.doorWidth, 0.8) : opts.doorWidth;
+    if (!place("door", shared, width, room.kind === "ensuite" ? 0.4 : 0.3, "standard", wayIn)) return { ok: false, reason: `there's no room for a door into ${room.name.toLowerCase()}.` };
     const outs = [...(outside.get(r) ?? [])].sort((p, q) => q.hi - q.lo - (p.hi - p.lo));
-    if (!outs.length) continue;
+    if (room.gardenDoor) {
+      const toGarden = outs.find((o) => o.facing === rear && o.hi - o.lo >= GARDEN_DOOR + 0.6);
+      if (toGarden) place("door", toGarden, GARDEN_DOOR, 0.6);
+    }
+    if (room.window === "none" || !outs.length) continue;
     place("window", outs[0], WINDOW_WIDTH[room.window] * light, 0.6, room.window);
     if (room.window === "large" || opts.naturalLight) {
       for (const o of outs.slice(1)) if (o.hi - o.lo >= 1.4) place("window", o, WINDOW_WIDTH[room.window] * light, 0.8, room.window);
     }
   }
 
-  // The front door into the hall: on the street side if the hall reaches it, else a side, else the garden side.
-  const hallOuts = [...(outside.get(hall) ?? [])];
-  const rank = (o: Run) => (o.facing === front ? 0 : o.facing === rear ? 2 : 1);
-  hallOuts.sort((p, q) => rank(p) - rank(q) || q.hi - q.lo - (p.hi - p.lo));
+  // The front door into the entrance room: on the street side if it reaches it, else a side, else the garden side.
+  const hallOuts = [...(hall >= 0 ? (outside.get(hall) ?? []) : [])];
   let entrance: Run | null = null;
-  for (const o of hallOuts) {
+  for (const o of entryOuts) {
     if (place("door", o, 1, 0.2)) {
       entrance = o;
       break;
@@ -301,6 +318,8 @@ export function emitLayout(shell: PlanDocument, plan: LayoutPlan, opts: EmitOpti
   if (issues.length) return { ok: false, reason: issues[0].message };
   return { ok: true, document: doc, notes };
 }
+
+const midpoint = (r: Run): Point2 => (r.horizontal ? { x: (r.lo + r.hi) / 2, y: r.line } : { x: r.line, y: (r.lo + r.hi) / 2 });
 
 /** The point on the other side of a run from its `inside`. */
 function flip(r: Run): Point2 {

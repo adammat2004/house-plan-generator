@@ -55,12 +55,20 @@ export interface LabeledRoom {
   rects: Rect[];
   /** An ensuite's bedroom. */
   of?: string;
+  /** The room (by key) this one's door opens into; without it, the hall (an ensuite: its bedroom). */
+  via?: string;
+  /** Wants doors straight out to the garden: a living space on the garden side. */
+  gardenDoor?: boolean;
 }
 
 export interface LayoutPlan {
   /** Stable across requests for the same outline and brief: arrangement, partition and hall choice. */
   id: string;
-  arrangement: WingArrangement;
+  arrangement: string;
+  /** The room (by key) the front door opens into; the hall when absent. */
+  entrance?: string;
+  /** Doors sit near a corner of their stretch of wall, leaving the rest free for furniture, rather than in the middle. */
+  cornerDoors?: boolean;
   rooms: LabeledRoom[];
   fringe: FringePiece[];
   notes: string[];
