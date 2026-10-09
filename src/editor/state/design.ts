@@ -6,6 +6,7 @@ import { designContext, interpretationFromReply, type AiMode } from "@/domain/de
 import { roomAtPoint } from "@/domain/design/analysis";
 import { interpretRequest, type Interpretation } from "@/domain/design/request";
 import { furnishRoom } from "@/domain/furniture/furnish";
+import { assessSense } from "@/domain/design/sense";
 import type { Id, Level, PlanDocument } from "@/domain/plan/types";
 import type { AiInterpreter } from "./aiInterpreter";
 import { newIdPrefix } from "./ids";
@@ -461,9 +462,14 @@ export function createDesignActions({ session, project }: EditorStores, actions:
         const result = applyCommand(next, { type: "replaceFurniture", remove: layout.remove, add: layout.items });
         if (result.ok) next = result.document;
       }
-      // Plan-sense warnings about the swapped rooms (a bedroom off the kitchen, say) go here.
+      // What the swap made worse (a bedroom with no window, a bathroom off the kitchen) is said, not refused.
+      const was = new Set(assessSense(doc.levels[0]).findings.map((f) => f.message));
+      const worse = assessSense(next.levels[0]).findings.filter((f) => !was.has(f.message) && f.roomIds.some((id) => id === a || id === b));
       const result = actions.dispatch({ type: "replaceDocument", document: next });
-      if (result.ok) actions.notify("success", `Swapped ${ra.name} and ${rb.name}. Undo to go back.`);
+      if (result.ok) {
+        if (worse.length) actions.notify("info", `Swapped ${ra.name} and ${rb.name}. To check: ${worse.map((f) => f.message).join(" ")} Undo to go back.`, [a, b]);
+        else actions.notify("success", `Swapped ${ra.name} and ${rb.name}. Undo to go back.`);
+      }
       return result.ok;
     },
 

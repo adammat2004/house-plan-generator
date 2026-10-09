@@ -181,6 +181,19 @@ describe("AI designer workflow", () => {
     expect(actions.current()).toBe(before);
   });
 
+  it("swaps even when it makes the plan worse, and says what to check", async () => {
+    const { stores, actions, design } = setup();
+    await design.generateLayouts(1);
+    const rooms = Object.values(level(actions.current()).rooms);
+    const bedroom = rooms.find((r) => r.type === "bedroom")!;
+    const ensuite = rooms.find((r) => r.type === "ensuite")!;
+    // A bedroom in the ensuite's little slot is too small.
+    expect(design.swapRooms(bedroom.id, ensuite.id)).toBe(true);
+    const notice = stores.documents.getState().notice;
+    expect(notice?.tone).toBe("info");
+    expect(notice?.message).toMatch(new RegExp(`^Swapped ${bedroom.name} and Ensuite\\. To check: .*${bedroom.name} is .*only`));
+  });
+
   it("won't swap a pinned room", async () => {
     const { stores, actions, design } = setup();
     await design.generateLayouts(1);
