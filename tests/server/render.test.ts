@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_BRIEF } from "@/domain/brief/schema";
-import { photoTargets, renderKey, renderPrompt, renderRequestSchema, renderViewFor, targetKey } from "@/domain/design/renderRequest";
+import { photoTargets, renderKey, renderPrompt, renderRequestSchema, renderViewFor, targetKey, type RenderRequest } from "@/domain/design/renderRequest";
 import { planLayouts } from "@/domain/design/stripPlanner";
 import { CURRENT_SCHEMA_VERSION } from "@/domain/plan/schema";
 import { DEFAULT_APPEARANCE } from "@/domain/project/schema";
@@ -11,6 +11,13 @@ import { apply, level, newHouse } from "../helpers";
 
 // The route checks connection() for its GET; outside a request it just resolves.
 vi.mock("next/server", () => ({ connection: async () => undefined }));
+
+// The route renders with whichever stand-in a test sets; with none, renderPhoto behaves as usual.
+const images = vi.hoisted(() => ({ client: undefined as unknown }));
+vi.mock("@/server/imageRenderer", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/server/imageRenderer")>();
+  return { ...actual, renderPhoto: (request: RenderRequest, client = images.client as ImageClient | undefined) => actual.renderPhoto(request, client) };
+});
 
 const plan = () =>
   level(planLayouts({ intent: { action: "generate_layouts", brief: { ...DEFAULT_BRIEF, bedrooms: 3 }, count: 1, footprint: "auto" }, source: newHouse(), brief: DEFAULT_BRIEF, idPrefix: "r" }).candidates[0].document);
@@ -51,7 +58,18 @@ describe("what a photo shows", () => {
 
 describe("the photo renderer", () => {
   const request = () => ({ view: renderViewFor(plan(), { kind: "exterior" }, DEFAULT_APPEARANCE)!, style: "modern" as const, image: JPEG });
-  afterEach(() => vi.unstubAllEnvs());
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+    images.client = undefined;
+  });
+  const failing = (error: Error): ImageClient => ({
+    generate: async () => {
+      throw error;
+    },
+  });
+  const picture: ImageClient = { generate: async () => ({ data: "abc", mimeType: "image/jpeg" }) };
 
   it("returns the model's picture, and explains blocks and missing keys", async () => {
     const asked: string[] = [];
@@ -77,6 +95,47 @@ describe("the photo renderer", () => {
     let last = 0;
     for (let i = 0; i < 21; i++) last = (await post(request(), "9.9.9.9")).status;
     expect(last).toBe(429);
+  });
+
+  it("gives Gemini's request a time limit", async () => {
+    vi.stubEnv("GEMINI_API_KEY", "test-key");
+    const signals: Array<AbortSignal | null | undefined> = [];
+    // Answers in place of Google, so nothing leaves the machine.
+    vi.stubGlobal("fetch", async (_url: string, init: RequestInit) => {
+      signals.push(init.signal);
+      return Response.json({ candidates: [{ content: { parts: [{ inlineData: { mimeType: "image/png", data: "abc" } }] } }] });
+    });
+    expect(await renderPhoto(request())).toMatchObject({ ok: true, image: "abc", mimeType: "image/png" });
+    expect(signals).toHaveLength(1);
+    expect(signals[0]).toBeInstanceOf(AbortSignal);
+    expect(signals[0]!.aborted).toBe(false);
+  });
+
+  it("reports a network failure as 502 and a timeout as 504", async () => {
+    const logged = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    expect(await renderPhoto(request(), failing(new TypeError("fetch failed")))).toMatchObject({ ok: false, status: 502, message: expect.stringMatching(/couldn't be reached/) });
+    expect(logged).toHaveBeenCalledOnce();
+    for (const name of ["TimeoutError", "AbortError"]) {
+      expect(await renderPhoto(request(), failing(new DOMException("The operation was aborted.", name)))).toMatchObject({ ok: false, status: 504, message: expect.stringMatching(/took too long/) });
+    }
+  });
+
+  it("counts only finished photos towards GEMINI_DAILY_LIMIT", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    vi.stubEnv("GEMINI_DAILY_LIMIT", "1");
+    // A fresh copy of the route, so its daily count starts at zero.
+    vi.resetModules();
+    const { POST } = await import("@/app/api/design/render/route");
+    const post = (ip: string) => POST(new Request("http://x/api/design/render", { method: "POST", headers: { "x-forwarded-for": ip }, body: JSON.stringify(request()) }));
+    images.client = failing(new TypeError("fetch failed"));
+    expect((await post("4.4.4.1")).status).toBe(502);
+    images.client = failing(new DOMException("The operation timed out.", "TimeoutError"));
+    expect((await post("4.4.4.2")).status).toBe(504);
+    images.client = picture;
+    expect((await post("4.4.4.3")).status).toBe(200);
+    const capped = await post("4.4.4.4");
+    expect(capped.status).toBe(429);
+    expect(await capped.json()).toEqual({ error: expect.stringMatching(/Today's photo renders/) });
   });
 });
 

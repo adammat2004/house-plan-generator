@@ -12,6 +12,7 @@
     "test:watch": "vitest",
     "plans:render": "vitest run --config vitest.plans.config.mts",
     "test:e2e": "next build && playwright test",
+    "eval": "vitest run --config vitest.eval.config.mts",
     "check": "npm run typecheck && npm run lint && npm test && npm run test:e2e"
   },
   "dependencies": {
