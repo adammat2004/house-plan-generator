@@ -23,7 +23,7 @@ const eslintConfig = defineConfig([
       "no-restricted-globals": ["error", "window", "document", "localStorage", "indexedDB", "navigator"],
     },
   },
-  globalIgnores([".next/**", "out/**", "build/**", "next-env.d.ts", "playwright-report/**", "test-results/**"]),
+  globalIgnores([".next/**", "out/**", "build/**", "next-env.d.ts", "playwright-report/**", "test-results/**", ".claude/worktrees/**"]),
 ]);
 
 export default eslintConfig;

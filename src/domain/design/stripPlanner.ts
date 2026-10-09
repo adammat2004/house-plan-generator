@@ -14,6 +14,7 @@ import { DEFAULT_HOUSE, DOOR_PRESET } from "../plan/defaults";
 import type { Id, Opening, PlanDocument, Point2, RoomType } from "../plan/types";
 import type { LayoutPlanner, PlanCandidate, PlanningRequest, PlanningResult } from "./planner";
 import { floorFor, programFromBrief, type Program, type Relaxation, type SpaceSpec, type WindowSize } from "./program";
+import { ENSUITE_TARGET } from "./roomRules";
 import { planRoomChange } from "./roomPlanner";
 import { footprintsFor, minimumFootprint, type Footprint, type FootprintShape } from "./footprint";
 import { planAutoShapes, planWingLayouts, WING_TITLE, wingArrangementOf } from "./wingPlanner";
@@ -411,7 +412,7 @@ function buildLayout(source: PlanDocument, program: Program, arrangement: Arrang
     if (item.ensuite) {
       const e = item.ensuite;
       rooms.push({ point: at(mid, band.hall + dir * (e.depth + (depth - e.depth) / 2)), name: item.spec.name, type: item.spec.type, target: item.spec.target });
-      rooms.push({ point: at((e.a0 + item.a1) / 2, band.hall + (dir * e.depth) / 2), name: "Ensuite", type: "ensuite", target: 3.5 });
+      rooms.push({ point: at((e.a0 + item.a1) / 2, band.hall + (dir * e.depth) / 2), name: "Ensuite", type: "ensuite", target: ENSUITE_TARGET });
     } else rooms.push({ point: at(mid, band.hall + (dir * depth) / 2), name: item.spec.name, type: item.spec.type, target: item.spec.target });
   }
   const hallMid = (bands[0].hall + bands[1].hall) / 2;

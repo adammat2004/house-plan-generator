@@ -5,6 +5,7 @@ import type { Ring } from "../geometry/polygons";
 import type { Rect } from "../geometry/vector";
 import type { RoomType } from "../plan/types";
 import type { Program, SpaceSpec } from "./program";
+import { ENSUITE_TARGET } from "./roomRules";
 
 /**
  * Plans rooms inside any right-angle outline, as labelled rectangles; no
@@ -530,7 +531,7 @@ function zone(bands: Band[], program: Program, arrangement: WingArrangement, rea
     const b = bands[i];
     const list = [...assigned[i], s];
     const need = list.reduce((acc, x) => acc + Math.max(x.minWidth, contactNeed(x, door)), 0);
-    const target = list.reduce((acc, x) => acc + x.target + (x.ensuite ? 3.5 : 0), 0);
+    const target = list.reduce((acc, x) => acc + x.target + (x.ensuite ? ENSUITE_TARGET : 0), 0);
     if (need > bandLength(b) + EPS || target > bandArea(b) * 1.35 + 2) return false;
     // Every room needs its own stretch of hall: rooms between the ends lie wholly along it.
     const reach = b.contact ? b.contact[1] - b.contact[0] : 0;
@@ -694,7 +695,7 @@ function roomsFor(geometry: Geometry, zoned: SpaceSpec[][], reverse: boolean, op
         const carved = carveEnsuite(slot, opts.doorWidth);
         if (carved) {
           rooms.push({ key: s.key, kind, name: s.name, type: s.type, target: s.target, window: s.window, rects: carved.bedroom });
-          rooms.push({ key: `${s.key}-ensuite`, kind: "ensuite", name: "Ensuite", type: "ensuite", target: 3.5, window: "small", rects: [carved.ensuite], of: s.key });
+          rooms.push({ key: `${s.key}-ensuite`, kind: "ensuite", name: "Ensuite", type: "ensuite", target: ENSUITE_TARGET, window: "small", rects: [carved.ensuite], of: s.key });
         } else {
           notes.push(`${s.name} was too small to hold an ensuite.`);
           rooms.push({ key: s.key, kind, name: s.name, type: s.type, target: s.target, window: s.window, rects: [slot.rect] });
@@ -702,7 +703,7 @@ function roomsFor(geometry: Geometry, zoned: SpaceSpec[][], reverse: boolean, op
       } else rooms.push({ key: s.key, kind, name: s.name, type: s.type, target: s.type === "storage" ? undefined : s.target, window: s.window, rects: [slot.rect] });
       const w = slot.rect.maxX - slot.rect.minX;
       const d = slot.rect.maxY - slot.rect.minY;
-      error += Math.abs(area(slot.rect) - s.target - (s.ensuite ? 3.5 : 0)) / Math.max(s.target, 2);
+      error += Math.abs(area(slot.rect) - s.target - (s.ensuite ? ENSUITE_TARGET : 0)) / Math.max(s.target, 2);
       const ratio = Math.max(w / d, d / w);
       if (ratio > 2.4) aspect += ratio > 3 ? 2 : 1;
     }
