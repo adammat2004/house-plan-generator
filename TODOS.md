@@ -19,6 +19,60 @@ Deferred from the Drafted-parity engineering review (2026-10-09). The work in sc
 **Priority:** P1
 **Depends on:** room pins (`Room.locked`), band-mode `planRegion`, the access-graph zone planner.
 
+### Zone layouts for U and T houses
+
+**What:** Lay U and T outlines out as day and night zones, as rectangles and Ls already are.
+
+**Why:** U and T houses still use the wing planner's skeleton: a hall strip with every room off it. They score 40–50 on plan sense, where zone layouts score 80–97.
+
+**Context:**
+- `planZoneColumns` (`design/zonePlanner.ts`) handles outlines that split into two columns running back from the street.
+- A U is three columns. The middle one is shallower and is the natural home for the day zone, with a bedroom wing on each side. Each wing would need its own hall, joined across the front.
+- `zoneFootprints` would propose U shapes the same way it proposes Ls.
+
+**Effort:** L
+**Priority:** P1
+**Depends on:** None.
+
+### Regenerate a selection that includes the hall (wing mode)
+
+**What:** Let "Lay out again" take in the hall, re-planning its rooms and their circulation in an area of any right-angle shape.
+
+**Why:** Band mode (`design/regionPlanner.ts`) only re-orders rooms that together fill a rectangle beside a hall. Drafted lets you redraw any area.
+
+**Context:**
+- Needs the region's outline plus which of its edges are real outside walls, so windows never land on walls shared with pinned rooms.
+- Needs the emitter to build into the existing document, keeping the doors of pinned rooms that open into the region.
+- Measure "unchanged" by geometry, since pinned and free rooms share wall records. ADR 0009 has the details.
+
+**Effort:** L
+**Priority:** P2
+**Depends on:** None.
+
+### Brief changes that keep pinned rooms
+
+**What:** When the brief changes ("add an office") and rooms are pinned, re-plan the free area of the open concept around them. For a house sized from the rooms, grow the outline if needed; for a drawn house, refuse and give the area needed.
+
+**Why:** Today a brief change re-plans from the empty shell, so edits and pins don't carry over.
+
+**Context:** `layouts()` in `editor/state/design.ts` always plans from the root shell. Pins only act inside the open concept (ADR 0009).
+
+**Effort:** M
+**Priority:** P2
+**Depends on:** Regenerate a selection that includes the hall.
+
+### Retire the strip planner
+
+**What:** Remove `buildLayout` in `design/stripPlanner.ts` once zone layouts cover small drawn houses. Port the strip sizer (`footprint.ts`) and the templates.
+
+**Why:** It's the source of the corridor layouts. Today it remains only as a fallback for drawn houses too narrow for a day zone beside a night zone, such as 8 × 10 m for three bedrooms.
+
+**Context:** The `plans:render` report and the scoreboard in `tests/design/sense.test.ts` show where it's still chosen.
+
+**Effort:** M
+**Priority:** P3
+**Depends on:** Zone layouts for small houses (for example, a day zone across the front with the bedrooms behind).
+
 ## Export
 
 ### PDF export with dimensions, then DXF
