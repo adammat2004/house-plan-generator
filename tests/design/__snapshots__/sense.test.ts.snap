@@ -4,14 +4,14 @@ exports[`plan sense scoreboard > records how many generated plans break each rul
 {
   "failing": {
     "daylight": 0,
-    "front_door": 6,
+    "front_door": 3,
     "kitchen_connected": 3,
-    "master_largest": 4,
+    "master_largest": 2,
     "reachable": 0,
-    "room_shape": 12,
+    "room_shape": 8,
     "wet_room_privacy": 0,
   },
-  "meanScore": 70,
+  "meanScore": 77,
   "plans": 27,
 }
 `;

@@ -8,7 +8,7 @@ import { emitLayout } from "./layoutEmitter";
 import type { PlanCandidate, PlanningRequest } from "./planner";
 import { programFromBrief, type Relaxation } from "./program";
 import { assessSense, bySense, type PlanSense } from "./sense";
-import { planZones, zoneFootprints } from "./zonePlanner";
+import { planZoneColumns, planZones, zoneFootprints } from "./zonePlanner";
 import { hallWidthFor } from "./zoning";
 
 /**
@@ -37,7 +37,7 @@ export function zoneCandidates(shell: PlanDocument, request: PlanningRequest, pr
   const intent = request.intent as Extract<PlanningRequest["intent"], { action: "generate_layouts" }>;
   const level = shell.levels[0];
   const env = analyzeEnvelope(level);
-  if (!env.ok || !env.info.isRectangle) return { candidates: [], problem: null };
+  if (!env.ok) return { candidates: [], problem: null };
   const prefs = new Set(intent.brief.preferences);
   const hallWidth = hallWidthFor(prefs);
   const doorWidth = prefs.has("accessible_layout") ? 1 : DOOR_PRESET.width;
@@ -47,7 +47,8 @@ export function zoneCandidates(shell: PlanDocument, request: PlanningRequest, pr
   for (const relax of [0, 1, 2] as Relaxation[]) {
     if (candidates.length) break;
     const program = programFromBrief(intent.brief, relax);
-    const zones = planZones(env.info.axisRect, program, { hallWidth, doorWidth, rearSide });
+    // A rectangle, or two columns side by side (an L with its legs running back from the street).
+    const zones = env.info.isRectangle ? planZones(env.info.axisRect, program, { hallWidth, doorWidth, rearSide }) : planZoneColumns(env.info.axisRing, program, { hallWidth, doorWidth, rearSide });
     problem = zones.problem ?? problem;
     const queue = zones.plans.filter((p) => !excluded(p.id)).slice(0, buildsPerHouse(intent.count));
     for (const [i, plan] of queue.entries()) {
@@ -70,15 +71,19 @@ export function zoneCandidates(shell: PlanDocument, request: PlanningRequest, pr
 
 const SHAPE_WORD = { compact: "A compact", wide: "A wide", deep: "A deep" } as const;
 
-/** Zone layouts in rectangular houses sized for them from the rooms, the best of each size, best first. */
-export function autoZoneCandidates(request: PlanningRequest, excluded: ReadonlySet<string>): JudgedCandidate[] {
+/**
+ * Zone layouts in houses sized for them from the rooms, the best of each
+ * size, best first: rectangles, Ls where the zones need different depths, or
+ * both.
+ */
+export function autoZoneCandidates(request: PlanningRequest, excluded: ReadonlySet<string>, shapes: "rectangle" | "L" | "both" = "rectangle"): JudgedCandidate[] {
   const intent = request.intent as Extract<PlanningRequest["intent"], { action: "generate_layouts" }>;
   const sourceLevel = request.source.levels[0];
   const env = sourceLevel ? analyzeEnvelope(sourceLevel) : null;
   const externalThickness = env?.ok ? env.info.externalThickness : DEFAULT_HOUSE.externalThickness;
   const wallHeight = sourceLevel?.defaultWallHeight ?? DEFAULT_HOUSE.wallHeight;
   const prefs = new Set(intent.brief.preferences);
-  const opts = { hallWidth: hallWidthFor(prefs), doorWidth: prefs.has("accessible_layout") ? 1 : DOOR_PRESET.width, externalThickness, plot: intent.plot };
+  const opts = { hallWidth: hallWidthFor(prefs), doorWidth: prefs.has("accessible_layout") ? 1 : DOOR_PRESET.width, externalThickness, plot: intent.plot, shapes };
   const out: JudgedCandidate[] = [];
   for (const relax of [0, 1, 2] as Relaxation[]) {
     if (out.length) break;
@@ -86,21 +91,23 @@ export function autoZoneCandidates(request: PlanningRequest, excluded: ReadonlyS
     const footprints = zoneFootprints(programFromBrief(intent.brief, relax), opts).slice(0, intent.count <= 1 ? 1 : undefined);
     for (const [fi, fp] of footprints.entries()) {
       const prefix = `${request.idPrefix}-a${fi + 1}`;
-      let shell = createPlanDocument({ id: `${prefix}-plan`, name: request.source.name, width: fp.width, depth: fp.depth, externalThickness, wallHeight, idPrefix: `${prefix}-s` });
+      const size = fp.outline ? { outline: fp.outline } : { width: fp.width, depth: fp.depth };
+      let shell = createPlanDocument({ id: `${prefix}-plan`, name: request.source.name, ...size, externalThickness, wallHeight, idPrefix: `${prefix}-s` });
       // Houses sized from the rooms have the street to the south, so the garden to the north.
       const shellEnv = analyzeEnvelope(shell.levels[0]);
       if (shellEnv.ok) {
         const rear = applyCommand(shell, { type: "setRearWall", wallId: shellEnv.info.sides.north });
         if (rear.ok) shell = rear.document;
       }
-      const key = `${fp.width}x${fp.depth}`;
+      const key = fp.key;
       const { candidates } = zoneCandidates(shell, request, prefix, (id) => excluded.has(`${id}@${key}`));
       // Two per house at most, of different families, so the sizes vary too.
       const families = new Set<string>();
       for (const c of candidates) {
         if (families.size >= 2 || families.has(zoneFamily(c.arrangement!))) continue;
         families.add(zoneFamily(c.arrangement!));
-        out.push({ ...c, summary: `${SHAPE_WORD[fp.shape]} ${fp.width} × ${fp.depth} m house. ${ZONE_SUMMARY}`, variant: `${c.arrangement}@${key}`, footprint: fp });
+        const what = fp.outline ? `An L-shaped ${fp.width} × ${fp.depth} m house` : `${SHAPE_WORD[fp.shape]} ${fp.width} × ${fp.depth} m house`;
+        out.push({ ...c, summary: `${what}. ${ZONE_SUMMARY}`, variant: `${c.arrangement}@${key}`, footprint: { width: fp.width, depth: fp.depth, shape: fp.shape } });
       }
     }
   }
@@ -132,7 +139,8 @@ export function pickVaried<T extends PlanCandidate & { sense?: PlanSense }>(cand
   return picked;
 }
 
-/** Furnishes the zone layouts among picked candidates; the others already are. */
+/** Furnishes the zone layouts among picked candidates that aren't yet; the others already are. */
 export function furnishZones(candidates: PlanCandidate[]): PlanCandidate[] {
-  return candidates.map((c) => (isZoneLayout(c.arrangement) ? { ...c, document: furnishPlan(c.document, c.document.id.replace(/-plan$/, "")) } : c));
+  const bare = (c: PlanCandidate) => isZoneLayout(c.arrangement) && !Object.keys(c.document.levels[0].furniture).length;
+  return candidates.map((c) => (bare(c) ? { ...c, document: furnishPlan(c.document, c.document.id.replace(/-plan$/, "")) } : c));
 }

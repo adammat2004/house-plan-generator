@@ -111,9 +111,14 @@ function planWholeLayouts(request: PlanningRequest): PlanningResult {
   const allowed = ARRANGEMENTS.filter((a) => !(prefs.has("kitchen_faces_garden") && a.split === "depth" && a.dayFirst));
   const excluded = new Set(intent.exclude ?? []);
   if (intent.footprint === "auto") return planAuto(request, allowed, excluded);
-  // Houses that aren't rectangles are laid out wing by wing.
+  // Houses that aren't rectangles: wing by wing, and in zones where the outline is two columns side by side.
   const sourceEnv = analyzeEnvelope(request.source.levels[0]);
-  if (sourceEnv.ok && !sourceEnv.info.isRectangle) return planWingLayouts(request);
+  if (sourceEnv.ok && !sourceEnv.info.isRectangle) {
+    const wings = planWingLayouts(request);
+    const zoned = zoneCandidates(shellFrom(request.source, sourceEnv.info, `${request.idPrefix}-z`)!, request, `${request.idPrefix}-`, (id) => excluded.has(id)).candidates;
+    const all = [...zoned, ...wings.candidates];
+    return all.length ? { candidates: merge(all, intent.count, intent.similarTo), issues: [] } : wings;
+  }
   const fresh = allowed.filter((a) => !excluded.has(a.id));
   const arrangements = intent.similarTo ? similarOrder(intent.similarTo, fresh) : fresh;
   const candidates: PlanCandidate[] = [];
@@ -177,14 +182,14 @@ function planAuto(request: PlanningRequest, allowed: readonly Arrangement[], exc
   const intent = request.intent as Extract<PlanningRequest["intent"], { action: "generate_layouts" }>;
   const shape = intent.brief.houseShape;
   if (!shape || shape === "rectangle") return planAutoRectangles(request, allowed, excluded);
-  if (shape !== "any") return planAutoShapes(request, [shape], excluded);
-  const boxes = planAutoRectangles(request, allowed, excluded);
-  const shaped = planAutoShapes(request, ["L", "U", "T"], excluded);
-  const candidates: PlanCandidate[] = [];
-  for (let i = 0; candidates.length < intent.count && (i < boxes.candidates.length || i < shaped.candidates.length); i++) {
-    for (const c of [shaped.candidates[i], boxes.candidates[i]]) if (c && candidates.length < intent.count) candidates.push(c);
-  }
-  return candidates.length ? { candidates, issues: [] } : { candidates, issues: boxes.issues.length ? boxes.issues : shaped.issues };
+  if (shape === "T" || shape === "U") return planAutoShapes(request, [shape], excluded);
+  // L, or any shape: zone layouts in L houses compete with the wing planner's, and with rectangles when the shape is open.
+  const ls = autoZoneCandidates(request, excluded, "L");
+  const shaped = planAutoShapes(request, shape === "L" ? ["L"] : ["L", "U", "T"], excluded);
+  const boxes = shape === "any" ? planAutoRectangles(request, allowed, excluded) : { candidates: [], issues: [] };
+  const all = [...ls, ...boxes.candidates, ...shaped.candidates];
+  if (all.length) return { candidates: merge(all, intent.count, intent.similarTo), issues: [] };
+  return { candidates: [], issues: boxes.issues.length ? boxes.issues : shaped.issues };
 }
 
 /**

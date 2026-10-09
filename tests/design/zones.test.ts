@@ -7,9 +7,9 @@ import { programFromBrief } from "@/domain/design/program";
 import { assessSense } from "@/domain/design/sense";
 import { planLayouts } from "@/domain/design/stripPlanner";
 import { isZoneLayout } from "@/domain/design/zoneLayouts";
-import { planZones, zoneFootprints } from "@/domain/design/zonePlanner";
+import { planZoneColumns, planZones, zoneFootprints } from "@/domain/design/zonePlanner";
 import type { PlanDocument } from "@/domain/plan/types";
-import { apply, envelope, level, newHouse } from "../helpers";
+import { apply, envelope, level, newHouse, newOutlineHouse } from "../helpers";
 
 const preset = (id: string): HouseBrief => withPicks(DEFAULT_BRIEF, BRIEF_PRESETS.find((p) => p.id === id)!.picks);
 const auto = (brief: HouseBrief, count = 3) => planLayouts({ intent: { action: "generate_layouts", brief, count, footprint: "auto" }, source: newHouse(), brief, idPrefix: "z" });
@@ -81,6 +81,28 @@ describe("zone layouts", () => {
     const { plans, problem } = planZones({ minX: 0, maxX: 7, minY: 0, maxY: 7 }, program, { hallWidth: 1.2, doorWidth: 0.9, rearSide: "north" });
     expect(plans).toEqual([]);
     expect(problem).toBeTruthy();
+  });
+
+  it("lead with an L of bedrooms beside living spaces when an L is asked for", () => {
+    for (const id of ["family-3", "family-4", "bungalow"]) {
+      const result = auto({ ...preset(id), houseShape: "L" });
+      const first = result.candidates[0];
+      expect(first.arrangement, id).toMatch(/^zones-[lr]\.L\./);
+      expect(envelope(first.document).family, id).toBe("L");
+      checkZoneLayout(first.document, `${id} L`);
+    }
+  });
+
+  it("propose L houses it can lay out, each a valid outline", () => {
+    const program = programFromBrief(preset("family-4"));
+    const ls = zoneFootprints(program, { hallWidth: 1.2, doorWidth: 0.9, externalThickness: 0.3, shapes: "L" });
+    expect(ls.length).toBeGreaterThan(0);
+    for (const fp of ls) {
+      let doc = newOutlineHouse(fp.outline!);
+      doc = apply(doc, { type: "setRearWall", wallId: envelope(doc).sides.north });
+      expect(validateDocument(doc), fp.key).toEqual([]);
+      expect(planZoneColumns(envelope(doc).axisRing, program, { hallWidth: 1.2, doorWidth: 0.9, rearSide: "north" }).plans.length, fp.key).toBeGreaterThan(0);
+    }
   });
 
   it("plan a live preview quickly", () => {
