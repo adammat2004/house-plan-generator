@@ -5,6 +5,7 @@ import { BRIEF_PRESETS } from "@/domain/brief/rooms";
 import { DEFAULT_BRIEF, withPicks, type HouseBrief } from "@/domain/brief/schema";
 import { createPlanDocument } from "@/domain/commands";
 import { describePlan } from "@/domain/design/planText";
+import { assessSense } from "@/domain/design/sense";
 import { planLayouts } from "@/domain/design/stripPlanner";
 import { planSvg } from "./planSvg";
 
@@ -42,7 +43,8 @@ it("renders the plans", () => {
       const file = `${c.name}-${i}.svg`;
       const svg = planSvg(level);
       writeFileSync(join(OUT, file), svg);
-      const text = describePlan(level);
+      const sense = assessSense(level);
+      const text = [...describePlan(level), `sense: ${sense.score}/100`, ...sense.findings.map((f) => `  ✗ ${f.rule}: ${f.message}`)];
       const title = `${c.name} #${i} — ${candidate.variant ?? candidate.arrangement ?? ""}`;
       report.push(`-- ${title}`, ...text, ...candidate.notes.map((n) => `  note: ${n}`), "");
       cards.push(`<figure><figcaption>${title}</figcaption>${svg}<pre>${[...text, ...candidate.notes.map((n) => `note: ${n}`)].join("\n").replace(/</g, "&lt;")}</pre></figure>`);

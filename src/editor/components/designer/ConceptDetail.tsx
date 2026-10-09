@@ -18,6 +18,7 @@ import {
   LeafIcon,
   SofaIcon,
   SunIcon,
+  WarningIcon,
 } from "@/components/ui/icons";
 import type { Level } from "@/domain/plan/types";
 import { useRenders } from "../../state/editor";
@@ -108,6 +109,19 @@ export function ConceptDetail({ concept, onClose }: { concept: Concept; onClose:
               </ul>
             ) : (
               <p className="field-hint">No standout features yet.</p>
+            )}
+            <h3 className="detail-heading">Things to check</h3>
+            {concept.sense.findings.length ? (
+              <ul className="feature-list check-list" data-testid="detail-checks">
+                {concept.sense.findings.map((f, i) => (
+                  <li key={i}>
+                    <WarningIcon width={18} height={18} />
+                    {f.message}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="field-hint">Nothing obvious to fix.</p>
             )}
             <h3 className="detail-heading">Area breakdown</h3>
             <dl className="area-list">

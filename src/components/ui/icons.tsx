@@ -363,6 +363,14 @@ export const CheckIcon = (p: IconProps) => (
   </svg>
 );
 
+/** A triangle with an exclamation mark: something to check. */
+export const WarningIcon = (p: IconProps) => (
+  <svg {...base} {...p}>
+    <path d="M12 4 2.8 19.5h18.4z" />
+    <path d="M12 10v4.5M12 17.2v.1" />
+  </svg>
+);
+
 export const UploadIcon = (p: IconProps) => (
   <svg {...base} {...p}>
     <path d="M12 15V4M8 8l4-4 4 4" />

@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { useStore } from "zustand";
 import { assessPlan, briefFit, PLAN_FEATURE_LABEL, type PlanAssessment } from "@/domain/design/analysis";
+import { assessSense, type PlanSense } from "@/domain/design/sense";
 import { arrangementTitle } from "@/domain/design/stripPlanner";
 import type { Level } from "@/domain/plan/types";
 import type { PlanVariantMeta } from "@/domain/project/schema";
@@ -17,6 +18,8 @@ export interface Concept extends PlanEntry {
   title: string;
   description: string;
   assessment: PlanAssessment;
+  /** Whether the plan makes sense: things to check, and a score. */
+  sense: PlanSense;
 }
 
 const AUTO_LABEL = /^Plan ([A-Z]+)$/;
@@ -40,7 +43,8 @@ function describe(meta: PlanVariantMeta, plans: PlanVariantMeta[]): string {
 
 /**
  * The project's plans as the concept board sees them: the user's starting
- * plans, and the concepts derived from them with a recommendation.
+ * plans, and the concepts derived from them with a recommendation that
+ * weighs both the brief and whether the plan makes sense.
  */
 export function useConcepts(): { shells: PlanEntry[]; concepts: Concept[]; recommendedId: string | null } {
   const plans = useProjectState((s) => s.plans);
@@ -61,13 +65,14 @@ export function useConcepts(): { shells: PlanEntry[]; concepts: Concept[]; recom
       }
       const assessment = assessPlan(level);
       const letter = AUTO_LABEL.exec(meta.label)?.[1] ?? String.fromCharCode(65 + (concepts.length % 26));
-      concepts.push({ meta, level, letter, title: titleOf(meta, assessment), description: describe(meta, plans), assessment });
+      concepts.push({ meta, level, letter, title: titleOf(meta, assessment), description: describe(meta, plans), assessment, sense: assessSense(level) });
     }
     let recommendedId: string | null = null;
     if (concepts.length > 1) {
       let best = -Infinity;
       for (const c of concepts) {
-        const score = briefFit(c.assessment, brief);
+        // How well it answers the brief, and how much sense it makes (a 0–100 score worth up to 4 brief points).
+        const score = briefFit(c.assessment, brief) + c.sense.score / 25;
         if (score > best + 1e-9) [best, recommendedId] = [score, c.meta.id];
       }
     }

@@ -16,6 +16,7 @@ import {
   RefreshIcon,
   SofaIcon,
   SparkleIcon,
+  WarningIcon,
 } from "@/components/ui/icons";
 import { design, editor, useProjectState, useSessionState } from "../../state/editor";
 import { BoardDock, usePanZoom } from "./board";
@@ -235,6 +236,12 @@ function ConceptCard({ concept, recommended, selected, onFocus }: { concept: Con
             </li>
           ))}
         </ul>
+        {concept.sense.findings.length > 0 && (
+          <p className="concept-check" data-testid={`concept-check-${meta.label}`}>
+            <WarningIcon width={14} height={14} />
+            {concept.sense.findings.length === 1 ? "1 thing to check" : `${concept.sense.findings.length} things to check`}
+          </p>
+        )}
         <dl className="concept-stats">
           <Stat icon={<SofaIcon width={14} height={14} />} label="Living area" value={`${a.dayArea.toFixed(1)} m²`} />
           <Stat icon={<AreaIcon width={14} height={14} />} label="Total area" value={`${a.totalArea.toFixed(1)} m²`} />

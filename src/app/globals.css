@@ -2597,6 +2597,15 @@ input[role="switch"]:checked::before {
   font-size: 11.5px;
 }
 
+.concept-check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  color: var(--warning);
+  font-size: 12px;
+}
+
 .concept-stats {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -2927,6 +2936,14 @@ input[role="switch"]:checked::before {
 .feature-list svg {
   flex-shrink: 0;
   color: var(--text-2);
+}
+
+.check-list li {
+  align-items: flex-start;
+}
+
+.check-list svg {
+  color: var(--warning);
 }
 
 .area-list {

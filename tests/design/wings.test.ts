@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { DEFAULT_BRIEF, type HouseBrief } from "@/domain/brief/schema";
 import { validateDocument } from "@/domain/commands";
 import { roomConnections } from "@/domain/design/analysis";
+import { assessSense, findingsFor } from "@/domain/design/sense";
 import type { PlanningResult } from "@/domain/design/planner";
 import { arrangementTitle, planLayouts } from "@/domain/design/stripPlanner";
 import { wingArrangementOf } from "@/domain/design/wingPlanner";
@@ -37,19 +38,8 @@ function checkLayout(doc: PlanDocument, label: string) {
   expect(rooms.filter((r) => r.type === "unspecified"), label).toEqual([]);
   const halls = rooms.filter((r) => r.type === "hall");
   expect(halls, label).toHaveLength(1);
-  // Every room can be reached from the hall through doors.
-  const reached = new Set([halls[0].id]);
-  const queue = [halls[0].id];
-  while (queue.length) {
-    const id = queue.pop()!;
-    for (const c of roomConnections(lvl, id)) {
-      if (c.kind === "door" && c.target.kind === "room" && !reached.has(c.target.roomId)) {
-        reached.add(c.target.roomId);
-        queue.push(c.target.roomId);
-      }
-    }
-  }
-  expect(rooms.filter((r) => !reached.has(r.id)).map((r) => r.name), label).toEqual([]);
+  // Every room can be reached from the front door through doors.
+  expect(findingsFor(assessSense(lvl), ["reachable"]), label).toEqual([]);
   // The front door opens into the hall from outside.
   expect(roomConnections(lvl, halls[0].id).some((c) => c.kind === "door" && c.target.kind !== "room"), `${label}: front door`).toBe(true);
 }
