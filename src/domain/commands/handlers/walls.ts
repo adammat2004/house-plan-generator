@@ -1,7 +1,7 @@
 import { deriveLevelGeometry } from "../../geometry/derive";
 import { EPS, roundToPrecision } from "../../geometry/numeric";
 import { connectedWallIds } from "../../geometry/topology";
-import { roundPoint } from "../../geometry/vector";
+import { pointsEqual, roundPoint } from "../../geometry/vector";
 import { classifyOrientation, pointInAxisInterior, wallAxis } from "../../geometry/walls";
 import { LIMITS } from "../../plan/defaults";
 import type { Id, Level, Opening, Point2, Wall } from "../../plan/types";
@@ -33,7 +33,7 @@ function requireInternal(wall: Wall, action: string): void {
   if (wall.role === "external") {
     fail(
       "envelope-locked",
-      `External walls are locked to the house rectangle; change the house width or depth instead of ${action}.`,
+      `External walls follow the house outline; change the house's size or shape instead of ${action}.`,
       [wall.id],
     );
   }
@@ -68,7 +68,10 @@ export function addWall(level: Level, cmd: AddWall, ids: IdSource): Level {
   return { ...level, vertices, walls: { ...level.walls, [wallId]: wall } };
 }
 
-/** Walls continuing this wall's line through shared vertices; they move as one straight wall. */
+/**
+ * Internal walls continuing this wall's line through shared vertices; they
+ * move as one straight wall. The chain stops at outline walls.
+ */
 function collinearChain(level: Level, wallId: Id): Set<Id> {
   const geometry = deriveLevelGeometry(level);
   const origin = geometry.axes.get(wallId)!;
@@ -78,7 +81,7 @@ function collinearChain(level: Level, wallId: Id): Set<Id> {
     const current = level.walls[queue.pop()!];
     for (const vid of [current.startVertexId, current.endVertexId]) {
       for (const otherId of wallsUsingVertex(level, vid)) {
-        if (chain.has(otherId)) continue;
+        if (chain.has(otherId) || level.walls[otherId].role === "external") continue;
         const axis = geometry.axes.get(otherId);
         if (axis && axis.orientation === origin.orientation && Math.abs(axis.line - origin.line) <= EPS) {
           chain.add(otherId);
@@ -95,8 +98,11 @@ function collinearChain(level: Level, wallId: Id): Set<Id> {
  * collinear segments continuing it. Perpendicular walls attached at its ends
  * or along its length stretch or shorten with it. Moves that would break a
  * connection or collapse an attached wall are rejected.
+ *
+ * An end on a corner of the house outline (a wall running on from an inward
+ * corner) leaves the corner on a new vertex, which must land on another wall.
  */
-export function moveWall(level: Level, cmd: MoveWall): Level {
+export function moveWall(level: Level, cmd: MoveWall, ids: IdSource): Level {
   const wall = requireWall(level, cmd.wallId);
   requireInternal(wall, "dragging them");
   const delta = roundToPrecision(requireFinite(cmd.delta, "Move distance"));
@@ -112,9 +118,6 @@ export function moveWall(level: Level, cmd: MoveWall): Level {
     horizontal ? { x: p.x, y: roundToPrecision(p.y + delta) } : { x: roundToPrecision(p.x + delta), y: p.y };
 
   const chain = collinearChain(level, wall.id);
-  for (const id of chain) {
-    if (level.walls[id].role === "external") fail("envelope-locked", "This move would reshape an external wall.", [wall.id, id]);
-  }
   const chainAxes = [...chain].map((id) => geometry.axes.get(id)!);
 
   // A sliding wall may not pass through a parallel wall lying across its path.
@@ -132,13 +135,19 @@ export function moveWall(level: Level, cmd: MoveWall): Level {
       ]);
     }
   }
+  const onOutline = (vid: Id) => wallsUsingVertex(level, vid).some((id) => level.walls[id].role === "external");
   const moving = new Set<Id>();
+  const detached = new Map<Id, Id>();
   for (const id of chain) {
-    moving.add(level.walls[id].startVertexId);
-    moving.add(level.walls[id].endVertexId);
+    for (const vid of [level.walls[id].startVertexId, level.walls[id].endVertexId]) {
+      if (!onOutline(vid)) moving.add(vid);
+      else if (!detached.has(vid)) detached.set(vid, "");
+    }
   }
   for (const [id, p] of Object.entries(level.vertices)) {
-    if (!moving.has(id) && chainAxes.some((a) => pointInAxisInterior(a, p))) moving.add(id);
+    if (moving.has(id) || detached.has(id) || !chainAxes.some((a) => pointInAxisInterior(a, p))) continue;
+    if (onOutline(id)) fail("envelope-locked", "This move would reshape an external wall.", [wall.id]);
+    moving.add(id);
   }
 
   const attached = new Set<Id>();
@@ -154,7 +163,35 @@ export function moveWall(level: Level, cmd: MoveWall): Level {
 
   const vertices = { ...level.vertices };
   for (const vid of moving) vertices[vid] = shift(level.vertices[vid]);
-  const next: Level = { ...level, vertices };
+  // Ends leaving an outline corner get a new vertex; ends landing on one join it.
+  const repoint = new Map<Id, Id>();
+  for (const vid of detached.keys()) {
+    const target = shift(level.vertices[vid]);
+    const existing = Object.entries(vertices).find(([id, p]) => !moving.has(id) && pointsEqual(p, target))?.[0];
+    const id = existing ?? ids.next("v");
+    vertices[id] = target;
+    detached.set(vid, id);
+  }
+  for (const vid of moving) {
+    const corner = Object.keys(level.vertices).find((id) => !moving.has(id) && onOutline(id) && pointsEqual(level.vertices[id], vertices[vid]));
+    if (!corner) continue;
+    repoint.set(vid, corner);
+    delete vertices[vid];
+  }
+  let walls = level.walls;
+  const detachedWalls = new Set<Id>();
+  if (detached.size || repoint.size) {
+    walls = { ...level.walls };
+    for (const w of Object.values(level.walls)) {
+      const own = chain.has(w.id) ? detached : null;
+      const start = repoint.get(w.startVertexId) ?? own?.get(w.startVertexId);
+      const end = repoint.get(w.endVertexId) ?? own?.get(w.endVertexId);
+      if (!start && !end) continue;
+      walls[w.id] = { ...w, startVertexId: start ?? w.startVertexId, endVertexId: end ?? w.endVertexId };
+      if (own && (own.has(w.startVertexId) || own.has(w.endVertexId))) detachedWalls.add(w.id);
+    }
+  }
+  const next: Level = { ...level, vertices, walls };
 
   for (const otherId of attached) {
     const before = geometry.axes.get(otherId)!;
@@ -169,13 +206,16 @@ export function moveWall(level: Level, cmd: MoveWall): Level {
     }
   }
 
-  const compensated = compensateOpenings(level, next);
+  const compensated = removeOrphanVertices(compensateOpenings(level, next));
   const nextContacts = deriveLevelGeometry(compensated).contacts;
   const lost: Id[] = [];
   for (const id of chain) {
     const after = connectedWallIds(nextContacts, id);
     for (const other of connectedWallIds(geometry.contacts, id)) {
-      if (!chain.has(other) && !after.has(other) && !lost.includes(other)) lost.push(other);
+      if (chain.has(other) || after.has(other) || lost.includes(other)) continue;
+      // An end that left an outline corner only has to land on some wall.
+      if (detachedWalls.has(id) && level.walls[other].role === "external") continue;
+      lost.push(other);
     }
   }
   if (lost.length > 0) {
@@ -184,6 +224,18 @@ export function moveWall(level: Level, cmd: MoveWall): Level {
       `Moving this far would disconnect the wall from ${lost.map((id) => describeEntity(level, id)).join(", ")}.`,
       [wall.id, ...lost],
     );
+  }
+  for (const id of detachedWalls) {
+    const w = compensated.walls[id];
+    for (const end of ["start", "end"] as const) {
+      if (!detached.has(level.walls[id][end === "start" ? "startVertexId" : "endVertexId"])) continue;
+      const vid = end === "start" ? w.startVertexId : w.endVertexId;
+      const shared = wallsUsingVertex(compensated, vid).length > 1;
+      const touching = (nextContacts.get(id) ?? []).some((c) => c.thisEnd === end);
+      if (!shared && !touching) {
+        fail("move-disconnects", `Moving this far would leave ${describeEntity(level, id)} with a free end.`, [wall.id, id]);
+      }
+    }
   }
   return compensated;
 }
@@ -252,7 +304,7 @@ export function updateWall(level: Level, cmd: UpdateWall): Level {
 export function deleteWall(level: Level, wallId: Id): Level {
   const wall = requireWall(level, wallId);
   if (wall.role === "external") {
-    fail("envelope-locked", "External walls can't be deleted; they define the house rectangle.", [wall.id]);
+    fail("envelope-locked", "External walls can't be deleted; they make up the house outline.", [wall.id]);
   }
   const walls = { ...level.walls };
   delete walls[wall.id];

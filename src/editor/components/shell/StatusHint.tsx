@@ -6,6 +6,8 @@ import { TOOLS, WORKSPACE_HINT } from "./tools";
 
 const SNAP_LABEL = { endpoint: "Endpoint", junction: "Junction", wall: "On wall", centre: "Centred", grid: "Grid", free: "Free" } as const;
 
+const OUTLINE_HINT = "Drag outside walls to move them, Alt-drag for a bay, or drag a corner square to cut a notch.";
+
 /** Quiet bottom-left readout: cursor position, snap and what the current tool does. */
 export function StatusHint() {
   const cursor = useSessionState((s) => s.cursor);
@@ -14,8 +16,12 @@ export function StatusHint() {
   const workspace = useSessionState((s) => s.workspace);
   const openingDraft = useSessionState((s) => s.openingDraft);
   const previewIssue = useDocumentState((s) => s.preview?.issue ?? null);
-  const hint = WORKSPACE_HINT[workspace] ?? TOOLS.find((t) => t.id === tool)?.hint;
-  const message = previewIssue?.message ?? (openingDraft && !openingDraft.valid ? openingDraft.message : null);
+  const selection = useSessionState((s) => s.selection);
+  const outsideWall = useDocumentState((s) => selection?.kind === "wall" && s.history.present.levels[0].walls[selection.id]?.role === "external");
+  const reshaping = workspace === "structure" && tool === "select" && (outsideWall || selection?.kind === "house");
+  const hint = reshaping ? OUTLINE_HINT : (WORKSPACE_HINT[workspace] ?? TOOLS.find((t) => t.id === tool)?.hint);
+  const outlineProblem = useSessionState((s) => s.outlineDraft?.problem ?? null);
+  const message = previewIssue?.message ?? (openingDraft && !openingDraft.valid ? openingDraft.message : null) ?? outlineProblem;
   return (
     <footer className="status-hint" aria-label="Status">
       <span className={message ? "status-message is-warning" : "status-message"} data-testid="status-message">

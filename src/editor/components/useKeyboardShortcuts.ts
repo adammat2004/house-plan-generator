@@ -4,9 +4,13 @@ import { useEffect } from "react";
 import { editor, editorStores } from "../state/editor";
 import { toolController } from "../tools/instance";
 import type { ToolId, Workspace } from "../state/stores";
+import { turn } from "@/domain/furniture/geometry";
 import { selectTool, selectWorkspace } from "./shell/tools";
 
-const TOOL_KEYS: Record<string, ToolId> = { v: "select", w: "wall", r: "room", d: "door", n: "window" };
+const TOOL_KEYS: Record<string, ToolId> = { v: "select", w: "wall", r: "room", d: "door", n: "window", u: "furniture", o: "outline" };
+/** Arrow keys nudge furniture by this much (m); with Shift, ten times as far. */
+const NUDGE = 0.05;
+const ARROWS: Record<string, [number, number]> = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, 1], ArrowDown: [0, -1] };
 const WORKSPACE_KEYS: Record<string, Workspace> = { "1": "structure", "2": "brief", "3": "design", "4": "present" };
 
 function isTextInput(target: EventTarget | null): boolean {
@@ -28,9 +32,10 @@ export function deleteSelection() {
   if (selection.kind === "opening") editor.dispatch({ type: "deleteOpening", openingId: selection.id });
   else if (selection.kind === "wall") {
     if (level.walls[selection.id]?.role === "external") {
-      editor.notify("info", "External walls define the house rectangle and can't be deleted. Change the width or depth instead.");
+      editor.notify("info", "External walls make up the house outline and can't be deleted. Change the house's size or shape instead.");
     } else editor.dispatch({ type: "deleteWall", wallId: selection.id });
-  } else if (selection.kind === "room") editor.notify("info", "Rooms come from their walls. Delete a wall to merge rooms.");
+  } else if (selection.kind === "furniture") editor.dispatch({ type: "deleteFurniture", furnitureId: selection.id });
+  else if (selection.kind === "room") editor.notify("info", "Rooms come from their walls. Delete a wall to merge rooms.");
 }
 
 /** Global shortcuts. Never intercepts typing in text fields. */
@@ -53,7 +58,30 @@ export function useKeyboardShortcuts() {
         editor.redo();
         return;
       }
+      const selection = editorStores.session.getState().selection;
+      const furnitureId = selection?.kind === "furniture" ? selection.id : null;
+      if (mod && key === "d" && furnitureId) {
+        e.preventDefault();
+        editor.duplicateFurniture(furnitureId);
+        return;
+      }
       if (mod || e.altKey) return;
+      if (ARROWS[e.key] && furnitureId && !toolController.isGestureActive()) {
+        e.preventDefault();
+        const [dx, dy] = ARROWS[e.key];
+        const step = e.shiftKey ? NUDGE * 10 : NUDGE;
+        editor.nudgeFurniture(furnitureId, dx * step, dy * step);
+        return;
+      }
+      if (e.shiftKey && key === "r" && !e.repeat) {
+        // Turns the selected piece, or the one the Furniture tool is about to place.
+        const s = editorStores.session.getState();
+        if (furnitureId) editor.rotateFurniture(furnitureId);
+        else if (s.tool === "furniture") {
+          editorStores.session.setState({ settings: { ...s.settings, furniture: { ...s.settings.furniture, rotation: turn(s.settings.furniture.rotation, -1) } } });
+        }
+        return;
+      }
       if (e.key === " ") {
         // Space still activates focused buttons and menus.
         if (e.target instanceof HTMLElement && e.target.closest("button, summary, a, [role='menuitem']")) return;
@@ -63,6 +91,12 @@ export function useKeyboardShortcuts() {
       }
       if (e.key === "Escape") {
         if (!toolController.cancel() && editorStores.session.getState().tool !== "select") selectTool("select");
+        return;
+      }
+      if (editorStores.session.getState().tool === "outline" && (e.key === "Enter" || e.key === "Backspace")) {
+        e.preventDefault();
+        if (e.key === "Enter") toolController.finishOutline();
+        else toolController.undoOutlineCorner();
         return;
       }
       if (e.key === "Delete" || e.key === "Backspace") {

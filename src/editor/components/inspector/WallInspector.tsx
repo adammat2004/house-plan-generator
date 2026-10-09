@@ -3,6 +3,7 @@
 import { describeEntity } from "@/domain/commands";
 import { deriveLevelGeometry } from "@/domain/geometry/derive";
 import { analyzeEnvelope } from "@/domain/geometry/envelope";
+import { SIDE_NORMAL } from "@/domain/geometry/outline";
 import type { Level } from "@/domain/plan/types";
 import { Button, NumberField, ReadoutRow } from "@/components/ui/controls";
 import { TrashIcon } from "@/components/ui/icons";
@@ -20,6 +21,14 @@ export function WallInspector({ level, wallId }: { level: Level; wallId: string 
   const hosted = Object.values(level.openings).filter((o) => o.wallId === wallId).length;
 
   const commitLength = (length: number): true | string => {
+    if (external && env.ok && !env.info.isRectangle) {
+      // Moves the wall at this one's end, out or in, so this wall's start stays put.
+      const ids = level.envelope.wallIds;
+      const next = env.info.edges[(ids.indexOf(wallId) + 1) % ids.length];
+      const n = SIDE_NORMAL[next.facing];
+      const sign = n.x * axis.dir.x + n.y * axis.dir.y;
+      return run({ type: "moveOutlineEdge", wallId: next.wallId, outward: (length - axis.length) * sign });
+    }
     if (external && env.ok) {
       const t = env.info.thickness;
       return horizontal
@@ -41,7 +50,7 @@ export function WallInspector({ level, wallId }: { level: Level; wallId: string 
           label="Length"
           value={axis.length}
           testId="wall-length"
-          hint={external ? "Changes the house's outside size." : undefined}
+          hint={external ? (env.ok && !env.info.isRectangle ? "Moves the wall at this one's end." : "Changes the house's outside size.") : undefined}
           onCommit={commitLength}
         />
         <div className="field-row">

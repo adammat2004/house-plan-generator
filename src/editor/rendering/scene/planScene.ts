@@ -4,8 +4,11 @@ import { formatArea } from "@/domain/geometry/numeric";
 import type { MultiPolygon, Ring } from "@/domain/geometry/polygons";
 import type { Rect } from "@/domain/geometry/vector";
 import { pointAtParam, type WallAxis } from "@/domain/geometry/walls";
-import { roomBounds } from "@/domain/design/analysis";
-import type { FloorMaterial, Id, Level, Opening, Point2, RoomType } from "@/domain/plan/types";
+import { roomAtPoint, roomBounds } from "@/domain/design/analysis";
+import { furnitureRect } from "@/domain/furniture/geometry";
+import { furnitureIssues, type FurnitureProblem } from "@/domain/furniture/issues";
+import type { FloorMaterial, FurnitureKind, Id, Level, Opening, Point2, RoomType } from "@/domain/plan/types";
+import { furnitureSymbol, type SymbolPart } from "./furnitureSymbols";
 
 /**
  * Pure derivation from a Level to drawable 2D primitives in world metres.
@@ -40,6 +43,15 @@ export interface OpeningPrimitive {
   glazing?: Array<[Point2, Point2]>;
 }
 
+export interface FurniturePrimitive {
+  id: Id;
+  kind: FurnitureKind;
+  outline: Ring;
+  parts: SymbolPart[];
+  /** Why it doesn't stand clear, if it doesn't. */
+  problem: FurnitureProblem | null;
+}
+
 export interface AxisPrimitive {
   wallId: Id;
   start: Point2;
@@ -53,8 +65,12 @@ export interface PlanScene {
   wallMass: MultiPolygon;
   rooms: RoomPrimitive[];
   openings: OpeningPrimitive[];
+  furniture: FurniturePrimitive[];
   axes: AxisPrimitive[];
+  /** Bounding box of the outline's outside faces. */
   outsideRect: Rect | null;
+  /** The outline's outside faces. */
+  outsideRing: Ring | null;
   rearWallId: Id | null;
 }
 
@@ -94,6 +110,14 @@ export function buildPlanScene(level: Level): PlanScene {
     if (axis) openings.push(openingPrimitive(opening, axis));
   }
 
+  const problems = furnitureIssues(level);
+  const furniture: FurniturePrimitive[] = Object.values(level.furniture).map((item) => ({
+    id: item.id,
+    kind: item.kind,
+    ...furnitureSymbol(item),
+    problem: problems.get(item.id) ?? null,
+  }));
+
   const axes: AxisPrimitive[] = [];
   for (const axis of geometry.axes.values()) {
     const fp = geometry.footprints.get(axis.wallId);
@@ -111,8 +135,10 @@ export function buildPlanScene(level: Level): PlanScene {
     wallMass: deriveWallMass(level),
     rooms,
     openings,
+    furniture,
     axes,
     outsideRect: env.ok ? env.info.outsideRect : null,
+    outsideRing: env.ok ? env.info.outsideRing : null,
     rearWallId: level.rearWallId,
   };
   sceneCache.set(level, scene);
@@ -217,6 +243,17 @@ export function buildDimensions(level: Level, selection: { kind: string; id: Id 
       text: `${env.info.depth.toFixed(3)} m`,
       tone: "overall",
     });
+    if (!env.info.isRectangle) {
+      // Each outside face of an L, U or other shape, just outside it (the ring runs
+      // counterclockwise, so outside is to the right). Faces the overall lines already measure are left out.
+      for (const edge of env.info.edges) {
+        const { start: a, end: b, length } = edge.outside;
+        const onWidth = edge.facing === "north" && Math.abs(a.y - r.maxY) < 1e-6 && Math.abs(length - env.info.width) < 1e-6;
+        const onDepth = edge.facing === "west" && Math.abs(a.x - r.minX) < 1e-6 && Math.abs(length - env.info.depth) < 1e-6;
+        if (onWidth || onDepth) continue;
+        dims.push({ key: `outline-${edge.wallId}`, a, b, offsetPx: -20, text: `${length.toFixed(3)} m`, tone: "overall" });
+      }
+    }
   }
   if (!selection) return dims;
   const geometry = deriveLevelGeometry(level);
@@ -238,6 +275,29 @@ export function buildDimensions(level: Level, selection: { kind: string; id: Id 
         text: `${axis.length.toFixed(3)} m`,
         tone: "selection",
       });
+    }
+  } else if (selection.kind === "furniture") {
+    const item = level.furniture[selection.id];
+    if (item) {
+      const r = furnitureRect(item);
+      dims.push({ key: "furniture-width", a: { x: r.minX, y: r.maxY }, b: { x: r.maxX, y: r.maxY }, offsetPx: 14, text: formatMm(r.maxX - r.minX), tone: "selection" });
+      dims.push({ key: "furniture-depth", a: { x: r.maxX, y: r.maxY }, b: { x: r.maxX, y: r.minY }, offsetPx: 14, text: formatMm(r.maxY - r.minY), tone: "selection" });
+      // Gaps to the room's walls either side, so pieces can be placed to the millimetre.
+      const roomId = roomAtPoint(level, item.position);
+      const room = roomId ? roomBounds(level, roomId) : null;
+      if (room) {
+        const midX = (r.minX + r.maxX) / 2;
+        const midY = (r.minY + r.maxY) / 2;
+        const gaps: Array<[string, Point2, Point2, number]> = [
+          ["west", { x: room.minX, y: midY }, { x: r.minX, y: midY }, r.minX - room.minX],
+          ["east", { x: r.maxX, y: midY }, { x: room.maxX, y: midY }, room.maxX - r.maxX],
+          ["south", { x: midX, y: room.minY }, { x: midX, y: r.minY }, r.minY - room.minY],
+          ["north", { x: midX, y: r.maxY }, { x: midX, y: room.maxY }, room.maxY - r.maxY],
+        ];
+        for (const [side, a, b, gap] of gaps) {
+          if (gap > 0.005) dims.push({ key: `furniture-gap-${side}`, a, b, offsetPx: 0, text: formatMm(gap), tone: "selection" });
+        }
+      }
     }
   } else if (selection.kind === "opening") {
     const opening = level.openings[selection.id];

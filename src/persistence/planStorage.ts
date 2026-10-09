@@ -46,14 +46,41 @@ export interface ProjectLibrary {
   /** Copies a project under a new id and returns the copy. */
   duplicate(id: string, newId: string): Promise<ProjectDocument>;
   remove(id: string): Promise<void>;
+  /** Photo renders of the project's rooms, kept apart from the autosaved project. */
+  renders: RenderStorage;
+}
+
+/** One photo render of a view (a room, or "exterior") of one plan. */
+export interface RenderRecord {
+  projectId: string;
+  planId: string;
+  view: string;
+  bytes: ArrayBuffer;
+  mimeType: string;
+  /** What the view showed when it was rendered (renderKey); a different key means the plan has changed. */
+  sourceHash: string;
+  style: string;
+  model: string;
+  createdAt: string;
+}
+
+export interface RenderStorage {
+  list(projectId: string): Promise<RenderRecord[]>;
+  put(record: RenderRecord): Promise<void>;
+  /** Deletes renders of plans the project no longer has. */
+  prune(projectId: string, livePlanIds: ReadonlySet<string>): Promise<void>;
 }
 
 const DB_NAME = "floor-plan-editor";
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 /** Version 1 kept a single project under "current" and "previous" in this store. */
 const LEGACY_STORE = "plans";
 const PROJECTS = "projects";
 const REVISIONS = "revisions";
+/** Added in version 3: photo renders, keyed "project/plan/view", indexed by project. */
+const RENDERS = "renders";
+const BY_PROJECT = "byProject";
+const renderKeyOf = (r: Pick<RenderRecord, "projectId" | "planId" | "view">) => `${r.projectId}/${r.planId}/${r.view}`;
 
 const timestamp = () => new Date().toISOString();
 
@@ -101,6 +128,7 @@ function openDatabase(factory: IDBFactory): Promise<IDBDatabase> {
       const db = req.result;
       if (!db.objectStoreNames.contains(PROJECTS)) db.createObjectStore(PROJECTS);
       if (!db.objectStoreNames.contains(REVISIONS)) db.createObjectStore(REVISIONS);
+      if (!db.objectStoreNames.contains(RENDERS)) db.createObjectStore(RENDERS).createIndex(BY_PROJECT, "projectId");
       if (db.objectStoreNames.contains(LEGACY_STORE) && req.transaction) migrateLegacy(req.transaction);
     };
     req.onsuccess = () => resolve(req.result);
@@ -211,17 +239,52 @@ export function createProjectLibrary(factory: IDBFactory | undefined = globalThi
       const source = await loadValid(id);
       const copy: ProjectDocument = { ...source, id: newId, name: `${source.name} copy`.slice(0, 200) };
       await this.create(copy);
+      // Plan ids are kept, so the copy keeps its photos.
+      const photos = await rendersOf(id);
+      if (photos.length) {
+        const tx = (await database()).transaction(RENDERS, "readwrite");
+        const finished = done(tx);
+        for (const photo of photos) tx.objectStore(RENDERS).put({ ...photo, projectId: newId }, renderKeyOf({ ...photo, projectId: newId }));
+        await finished;
+      }
       return copy;
     },
 
     async remove(id) {
-      const tx = (await database()).transaction([PROJECTS, REVISIONS], "readwrite");
+      const tx = (await database()).transaction([PROJECTS, REVISIONS, RENDERS], "readwrite");
       const finished = done(tx);
       tx.objectStore(PROJECTS).delete(id);
       tx.objectStore(REVISIONS).delete(id);
+      const keys = tx.objectStore(RENDERS).index(BY_PROJECT).getAllKeys(id);
+      keys.onsuccess = () => {
+        for (const key of keys.result) tx.objectStore(RENDERS).delete(key);
+      };
       await finished;
     },
+
+    renders: {
+      list: (projectId) => rendersOf(projectId),
+      async put(record) {
+        const tx = (await database()).transaction(RENDERS, "readwrite");
+        const finished = done(tx);
+        tx.objectStore(RENDERS).put(record, renderKeyOf(record));
+        await finished;
+      },
+      async prune(projectId, livePlanIds) {
+        const stale = (await rendersOf(projectId)).filter((r) => !livePlanIds.has(r.planId));
+        if (!stale.length) return;
+        const tx = (await database()).transaction(RENDERS, "readwrite");
+        const finished = done(tx);
+        for (const r of stale) tx.objectStore(RENDERS).delete(renderKeyOf(r));
+        await finished;
+      },
+    },
   };
+
+  async function rendersOf(projectId: string): Promise<RenderRecord[]> {
+    const tx = (await database()).transaction(RENDERS, "readonly");
+    return (await request(tx.objectStore(RENDERS).index(BY_PROJECT).getAll(projectId))) as RenderRecord[];
+  }
 }
 
 export type StartupResult =

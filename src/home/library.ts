@@ -3,7 +3,12 @@
 import { useStore } from "zustand";
 import { createStore } from "zustand/vanilla";
 import { createPlanDocument } from "@/domain/commands";
+import type { Point2 } from "@/domain/plan/types";
 import { projectFromPlan, type ProjectDetails, type ProjectDocument } from "@/domain/project/schema";
+import { BRIEF_PRESETS } from "@/domain/brief/rooms";
+import { DEFAULT_BRIEF, withPicks, type HouseShape } from "@/domain/brief/schema";
+import type { PlotLimits } from "@/domain/design/footprint";
+import { projectFromRooms } from "@/domain/project/fromRooms";
 import { projectFromTemplate, type ProjectTemplate } from "@/domain/project/templates";
 import { editorStores } from "@/editor/state/editor";
 import type { CreateHouseValues } from "@/editor/components/CreateHouseDialog";
@@ -40,8 +45,8 @@ export async function refreshLibrary(): Promise<void> {
 
 const now = () => new Date().toISOString();
 
-/** The editor URL for a project. */
-export const editorHref = (id: string, start?: "draw") => `/editor?project=${encodeURIComponent(id)}${start ? `&start=${start}` : ""}`;
+/** The editor URL for a project; "rooms" opens on the room picker, "concepts" on generated layouts. */
+export const editorHref = (id: string, start?: "draw" | "concepts" | "rooms") => `/editor?project=${encodeURIComponent(id)}${start ? `&start=${start}` : ""}`;
 
 async function add(project: ProjectDocument): Promise<string> {
   await browserLibrary().create(project);
@@ -59,16 +64,30 @@ export async function createProjectFromDimensions(values: CreateHouseValues, det
     depth: values.depth,
     externalThickness: values.externalThickness,
     wallHeight: values.wallHeight,
+    ...(values.outline ? { outline: values.outline } : {}),
   });
   // The internal wall thickness is an editor default rather than part of the plan.
   editorStores.session.setState((s) => ({ settings: { ...s.settings, internalThickness: values.internalThickness } }));
   return add({ ...projectFromPlan(plan, { now: now() }), id, ...(details ? { details } : {}) });
 }
 
-/** A new project with the default house outline, ready for drawing walls. */
-export async function createBlankProject(name = "Untitled house", details?: ProjectDetails): Promise<string> {
-  const plan = createPlanDocument({ id: newDocumentId(), name });
+/** A new project with the default house outline, or the given one, ready for drawing walls. */
+export async function createBlankProject(name = "Untitled house", details?: ProjectDetails, outline?: Point2[]): Promise<string> {
+  const plan = createPlanDocument({ id: newDocumentId(), name, ...(outline ? { outline } : {}) });
   return add({ ...projectFromPlan(plan, { now: now() }), id: newDocumentId(), ...(details ? { details } : {}) });
+}
+
+/**
+ * A new project that starts by picking rooms: the house is sized from the
+ * rooms, and the editor opens on the room picker with a typical family home
+ * picked. Throws with a readable message if the rooms can't be laid out.
+ */
+export async function createRoomsProject(options: { name: string; plot?: PlotLimits; details?: ProjectDetails; houseShape?: HouseShape }): Promise<string> {
+  const { houseShape, ...rest } = options;
+  const brief = { ...withPicks(DEFAULT_BRIEF, BRIEF_PRESETS.find((p) => p.id === "family-3")!.picks), ...(houseShape ? { houseShape } : {}) };
+  const result = projectFromRooms(brief, { id: newDocumentId(), idPrefix: newIdPrefix(), now: now(), count: 0, ...rest });
+  if (!result.ok) throw new Error(result.message);
+  return add(result.project);
 }
 
 export async function createProjectFromTemplate(template: ProjectTemplate): Promise<string> {

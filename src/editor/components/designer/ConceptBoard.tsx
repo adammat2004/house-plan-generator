@@ -3,6 +3,7 @@
 import { useLayoutEffect, useState } from "react";
 import { PLAN_FEATURE_LABEL } from "@/domain/design/analysis";
 import { analyzeEnvelope } from "@/domain/geometry/envelope";
+import { describeOutline } from "@/domain/geometry/outlineDescription";
 import { Menu, MenuItem } from "@/components/ui/controls";
 import {
   AreaIcon,
@@ -16,11 +17,12 @@ import {
   SofaIcon,
   SparkleIcon,
 } from "@/components/ui/icons";
-import { design, editor, useSessionState } from "../../state/editor";
+import { design, editor, useProjectState, useSessionState } from "../../state/editor";
 import { BoardDock, usePanZoom } from "./board";
 import { openConcept, selectWorkspace } from "../shell/tools";
 import { ConceptDetail } from "./ConceptDetail";
 import { ConceptPreview } from "./ConceptPreview";
+import { CardPhotos } from "./RoomGallery";
 import { useConcepts, type Concept, type PlanEntry } from "./concepts";
 
 /**
@@ -117,6 +119,21 @@ function Board() {
 /** The user's own plan, where every concept starts from, with the ways back to it. */
 function StartingPoint({ entry }: { entry: PlanEntry }) {
   const env = analyzeEnvelope(entry.level);
+  const sizing = useProjectState((s) => s.sizing);
+  if (sizing?.footprint === "auto") {
+    const plot = sizing.plot;
+    return (
+      <div className="starting-point" data-testid={`shell-${entry.meta.label}`}>
+        <span>
+          Starting point: <strong>your rooms</strong> · each house is sized to fit them
+          {plot?.maxWidth || plot?.maxDepth ? ` (plot up to ${plot.maxWidth ?? "any"} × ${plot.maxDepth ?? "any"} m)` : ""}
+        </span>
+        <button type="button" className="link-btn" onClick={() => selectWorkspace("brief")} data-testid="shell-edit-brief">
+          Edit rooms
+        </button>
+      </div>
+    );
+  }
   return (
     <div className="starting-point" data-testid={`shell-${entry.meta.label}`}>
       <span className="starting-thumb">
@@ -124,7 +141,7 @@ function StartingPoint({ entry }: { entry: PlanEntry }) {
       </span>
       <span>
         Starting point: <strong>{entry.meta.label}</strong>
-        {env.ok && ` · ${env.info.width.toFixed(1)} × ${env.info.depth.toFixed(1)} m shell`}
+        {env.ok && ` · ${env.info.isRectangle ? "" : `${describeOutline(env.info).words}, `}${env.info.width.toFixed(1)} × ${env.info.depth.toFixed(1)} m shell`}
       </span>
       <button
         type="button"
@@ -168,6 +185,7 @@ function ConceptCard({ concept, recommended, selected, onFocus }: { concept: Con
           </span>
         )}
       </div>
+      <CardPhotos planId={meta.id} level={concept.level} />
       <div className="concept-body">
         <div className="concept-title-row">
           {renaming ? (

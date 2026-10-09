@@ -2,7 +2,9 @@
 
 import { useId, useMemo, type ReactNode } from "react";
 import { PROJECT_TEMPLATES, buildTemplatePlan, type ProjectTemplate, type TemplateStyle } from "@/domain/project/templates";
-import type { PlanDocument } from "@/domain/plan/types";
+import { slabPartition } from "@/domain/geometry/outline";
+import type { Rect } from "@/domain/geometry/vector";
+import type { PlanDocument, Point2 } from "@/domain/plan/types";
 import { PlanDrawing } from "@/editor/components/designer/PlanThumbnail";
 import { buildPlanScene } from "@/editor/rendering/scene/planScene";
 
@@ -147,12 +149,32 @@ function IsoDefs({ ids }: { ids: IsoIds }) {
 }
 
 /**
- * The massing of a rectangular house of the given outside size, in its
- * garden: a quick read of scale, not a 3D model of the plan.
+ * Rectangles tiling an outline, ordered so each is drawn before any it
+ * stands behind (the viewer looks from the south-east).
  */
-export function MassingPreview({ width, depth, wallHeight }: { width: number; depth: number; wallHeight: number }) {
+function backToFront(outline: Point2[]): Rect[] {
+  const slabs = slabPartition(outline);
+  const overlaps = (a0: number, a1: number, b0: number, b1: number) => Math.min(a1, b1) - Math.max(a0, b0) > 1e-6;
+  const behind = (a: Rect, b: Rect) =>
+    (a.minY >= b.maxY - 1e-6 && overlaps(a.minX, a.maxX, b.minX, b.maxX)) || (a.maxX <= b.minX + 1e-6 && overlaps(a.minY, a.maxY, b.minY, b.maxY));
+  const order: Rect[] = [];
+  const left = [...slabs];
+  while (left.length) {
+    const next = left.findIndex((a) => !left.some((b) => b !== a && behind(b, a)));
+    order.push(...left.splice(next < 0 ? 0 : next, 1));
+  }
+  return order;
+}
+
+/**
+ * The massing of a house of the given outside size, in its garden: a quick
+ * read of scale, not a 3D model of the plan. An outline other than a
+ * rectangle is drawn as its rectangular parts, each with its own roof.
+ */
+export function MassingPreview({ width, depth, wallHeight, outline }: { width: number; depth: number; wallHeight: number; outline?: Point2[] | null }) {
   const ids = useIsoIds();
   const [W, D, H] = [width, depth, Math.min(Math.max(wallHeight, 2), 6)];
+  const parts = outline && outline.length > 4 ? backToFront(outline) : [{ minX: 0, minY: 0, maxX: W, maxY: D }];
   const m = Math.max(W, D) * 0.45 + 3;
   const trees: Array<{ at: [number, number]; r?: number; tone?: number }> = [
     { at: [-m * 0.55, D + m * 0.5], r: 1.7 },
@@ -189,7 +211,9 @@ export function MassingPreview({ width, depth, wallHeight }: { width: number; de
       {trees.filter((t) => t.at[0] - t.at[1] < 0).map((t, i) => (
         <Tree key={`b${i}`} {...t} />
       ))}
-      <HouseMass x0={0} y0={0} W={W} D={D} H={H} ids={ids} />
+      {parts.map((r, i) => (
+        <HouseMass key={i} x0={r.minX} y0={r.minY} W={r.maxX - r.minX} D={r.maxY - r.minY} H={H} ids={ids} />
+      ))}
       {trees.filter((t) => t.at[0] - t.at[1] >= 0).map((t, i) => (
         <Tree key={`f${i}`} {...t} />
       ))}

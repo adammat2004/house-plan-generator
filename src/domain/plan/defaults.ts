@@ -55,5 +55,9 @@ export const LIMITS = {
   minOpeningWidth: 0.2,
   minHouseClearSpan: 0.5,
   maxHouseSize: 200,
+  /** Most walls a house outline may have. */
+  maxOutlineEdges: 64,
+  /** Shortest step in a house outline, on the wall centrelines. */
+  minOutlineStep: 0.2,
   maxNameLength: 80,
 } as const;

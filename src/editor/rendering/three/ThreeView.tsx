@@ -12,7 +12,7 @@ function viewerState(): ViewerState {
   const v = s.view3d;
   return {
     level: editorStores.documents.getState().history.present.levels[0],
-    display: { roof: v.display.roof, cutaway: v.display.cutaway, dimensions: v.display.dimensions, landscape: v.display.landscape },
+    display: { roof: v.display.roof, cutaway: v.display.cutaway, dimensions: v.display.dimensions, landscape: v.display.landscape, furniture: v.display.furniture },
     appearance: editorStores.project.getState().appearance ?? DEFAULT_APPEARANCE,
     lighting: v.lighting,
     shadows: v.shadows,

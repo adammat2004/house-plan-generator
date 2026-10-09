@@ -54,7 +54,9 @@ export function computeFaces(axes: Map<Id, WallAxis>, contacts: ContactMap): Fac
     for (const s of params) if (unique.length === 0 || s - unique[unique.length - 1] > EPS) unique.push(s);
     let prevKey: string | null = null;
     for (const s of unique) {
-      const p = pointAtParam(axis, s);
+      // Snapped to a nanometre, so float noise from the arithmetic (11.85 - 12.7) can't tilt an edge.
+      const raw = pointAtParam(axis, s);
+      const p = { x: Math.round(raw.x * 1e9) / 1e9, y: Math.round(raw.y * 1e9) / 1e9 };
       const key = pointKey(p);
       if (!points.has(key)) points.set(key, p);
       if (prevKey && prevKey !== key) edges.set(edgeKey(prevKey, key), { a: prevKey, b: key, wallId: axis.wallId });

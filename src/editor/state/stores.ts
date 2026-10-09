@@ -3,7 +3,11 @@ import { normaliseBrief, type HouseBrief } from "@/domain/brief/schema";
 import { applyCommand, type CommandResult, type PlanCommand, type PlanIssue } from "@/domain/commands";
 import { DEFAULT_HOUSE, DOOR_PRESET, WINDOW_PRESET } from "@/domain/plan/defaults";
 import type { RoomGoal } from "@/domain/design/intent";
-import type { Id, PlanDocument, Point2 } from "@/domain/plan/types";
+import { FURNITURE_CATALOG } from "@/domain/furniture/catalog";
+import { furnishPlanCommand, furnishRoom } from "@/domain/furniture/furnish";
+import { furnitureInRoom } from "@/domain/furniture/layout";
+import { turn } from "@/domain/furniture/geometry";
+import type { Furniture, FurnitureKind, FurnitureRotation, Id, PlanDocument, Point2 } from "@/domain/plan/types";
 import {
   DEFAULT_APPEARANCE,
   MAX_PLANS,
@@ -12,6 +16,7 @@ import {
   PROJECT_SCHEMA_VERSION,
   projectFromPlan,
   type Appearance,
+  type Sizing,
   type PlanVariantMeta,
   type ProjectDetails,
   type ProjectDocument,
@@ -21,9 +26,17 @@ import { createHistory, pushHistory, redoHistory, undoHistory, type History } fr
 import { newIdPrefix } from "./ids";
 
 /** "house" selects the envelope as a whole; its id is the level id. */
-export type EntityKind = "wall" | "opening" | "room" | "house";
+export type EntityKind = "wall" | "opening" | "room" | "house" | "furniture";
 export type Selection = { kind: EntityKind; id: Id } | null;
-export type ToolId = "select" | "wall" | "room" | "door" | "window";
+export type ToolId = "select" | "wall" | "room" | "door" | "window" | "furniture" | "outline";
+
+/** A house outline being drawn: outside-face corners so far, and where the next one would go. */
+export interface OutlineDraft {
+  points: Point2[];
+  cursor: Point2 | null;
+  /** Why the outline, closed now, wouldn't make a house; null when it would. */
+  problem: string | null;
+}
 /**
  * Same canvas, different jobs: Structure edits the shell, Brief collects what
  * the house needs (the plan is shown but not editable), Design works with
@@ -43,7 +56,7 @@ export interface View3DState {
   cameraKey: number;
   /** The room the interior camera stands in (else the selected or largest day room). */
   interiorRoomId: Id | null;
-  display: { roof: boolean; cutaway: boolean; dimensions: boolean; landscape: boolean };
+  display: { roof: boolean; cutaway: boolean; dimensions: boolean; landscape: boolean; furniture: boolean };
   lighting: LightingPreset;
   shadows: boolean;
   /** Turns the sun around the house, degrees. */
@@ -60,7 +73,7 @@ export const DEFAULT_VIEW3D: View3DState = {
   camera: "orbit",
   cameraKey: 0,
   interiorRoomId: null,
-  display: { roof: false, cutaway: false, dimensions: false, landscape: true },
+  display: { roof: false, cutaway: false, dimensions: false, landscape: true, furniture: true },
   lighting: "midday",
   shadows: true,
   sunAzimuth: 0,
@@ -70,7 +83,7 @@ export const DEFAULT_VIEW3D: View3DState = {
   panelOpen: true,
   roomsOpen: false,
 };
-export type DragKind = "drag-wall" | "drag-end" | "drag-opening" | "drag-opening-edge";
+export type DragKind = "drag-wall" | "drag-end" | "drag-opening" | "drag-opening-edge" | "drag-furniture" | "drag-outline" | "drag-corner";
 
 export interface PanelState {
   inspectorCollapsed: boolean;
@@ -89,6 +102,8 @@ export interface ProjectState {
   brief: HouseBrief;
   details: ProjectDetails | undefined;
   appearance: Appearance | undefined;
+  /** Where generated layouts get their house size; undefined means the user's own house. */
+  sizing: Sizing | undefined;
   /** Ordered as shown in the variation tray. */
   plans: PlanVariantMeta[];
   activePlanId: Id;
@@ -125,12 +140,14 @@ export interface ChatMessage {
 export interface DesignerState {
   status: "idle" | "running";
   /** What the last request produced, shown in the brief. */
-  lastResult: { tone: "success" | "info" | "error"; message: string; notes: string[] } | null;
+  lastResult: { tone: "success" | "info" | "error"; message: string; notes: string[]; /** Offer to size houses from the rooms instead. */ offerAutoSize?: boolean } | null;
   /** The concept shown in the board's detail panel. */
   focusPlanId: Id | null;
   /** The AI Designer panel beside a plan in Designs. */
   panelOpen: boolean;
   chat: ChatMessage[];
+  /** Whether Claude reads requests ("available"), or the built-in rules do ("off"). */
+  ai: "unknown" | "available" | "off";
 }
 
 /**
@@ -196,6 +213,13 @@ export interface OpeningDraft {
   message: string | null;
 }
 
+/** The piece the Furniture tool is about to place, following the pointer. */
+export interface FurnitureDraft {
+  item: Omit<Furniture, "id">;
+  /** Where it would land is clear of walls, doors and other pieces. */
+  clear: boolean;
+}
+
 export interface Settings {
   snapEnabled: boolean;
   gridVisible: boolean;
@@ -203,6 +227,8 @@ export interface Settings {
   internalThickness: number;
   door: { width: number; height: number };
   window: { width: number; height: number; sillHeight: number };
+  /** What the Furniture tool places, and which way free-standing pieces face. */
+  furniture: { kind: FurnitureKind; rotation: FurnitureRotation };
 }
 
 export interface SessionState {
@@ -219,6 +245,10 @@ export interface SessionState {
   snap: SnapIndicator | null;
   wallDraft: WallDraft | null;
   openingDraft: OpeningDraft | null;
+  furnitureDraft: FurnitureDraft | null;
+  outlineDraft: OutlineDraft | null;
+  /** A drawn outline waiting for the user to confirm it replaces a house with rooms in it. */
+  outlineConfirm: { outline: Point2[] } | null;
   panning: boolean;
   /** The drag gesture in progress, if any (drives live measurement overlays). */
   drag: DragKind | null;
@@ -252,6 +282,7 @@ function projectState(project: ProjectDocument, revision: number): { project: Pr
       brief: project.brief,
       details: project.details,
       appearance: project.appearance,
+      sizing: project.sizing,
       plans: project.plans.map(({ id, label, parentId, origin, scope, createdAt }) => ({ id, label, parentId, origin, scope, createdAt })),
       activePlanId: active.id,
       parked,
@@ -286,15 +317,19 @@ export function createEditorStores(initial: PlanDocument | ProjectDocument): Edi
       internalThickness: DEFAULT_HOUSE.internalThickness,
       door: { ...DOOR_PRESET },
       window: { ...WINDOW_PRESET },
+      furniture: { kind: "sofa_3", rotation: 0 },
     },
     cursor: null,
     snap: null,
     wallDraft: null,
     openingDraft: null,
+    furnitureDraft: null,
+    outlineDraft: null,
+    outlineConfirm: null,
     panning: false,
     drag: null,
     panels: { inspectorCollapsed: false, layersOpen: false },
-    designer: { status: "idle", lastResult: null, focusPlanId: null, panelOpen: true, chat: [] },
+    designer: { status: "idle", lastResult: null, focusPlanId: null, panelOpen: true, chat: [], ai: "unknown" },
     ready: false,
     createDialogOpen: false,
     roomNameFocus: null,
@@ -314,6 +349,7 @@ export function projectDocument({ documents, project }: Pick<EditorStores, "docu
     brief: p.brief,
     ...(p.details ? { details: p.details } : {}),
     ...(p.appearance ? { appearance: p.appearance } : {}),
+    ...(p.sizing ? { sizing: p.sizing } : {}),
     activePlanId: p.activePlanId,
     plans: p.plans.map((meta) => ({ ...meta, document: meta.id === p.activePlanId ? present : p.parked[meta.id].present })),
   };
@@ -322,7 +358,7 @@ export function projectDocument({ documents, project }: Pick<EditorStores, "docu
 let noticeCounter = 0;
 
 /** Tools offered while refining a design: rooms, walls and doors, not windows or the shell. */
-const DESIGN_TOOLS: ReadonlySet<ToolId> = new Set(["select", "room", "wall", "door"]);
+const DESIGN_TOOLS: ReadonlySet<ToolId> = new Set(["select", "room", "wall", "door", "furniture"]);
 
 /**
  * Editor operations coordinating the document history with session state.
@@ -347,6 +383,7 @@ export function createEditorActions({ documents, session, project }: EditorStore
       (s.kind === "wall" && !!level.walls[s.id]) ||
       (s.kind === "opening" && !!level.openings[s.id]) ||
       (s.kind === "room" && !!level.rooms[s.id]) ||
+      (s.kind === "furniture" && !!level.furniture[s.id]) ||
       (s.kind === "house" && level.id === s.id);
     const { selection, hover } = session.getState();
     if (!exists(selection) || !exists(hover)) {
@@ -457,7 +494,7 @@ export function createEditorActions({ documents, session, project }: EditorStore
       const { project: state, active } = projectState(next, project.getState().revision + 1);
       project.setState(state, true);
       documents.setState((s) => ({ history: createHistory(active), preview: null, revision: s.revision + 1 }));
-      session.setState({ selection: null, hover: null, wallDraft: null, openingDraft: null, snap: null, drag: null });
+      session.setState({ selection: null, hover: null, wallDraft: null, openingDraft: null, furnitureDraft: null, snap: null, drag: null });
     },
 
     renameProject(name: string): true | string {
@@ -485,7 +522,7 @@ export function createEditorActions({ documents, session, project }: EditorStore
       delete parked[planId];
       project.setState({ activePlanId: planId, parked, revision: p.revision + 1 });
       documents.setState({ history, preview: null, revision: state.revision + 1, notice: null });
-      session.setState({ selection: null, hover: null, wallDraft: null, openingDraft: null, snap: null, drag: null });
+      session.setState({ selection: null, hover: null, wallDraft: null, openingDraft: null, furnitureDraft: null, snap: null, drag: null });
       return true;
     },
 
@@ -579,14 +616,16 @@ export function createEditorActions({ documents, session, project }: EditorStore
       const { workspace } = session.getState();
       if (tool !== "select" && (workspace === "brief" || workspace === "present" || (workspace === "design" && !DESIGN_TOOLS.has(tool)))) return;
       if (documents.getState().preview) documents.setState({ preview: null });
-      session.setState({ tool, wallDraft: null, openingDraft: null, snap: null, hover: null });
+      session.setState({ tool, wallDraft: null, openingDraft: null, furnitureDraft: null, outlineDraft: null, snap: null, hover: null });
     },
 
     setWorkspace(workspace: Workspace) {
       const s = session.getState();
       if (s.workspace === workspace) return;
       if (documents.getState().preview) documents.setState({ preview: null });
-      const keep = s.selection && (workspace === "structure" || (workspace === "design" && (s.selection.kind === "room" || s.selection.kind === "house")));
+      // Furniture is worked on in Designs only; Structure shows it faded.
+      const kind = s.selection?.kind;
+      const keep = !!kind && (workspace === "structure" ? kind !== "furniture" : workspace === "design" && (kind === "room" || kind === "house" || kind === "furniture"));
       session.setState({
         workspace,
         // Designs opens on the side-by-side comparison.
@@ -597,6 +636,8 @@ export function createEditorActions({ documents, session, project }: EditorStore
         hover: null,
         wallDraft: null,
         openingDraft: null,
+        furnitureDraft: null,
+        outlineDraft: null,
         snap: null,
         drag: null,
       });
@@ -609,6 +650,7 @@ export function createEditorActions({ documents, session, project }: EditorStore
         hover: null,
         wallDraft: null,
         openingDraft: null,
+        furnitureDraft: null,
         snap: null,
         drag: null,
         ...(designView !== "variations" ? { variations: null } : { tool: "select" as ToolId }),
@@ -618,6 +660,11 @@ export function createEditorActions({ documents, session, project }: EditorStore
 
     setView3d(patch: Partial<View3DState>) {
       session.setState((s) => ({ view3d: { ...s.view3d, ...patch } }));
+    },
+
+    /** Switches between sizing houses from the rooms and using the user's own house. */
+    setSizing(sizing: Sizing | undefined) {
+      project.setState((p) => ({ sizing, revision: p.revision + 1 }));
     },
 
     setAppearance(patch: Partial<Appearance>) {
@@ -638,6 +685,74 @@ export function createEditorActions({ documents, session, project }: EditorStore
       }
       next = { ...next, levels: [{ ...next.levels[0], defaultWallHeight: height }, ...next.levels.slice(1)] };
       return this.dispatch({ type: "replaceDocument", document: next });
+    },
+
+    /** Picks what the Furniture tool places and switches to it. */
+    chooseFurniture(kind: FurnitureKind) {
+      session.setState((s) => ({ settings: { ...s.settings, furniture: { ...s.settings.furniture, kind } } }));
+      this.setTool("furniture");
+    },
+
+    /** Turns a piece of furniture a quarter turn about its centre: clockwise (−1) or counterclockwise (+1). */
+    rotateFurniture(furnitureId: Id, direction: 1 | -1 = -1): CommandResult | null {
+      const item = current().levels[0].furniture[furnitureId];
+      if (!item) return null;
+      return this.dispatch({ type: "updateFurniture", furnitureId, changes: { rotation: turn(item.rotation, direction) } });
+    },
+
+    /** Moves a piece of furniture by a small step, one undo entry per nudge. */
+    nudgeFurniture(furnitureId: Id, dx: number, dy: number): CommandResult | null {
+      const item = current().levels[0].furniture[furnitureId];
+      if (!item) return null;
+      return this.dispatch({ type: "updateFurniture", furnitureId, changes: { position: { x: item.position.x + dx, y: item.position.y + dy } } });
+    },
+
+    /** Copies a piece beside the original and selects the copy. */
+    duplicateFurniture(furnitureId: Id): Id | null {
+      const item = current().levels[0].furniture[furnitureId];
+      if (!item) return null;
+      const id = `${newIdPrefix()}-furniture`;
+      const result = this.dispatch({ type: "addFurniture", item: { ...item, id, position: { x: item.position.x + 0.3, y: item.position.y - 0.3 } } });
+      if (!result.ok) return null;
+      this.select({ kind: "furniture", id });
+      return id;
+    },
+
+    /** Lays out every room again (or only empty rooms), as one undoable step. */
+    furnishAll(replace: boolean): number {
+      const command = furnishPlanCommand(current(), newIdPrefix(), replace);
+      if (!command) {
+        notify("info", "Every room already has furniture, or none of them is a kind I can furnish.");
+        return 0;
+      }
+      const result = this.dispatch(command);
+      if (!result.ok) return 0;
+      const added = command.type === "replaceFurniture" ? command.add.length : 0;
+      notify("success", `Placed ${added} piece${added === 1 ? "" : "s"} of furniture. Undo to take them out.`);
+      return added;
+    },
+
+    /** Lays a room out again from its type, replacing what's in it, as one undoable step. */
+    furnishRoom(roomId: Id): boolean {
+      const level = current().levels[0];
+      const result = furnishRoom(level, roomId, newIdPrefix());
+      if (!result) return false;
+      if (!result.items.length) {
+        notify("info", result.missing.length ? `${level.rooms[roomId].name} is too small for ${FURNITURE_CATALOG[result.missing[0]].label.toLowerCase()}.` : `I don't have a standard layout for ${level.rooms[roomId].name.toLowerCase()}. Add pieces with the Furniture tool.`);
+        return false;
+      }
+      if (!this.dispatch({ type: "replaceFurniture", remove: result.remove, add: result.items }).ok) return false;
+      const missing = result.missing.map((k) => FURNITURE_CATALOG[k].label.toLowerCase());
+      if (missing.length) notify("info", `There wasn't room for: ${missing.join(", ")}.`);
+      return true;
+    },
+
+    /** Removes the furniture in one room, or in every room. */
+    clearFurniture(roomId?: Id): boolean {
+      const level = current().levels[0];
+      const ids = roomId ? furnitureInRoom(level, roomId).map((f) => f.id) : Object.keys(level.furniture);
+      if (!ids.length) return false;
+      return this.dispatch({ type: "replaceFurniture", remove: ids, add: [] }).ok;
     },
 
     setVariations(patch: Partial<VariationsState> | null) {

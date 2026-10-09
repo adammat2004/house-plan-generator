@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_BRIEF } from "@/domain/brief/schema";
 import { validateDocument } from "@/domain/commands";
-import { assessPlan, briefFit, compareRoom, roomConnections, roomFacts, roomWalls, touchesRear } from "@/domain/design/analysis";
+import { assessPlan, briefFit, compareRoom, roomAtPoint, roomConnections, roomFacts, roomWalls, touchesRear } from "@/domain/design/analysis";
+import { furnitureIssues } from "@/domain/furniture/issues";
 import type { RoomGoal } from "@/domain/design/intent";
 import { interpretRequest } from "@/domain/design/request";
 import { planLayouts } from "@/domain/design/stripPlanner";
@@ -129,11 +130,66 @@ describe("room planner", () => {
     expect(compareRoom(level(doc), level(doc), bedroom.id)).toEqual([]);
   });
 
-  it("explains goals that need furniture", () => {
+  it("explains goals it can't plan yet", () => {
     const doc = layout();
-    const result = redesign(doc, roomOf(doc, "primary_bedroom").id, ["add_storage"]);
+    const result = redesign(doc, roomOf(doc, "primary_bedroom").id, ["improve_privacy"]);
     expect(result.issues[0]).toMatchObject({ code: "unsupported-intent" });
-    expect(result.issues[0].message).toMatch(/furniture/);
+    expect(result.issues[0].message).toMatch(/Improve privacy/);
+  });
+
+  it("adds storage against free walls, the widest first", () => {
+    const doc = layout();
+    const bedroom = roomOf(doc, "bedroom");
+    const { candidates } = redesign(doc, bedroom.id, ["add_storage"]);
+    expect(candidates.length).toBeGreaterThan(0);
+    for (const c of candidates) {
+      const added = Object.values(level(c.document).furniture).filter((f) => !level(doc).furniture[f.id]);
+      expect(added.map((f) => f.kind)).toEqual(["wardrobe"]);
+      expect([...furnitureIssues(level(c.document))]).toEqual([]);
+    }
+  });
+
+  it("offers kitchen islands and dining tables with room to walk round them", () => {
+    const doc = withRear(newHouse(12, 10));
+    const roomId = Object.keys(level(doc).rooms)[0];
+    const kitchen = apply(doc, { type: "updateRoom", roomId, changes: { type: "kitchen_dining" } });
+    const islands = redesign(kitchen, roomId, ["add_kitchen_island"]).candidates;
+    expect(islands.length).toBeGreaterThan(0);
+    const kinds = Object.values(level(islands[0].document).furniture).map((f) => f.kind);
+    expect(kinds).toEqual(expect.arrayContaining(["kitchen_run", "kitchen_island"]));
+    const tables = redesign(kitchen, roomId, ["create_dining_zone"]).candidates;
+    expect(tables.map((c) => c.variant)).toEqual(["dining:6", "dining:4"]);
+    expect(redesign(kitchen, roomId, ["add_kitchen_island"]).issues).toEqual([]);
+    const bedroom = apply(doc, { type: "updateRoom", roomId, changes: { type: "bedroom" } });
+    expect(redesign(bedroom, roomId, ["add_kitchen_island"]).issues[0].message).toMatch(/kitchen/);
+  });
+
+  it("walls off a bedroom corner as a fitted ensuite with its own door", () => {
+    let doc = withRear(newHouse(5, 5));
+    const roomId = Object.keys(level(doc).rooms)[0];
+    doc = apply(doc, { type: "updateRoom", roomId, changes: { type: "primary_bedroom", name: "Main bedroom" } });
+    const { candidates, issues } = redesign(doc, roomId, ["add_ensuite"]);
+    expect(issues).toEqual([]);
+    expect(candidates.length).toBeGreaterThan(0);
+    for (const c of candidates) {
+      expect(validateDocument(c.document)).toEqual([]);
+      const rooms = Object.values(level(c.document).rooms);
+      expect(rooms.map((r) => r.type).sort()).toEqual(["ensuite", "primary_bedroom"]);
+      expect(rooms.find((r) => r.type === "primary_bedroom")!.name).toBe("Main bedroom");
+      const ensuite = rooms.find((r) => r.type === "ensuite")!;
+      expect(roomConnections(level(c.document), ensuite.id).some((d) => d.kind === "door")).toBe(true);
+      const fittings = Object.values(level(c.document).furniture).filter((f) => roomAtPoint(level(c.document), f.position) === ensuite.id);
+      expect(fittings.map((f) => f.kind).sort()).toEqual(["basin", "shower", "toilet"]);
+      expect([...furnitureIssues(level(c.document))]).toEqual([]);
+    }
+  });
+
+  it("lays furniture out again in rooms whose walls moved", () => {
+    const doc = layout();
+    const bedroom = roomOf(doc, "bedroom");
+    for (const c of redesign(doc, bedroom.id, ["make_smaller", "make_larger"]).candidates) {
+      expect([...furnitureIssues(level(c.document))]).toEqual([]);
+    }
   });
 });
 

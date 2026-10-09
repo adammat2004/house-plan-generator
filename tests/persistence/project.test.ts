@@ -1,5 +1,8 @@
+import { IDBFactory } from "fake-indexeddb";
 import { describe, expect, it } from "vitest";
 import { DEFAULT_BRIEF } from "@/domain/brief/schema";
+import { createPlanDocument } from "@/domain/commands";
+import { createProjectLibrary } from "@/persistence/planStorage";
 import { loadProjectDocument, nextPlanLabel, parseProjectJson, projectFromPlan, serializeProject } from "@/domain/project/schema";
 import { createEditorActions, createEditorStores, projectDocument } from "@/editor/state/stores";
 import { AXIS, addWall, level, newHouse } from "../helpers";
@@ -97,5 +100,26 @@ describe("plan variants in the editor", () => {
     expect(actions.deletePlan(grandchild)).toBe(true);
     expect(stores.project.getState().activePlanId).toBe(original);
     expect(actions.deletePlan(original)).toBe(false);
+  });
+});
+
+describe("photo renders", () => {
+  it("are stored per project and plan, pruned with their plans, copied and deleted with the project", async () => {
+    const library = createProjectLibrary(new IDBFactory());
+    const project = { ...projectFromPlan(createPlanDocument({ id: "plan-1" }), { now: "n" }), id: "p1" };
+    await library.create(project);
+    const photo = (planId: string, view: string) => ({ projectId: "p1", planId, view, bytes: new Uint8Array([0xff, 0xd8, 0xff, 1]).buffer, mimeType: "image/jpeg", sourceHash: "h", style: "modern", model: "m", createdAt: "n" });
+    await library.renders.put(photo("plan-1", "exterior"));
+    await library.renders.put(photo("plan-1", "room-1"));
+    await library.renders.put(photo("gone", "room-1"));
+    expect((await library.renders.list("p1")).map((r) => r.view).sort()).toEqual(["exterior", "room-1", "room-1"]);
+    await library.renders.prune("p1", new Set(["plan-1"]));
+    expect(await library.renders.list("p1")).toHaveLength(2);
+    expect(new Uint8Array((await library.renders.list("p1"))[0].bytes)[0]).toBe(0xff);
+    await library.duplicate("p1", "p2");
+    expect(await library.renders.list("p2")).toHaveLength(2);
+    await library.remove("p1");
+    expect(await library.renders.list("p1")).toEqual([]);
+    expect(await library.renders.list("p2")).toHaveLength(2);
   });
 });

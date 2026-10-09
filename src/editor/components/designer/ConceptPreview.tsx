@@ -81,7 +81,11 @@ export const ConceptPreview = memo(function ConceptPreview({
       <g transform="scale(1,-1)">
         <rect x={box.minX} y={box.minY} width={w} height={h} fill={`url(#paving-${id})`} />
         {lawn.w > 0 && lawn.h > 0 && <rect x={lawn.x} y={lawn.y} width={lawn.w} height={lawn.h} fill={`url(#lawn-${id})`} />}
-        <rect x={r.minX + 0.25} y={r.minY - 0.3} width={r.maxX - r.minX} height={r.maxY - r.minY} fill="rgba(40, 38, 30, 0.14)" />
+        {scene.outsideRing ? (
+          <polygon points={scene.outsideRing.map((p) => `${p.x + 0.25},${p.y - 0.3}`).join(" ")} fill="rgba(40, 38, 30, 0.14)" />
+        ) : (
+          <rect x={r.minX + 0.25} y={r.minY - 0.3} width={r.maxX - r.minX} height={r.maxY - r.minY} fill="rgba(40, 38, 30, 0.14)" />
+        )}
         {trees.map((t, i) => (
           <g key={i}>
             <circle cx={t.x + t.r * 0.3} cy={t.y - t.r * 0.3} r={t.r} fill={SITE_THEME.treeShadow} />

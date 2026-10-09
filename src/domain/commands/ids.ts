@@ -48,5 +48,6 @@ export function collectIds(level: Level): string[] {
     ...Object.keys(level.walls),
     ...Object.keys(level.openings),
     ...Object.keys(level.rooms),
+    ...Object.keys(level.furniture ?? {}),
   ];
 }

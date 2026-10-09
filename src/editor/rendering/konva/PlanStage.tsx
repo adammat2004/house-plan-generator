@@ -5,15 +5,17 @@ import type { Shape as KonvaShape } from "konva/lib/Shape";
 import { memo, useMemo } from "react";
 import { Circle, Group, Layer, Line, Rect, Shape, Stage, Text } from "react-konva";
 import { deriveLevelGeometry } from "@/domain/geometry/derive";
+import { analyzeEnvelope } from "@/domain/geometry/envelope";
 import type { MultiPolygon, Ring } from "@/domain/geometry/polygons";
 import type { Level, Point2 } from "@/domain/plan/types";
 import { useDocumentState, useSessionState } from "../../state/editor";
-import { displayedDocument, type Selection, type SnapIndicator } from "../../state/stores";
+import { displayedDocument, type OutlineDraft, type Selection, type SnapIndicator } from "../../state/stores";
 import { worldToScreen, type Viewport } from "../../viewport/viewport";
-import { buildDimensions, buildPlanScene, openingPrimitive, type DimensionPrimitive, type PlanScene } from "../scene/planScene";
+import { furnitureSymbol } from "../scene/furnitureSymbols";
+import { buildDimensions, buildPlanScene, openingPrimitive, type DimensionPrimitive, type FurniturePrimitive, type PlanScene } from "../scene/planScene";
 import { SiteDecor } from "./SiteDecor";
 import { registerStage } from "./stageRegistry";
-import { MATERIAL_FILL, PLAN_THEME as T, ROOM_FILL } from "./theme";
+import { FURNITURE_FILL, MATERIAL_FILL, PLAN_THEME as T, ROOM_FILL } from "./theme";
 
 const flat = (points: Point2[]) => points.flatMap((p) => [p.x, p.y]);
 
@@ -54,13 +56,46 @@ function Poly({ rings, fill, stroke, strokeWidth = 1, dash }: PolyProps) {
   );
 }
 
+/**
+ * One piece of furniture as a single shape: its parts filled by tone and
+ * outlined with a hairline that stays the same width at every zoom.
+ */
+function FurnitureShape({ parts, opacity = 1 }: { parts: FurniturePrimitive["parts"]; opacity?: number }) {
+  return (
+    <Shape
+      listening={false}
+      perfectDrawEnabled={false}
+      opacity={opacity}
+      sceneFunc={(ctx: Context, shape: KonvaShape) => {
+        const scale = Math.abs(shape.getAbsoluteScale().x) || 1;
+        ctx.setAttr("lineWidth", 0.9 / scale);
+        ctx.setAttr("strokeStyle", T.furnitureStroke);
+        ctx.setAttr("lineJoin", "round");
+        for (const part of parts) {
+          ctx.beginPath();
+          part.ring.forEach((p, i) => (i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y)));
+          if (part.closed) {
+            ctx.closePath();
+            if (part.tone !== "none") {
+              ctx.setAttr("fillStyle", FURNITURE_FILL[part.tone]);
+              ctx.fill();
+            }
+          }
+          ctx.stroke();
+        }
+      }}
+    />
+  );
+}
+
 /** World-space plan drawing; re-rendered only when the scene changes. */
-const PlanContent = memo(function PlanContent({ scene, tinted }: { scene: PlanScene; tinted: boolean }) {
+const PlanContent = memo(function PlanContent({ scene, tinted, furnitureOpacity }: { scene: PlanScene; tinted: boolean; furnitureOpacity: number }) {
   return (
     <>
       {scene.rooms.map((room) => (
         <Poly key={room.id} rings={ringsOf(room.clear)} fill={tinted ? (room.floorMaterial ? MATERIAL_FILL[room.floorMaterial] : ROOM_FILL[room.type]) : T.roomFill} />
       ))}
+      {furnitureOpacity > 0 && scene.furniture.map((f) => <FurnitureShape key={f.id} parts={f.parts} opacity={furnitureOpacity} />)}
       <Poly rings={ringsOf(scene.wallMass)} fill={T.wallFill} stroke={T.wallStroke} strokeWidth={1} />
       {scene.openings.map((o) => (
         <Group key={o.id}>
@@ -126,24 +161,26 @@ function GridShape({ viewport, gridSize }: { viewport: Viewport; gridSize: numbe
 }
 
 /** Soft drop shadow lifting the house off the site, in screen space so it keeps its size at any zoom. */
-function HouseShadow({ rect, viewport }: { rect: PlanScene["outsideRect"] & object; viewport: Viewport }) {
+function HouseShadow({ rect, ring, viewport }: { rect: PlanScene["outsideRect"] & object; ring: PlanScene["outsideRing"]; viewport: Viewport }) {
+  const shadow = {
+    fill: T.wallFill,
+    shadowColor: T.houseShadow,
+    shadowBlur: 22,
+    shadowOffset: { x: 16, y: 18 },
+    shadowOpacity: 1,
+    listening: false,
+    perfectDrawEnabled: false,
+  };
+  if (ring && ring.length > 4) {
+    const points = ring.flatMap((p) => {
+      const q = worldToScreen(viewport, p);
+      return [q.x, q.y];
+    });
+    return <Line points={points} closed {...shadow} />;
+  }
   const a = worldToScreen(viewport, { x: rect.minX, y: rect.maxY });
   const b = worldToScreen(viewport, { x: rect.maxX, y: rect.minY });
-  return (
-    <Rect
-      x={a.x}
-      y={a.y}
-      width={b.x - a.x}
-      height={b.y - a.y}
-      fill={T.wallFill}
-      shadowColor={T.houseShadow}
-      shadowBlur={22}
-      shadowOffset={{ x: 16, y: 18 }}
-      shadowOpacity={1}
-      listening={false}
-      perfectDrawEnabled={false}
-    />
-  );
+  return <Rect x={a.x} y={a.y} width={b.x - a.x} height={b.y - a.y} {...shadow} />;
 }
 
 function Dimension({ dim, viewport }: { dim: DimensionPrimitive; viewport: Viewport }) {
@@ -244,6 +281,10 @@ function RoomLabels({ scene, viewport, selection }: { scene: PlanScene; viewport
               fontStyle="600"
               fontFamily={T.fontFamily}
               fill={selected ? T.accent : T.roomLabel}
+              // A soft halo keeps names legible over furniture.
+              stroke={T.labelHalo}
+              strokeWidth={3}
+              fillAfterStrokeEnabled
               wrap={lines > 1 ? "word" : "none"}
             />
             {showArea && (
@@ -256,6 +297,9 @@ function RoomLabels({ scene, viewport, selection }: { scene: PlanScene; viewport
                 fontSize={13}
                 fontFamily={T.fontFamily}
                 fill={T.roomArea}
+                stroke={T.labelHalo}
+                strokeWidth={3}
+                fillAfterStrokeEnabled
                 wrap="none"
               />
             )}
@@ -328,11 +372,15 @@ function SelectionOverlay({ level, scene, selection, hover, issueIds }: { level:
       const o = scene.openings.find((x) => x.id === s.id);
       return o ? <Poly rings={[o.cut]} stroke={color} strokeWidth={width} fill={fill} /> : null;
     }
+    if (s.kind === "furniture") {
+      const f = scene.furniture.find((x) => x.id === s.id);
+      return f ? <Poly rings={[f.outline]} stroke={color} strokeWidth={width} fill={fill} /> : null;
+    }
     const room = scene.rooms.find((r) => r.id === s.id);
     return room ? <Poly rings={ringsOf(room.clear)} stroke={color} strokeWidth={width} fill={fill} /> : null;
   };
   const issues = issueIds
-    .map((id) => (level.walls[id] ? { kind: "wall" as const, id } : level.openings[id] ? { kind: "opening" as const, id } : null))
+    .map((id) => (level.walls[id] ? { kind: "wall" as const, id } : level.openings[id] ? { kind: "opening" as const, id } : level.furniture[id] ? { kind: "furniture" as const, id } : null))
     .filter(Boolean) as Selection[];
   return (
     <>
@@ -353,6 +401,26 @@ function LengthPill({ at, text, tone }: { at: Point2; text: string; tone: "accen
   );
 }
 
+/** The outline being drawn: corners so far, the next wall to the cursor, and a dashed line closing it. */
+function OutlineDraftShape({ draft, viewport }: { draft: OutlineDraft; viewport: Viewport }) {
+  const corners = draft.cursor ? [...draft.points, draft.cursor] : draft.points;
+  const screen = corners.map((p) => worldToScreen(viewport, p));
+  const colour = draft.problem ? T.error : T.accent;
+  const first = screen[0];
+  const last = screen[screen.length - 1];
+  const lastWall = draft.cursor && draft.points.length ? Math.hypot(draft.cursor.x - draft.points[draft.points.length - 1].x, draft.cursor.y - draft.points[draft.points.length - 1].y) : 0;
+  return (
+    <Group name="transient" listening={false}>
+      <Line points={screen.flatMap((p) => [p.x, p.y])} stroke={colour} strokeWidth={3} lineJoin="round" />
+      {screen.length > 2 && <Line points={[last.x, last.y, first.x, first.y]} stroke={colour} strokeWidth={1.5} dash={[6, 5]} opacity={0.7} />}
+      {screen.map((p, i) => (
+        <Circle key={i} x={p.x} y={p.y} radius={i === 0 ? 6 : 4} fill="white" stroke={colour} strokeWidth={2} />
+      ))}
+      {lastWall > 0 && <LengthPill at={last} text={`${lastWall.toFixed(2)} m`} tone={draft.problem ? "error" : "accent"} />}
+    </Group>
+  );
+}
+
 export function PlanStage({ width, height }: { width: number; height: number }) {
   const doc = useDocumentState(displayedDocument);
   const notice = useDocumentState((s) => s.notice);
@@ -362,6 +430,7 @@ export function PlanStage({ width, height }: { width: number; height: number }) 
   const hover = useSessionState((s) => s.hover);
   const snap = useSessionState((s) => s.snap);
   const wallDraft = useSessionState((s) => s.wallDraft);
+  const outlineDraft = useSessionState((s) => s.outlineDraft);
   const openingDraft = useSessionState((s) => s.openingDraft);
   const settings = useSessionState((s) => s.settings);
   const tool = useSessionState((s) => s.tool);
@@ -377,6 +446,14 @@ export function PlanStage({ width, height }: { width: number; height: number }) 
   const selectedAxis = selection?.kind === "wall" ? geometry.axes.get(selection.id) : undefined;
   const editable = tool === "select" && workspace === "structure";
   const showHandles = editable && selectedAxis && selectedAxis.wall.role === "internal";
+  // The outline is reshaped from its corners and by dragging its walls.
+  const outlineSelected = editable && (selection?.kind === "house" || selectedAxis?.wall.role === "external");
+  const outlineEnv = outlineSelected ? analyzeEnvelope(level) : null;
+  const cornerHandles = outlineEnv?.ok ? outlineEnv.info.axisRing.map((p) => worldToScreen(viewport, p)) : [];
+  const grabBar =
+    editable && selectedAxis?.wall.role === "external"
+      ? { p: worldToScreen(viewport, { x: (selectedAxis.start.x + selectedAxis.end.x) / 2, y: (selectedAxis.start.y + selectedAxis.end.y) / 2 }), rotation: selectedAxis.orientation === "vertical" ? 90 : 0 }
+      : null;
   const selectedOpening = editable && selection?.kind === "opening" ? level.openings[selection.id] : undefined;
   const openingAxis = selectedOpening ? geometry.axes.get(selectedOpening.wallId) : undefined;
   const openingHandles =
@@ -417,6 +494,12 @@ export function PlanStage({ width, height }: { width: number; height: number }) 
     return { ring, length: Math.hypot(end.x - start.x, end.y - start.y) };
   })();
 
+  // Furniture belongs to Designs; Structure shows it faded so the walls stay the focus.
+  const furnitureOpacity = workspace === "structure" ? 0.35 : 1;
+  const showProblems = workspace === "design";
+  const furnitureDraft = useSessionState((s) => s.furnitureDraft);
+  const draftSymbol = furnitureDraft ? furnitureSymbol(furnitureDraft.item) : null;
+
   const transform = { x: viewport.offsetX, y: viewport.offsetY, scaleX: viewport.scale, scaleY: -viewport.scale };
 
   return (
@@ -429,18 +512,28 @@ export function PlanStage({ width, height }: { width: number; height: number }) 
             <Group {...transform}>
               <SiteDecor house={scene.outsideRect} />
             </Group>
-            <HouseShadow rect={scene.outsideRect} viewport={viewport} />
+            <HouseShadow rect={scene.outsideRect} ring={scene.outsideRing} viewport={viewport} />
           </>
         )}
       </Layer>
       <Layer listening={false}>
         <Group {...transform}>
-          <PlanContent scene={scene} tinted={workspace === "design"} />
+          <PlanContent scene={scene} tinted={workspace === "design"} furnitureOpacity={furnitureOpacity} />
         </Group>
       </Layer>
       <Layer listening={false}>
         <Group {...transform} name="transient">
+          {showProblems &&
+            scene.furniture
+              .filter((f) => f.problem)
+              .map((f) => <Poly key={`problem-${f.id}`} rings={[f.outline]} stroke={T.error} strokeWidth={1.5} dash={[5, 3]} fill={T.errorSoft} />)}
           <SelectionOverlay level={level} scene={scene} selection={selection} hover={hover} issueIds={issueIds} />
+          {draftSymbol && (
+            <>
+              <FurnitureShape parts={draftSymbol.parts} opacity={0.75} />
+              <Poly rings={[draftSymbol.outline]} stroke={furnitureDraft?.clear ? T.valid : T.error} strokeWidth={1.5} fill={furnitureDraft?.clear ? T.validSoft : T.errorSoft} />
+            </>
+          )}
           {draftRect && (
             <Poly rings={[draftRect.ring]} fill={wallDraft?.valid ? T.validSoft : T.errorSoft} stroke={wallDraft?.valid ? T.valid : T.error} strokeWidth={1.5} />
           )}
@@ -468,6 +561,7 @@ export function PlanStage({ width, height }: { width: number; height: number }) 
             tone={previewIssue ? "error" : "accent"}
           />
         )}
+        {outlineDraft && <OutlineDraftShape draft={outlineDraft} viewport={viewport} />}
         <Group name="transient" listening={false}>
           {showHandles &&
             selectedAxis &&
@@ -475,6 +569,10 @@ export function PlanStage({ width, height }: { width: number; height: number }) 
               const s = worldToScreen(viewport, p);
               return <Circle key={i} x={s.x} y={s.y} radius={6.5} fill="white" stroke={T.accent} strokeWidth={2} shadowColor="rgba(0,0,0,0.18)" shadowBlur={3} shadowOffsetY={1} />;
             })}
+          {cornerHandles.map((p, i) => (
+            <Rect key={`corner-${i}`} x={p.x} y={p.y} width={9} height={9} offsetX={4.5} offsetY={4.5} fill="white" stroke={T.accent} strokeWidth={2} shadowColor="rgba(0,0,0,0.18)" shadowBlur={3} shadowOffsetY={1} />
+          ))}
+          {grabBar && <Rect x={grabBar.p.x} y={grabBar.p.y} width={26} height={7} offsetX={13} offsetY={3.5} rotation={grabBar.rotation} cornerRadius={3.5} fill="white" stroke={T.accent} strokeWidth={2} />}
           {openingHandles.map(({ p, rotation }, i) => (
             <Rect key={i} x={p.x} y={p.y} width={6} height={16} offsetX={3} offsetY={8} rotation={rotation} cornerRadius={2} fill="white" stroke={T.accent} strokeWidth={2} />
           ))}

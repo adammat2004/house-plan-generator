@@ -8,7 +8,7 @@ import { z } from "zod";
  * geometric validity is checked by the command layer.
  */
 
-export const CURRENT_SCHEMA_VERSION = 2 as const;
+export const CURRENT_SCHEMA_VERSION = 4 as const;
 
 const idSchema = z.string().min(1).max(200);
 const lengthSchema = z.number().positive();
@@ -98,6 +98,58 @@ export const roomSchema = z.object({
   externalWall: z.enum(EXTERNAL_WALL_PREFERENCES).optional(),
 });
 
+/** Furniture and fittings in the catalog (src/domain/furniture/catalog.ts). */
+export const FURNITURE_KINDS = [
+  "sofa_3",
+  "sofa_2",
+  "armchair",
+  "coffee_table",
+  "tv_unit",
+  "bookcase",
+  "dining_set_4",
+  "dining_set_6",
+  "sideboard",
+  "kitchen_run",
+  "kitchen_island",
+  "fridge",
+  "bed_single",
+  "bed_double",
+  "bed_king",
+  "bedside_table",
+  "wardrobe",
+  "chest_of_drawers",
+  "desk",
+  "bath",
+  "shower",
+  "toilet",
+  "basin",
+  "washing_machine",
+  "worktop",
+  "shelving",
+  "car",
+  "plant",
+] as const;
+
+/** Quarter turns counterclockwise, in degrees. At 0 the item's back faces north (+y). */
+export const FURNITURE_ROTATIONS = [0, 90, 180, 270] as const;
+
+/**
+ * A piece of furniture or a fitting. It stands on the floor in plan space and
+ * belongs to whichever room contains its position (derived, never stored), so
+ * wall edits never have to update it. Width runs across its front, depth from
+ * front to back, before rotation.
+ */
+export const furnitureSchema = z.object({
+  id: idSchema,
+  kind: z.enum(FURNITURE_KINDS),
+  /** Centre of the footprint. */
+  position: point2Schema,
+  rotation: z.union([z.literal(0), z.literal(90), z.literal(180), z.literal(270)]),
+  width: lengthSchema,
+  depth: lengthSchema,
+  height: lengthSchema,
+});
+
 export const levelSchema = z.object({
   id: idSchema,
   name: z.string().max(200),
@@ -107,10 +159,15 @@ export const levelSchema = z.object({
   walls: z.record(idSchema, wallSchema),
   openings: z.record(idSchema, openingSchema),
   rooms: z.record(idSchema, roomSchema),
+  furniture: z.record(idSchema, furnitureSchema),
+  /**
+   * The house outline: external walls in counterclockwise order, each
+   * horizontal or vertical. Whether it is a rectangle, an L or anything else
+   * is derived, never stored.
+   */
   envelope: z.object({
-    kind: z.literal("rectangle"),
-    /** Ordered counterclockwise: four exterior wall identities. */
-    wallIds: z.tuple([idSchema, idSchema, idSchema, idSchema]),
+    kind: z.literal("polygon"),
+    wallIds: z.array(idSchema).min(4).max(64),
   }),
   rearWallId: idSchema.nullable(),
 });

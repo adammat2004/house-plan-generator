@@ -526,7 +526,7 @@
 /* ── Start options ─────────────────────────────────────────────────────── */
 .start-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
   gap: 20px;
 }
 
@@ -824,8 +824,9 @@
 }
 
 /* ── New project ───────────────────────────────────────────────────────── */
+/* A form on the left, a large preview on the right that stays in view. */
 .new-project {
-  padding-top: 4px;
+  padding-top: 2px;
 }
 
 .new-top {
@@ -850,8 +851,8 @@
 .new-close {
   display: grid;
   place-items: center;
-  width: 40px;
-  height: 40px;
+  width: 38px;
+  height: 38px;
   border-radius: 9px;
   color: var(--home-ink);
 }
@@ -860,35 +861,58 @@
   background: rgba(30, 36, 32, 0.06);
 }
 
+.new-layout {
+  display: grid;
+  grid-template-columns: minmax(380px, 460px) minmax(0, 1fr);
+  align-items: start;
+  gap: 32px;
+  margin-top: 8px;
+}
+
+.new-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+}
+
+.new-step {
+  margin: 0 0 6px;
+  color: var(--home-ink-3);
+  font-size: 13px;
+}
+
 .new-title {
-  margin: 4px 0 0;
+  margin: 0;
   font-family: var(--serif);
-  font-size: 44px;
+  font-size: 40px;
   font-weight: 400;
+  line-height: 1.1;
   letter-spacing: -0.015em;
 }
 
 .new-lead {
-  margin: 8px 0 24px;
-  color: var(--home-ink-3);
-  font-size: 18px;
+  margin: 10px 0 0;
+  color: var(--home-ink-2);
+  font-size: 15px;
+  line-height: 1.5;
 }
 
-.method-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 20px;
+/* Ways to start: one row each, with a small picture. */
+.method-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
-.method-card {
+.method-option {
   position: relative;
   display: flex;
   align-items: center;
-  gap: 22px;
-  min-height: 118px;
-  padding: 18px 48px 18px 18px;
+  gap: 16px;
+  padding: 8px 48px 8px 8px;
   border: 1px solid var(--home-line);
-  border-radius: 8px;
+  border-radius: 10px;
   background: #fff;
   box-shadow: var(--home-card-shadow);
   text-align: left;
@@ -898,21 +922,80 @@
     box-shadow 120ms ease;
 }
 
-.method-card:hover {
+.method-option:hover {
   border-color: var(--home-line-strong);
   box-shadow: var(--home-card-shadow-hover);
 }
 
-.method-card.is-selected {
+.method-option.is-selected {
   border-color: var(--home-primary);
   box-shadow: 0 0 0 1px var(--home-primary);
 }
 
-/* Round selection mark in a choice card's top-right corner: an empty ring, or filled with a tick. */
+.method-art {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 72px;
+  height: 56px;
+  overflow: hidden;
+  border-radius: 7px;
+  background-color: #f4f2ec;
+  background-image:
+    linear-gradient(rgba(30, 36, 32, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(30, 36, 32, 0.05) 1px, transparent 1px);
+  background-size: 8px 8px;
+}
+
+.method-art-rooms {
+  grid-template-columns: 1fr 1fr;
+  gap: 1px;
+  background: #ece9e1;
+}
+
+.method-art-rooms img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background: #fff;
+}
+
+.method-text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.method-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.method-badge {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #e5efeb;
+  color: #245848;
+  font-size: 11.5px;
+  font-weight: 500;
+}
+
+.method-desc {
+  color: var(--home-ink-2);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+/* Round selection mark: an empty ring, or filled with a tick. */
 .choice-mark {
   position: absolute;
-  top: 18px;
-  right: 18px;
+  top: 50%;
+  right: 16px;
   display: grid;
   place-items: center;
   width: 22px;
@@ -920,6 +1003,7 @@
   border: 1.5px solid #c9c6bd;
   border-radius: 50%;
   color: #fff;
+  transform: translateY(-50%);
 }
 
 .is-selected > .choice-mark {
@@ -927,55 +1011,46 @@
   background: var(--home-primary);
 }
 
-.new-body {
-  display: grid;
-  grid-template-columns: minmax(340px, 41%) minmax(0, 1fr);
-  gap: 22px;
-  margin-top: 24px;
-}
-
-.details-card {
+/* Fields */
+.new-fields {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  padding: 22px 20px 20px;
 }
 
-.details-card h2 {
-  margin: 0;
-  font-size: 18px;
-  font-weight: 600;
-}
-
-.details-card .field {
+.new-panel .field {
   gap: 7px;
 }
 
-.details-card .field > label,
-.details-card .field-label,
-.details-card legend {
+.new-panel .field > label,
+.new-panel .field-label,
+.new-panel legend {
   color: var(--home-ink-2);
   font-size: 13px;
-  font-weight: 400;
+  font-weight: 500;
 }
 
-.details-card input:not([type="file"]),
+.new-panel input:not([type="file"]),
 .select-box select {
   width: 100%;
-  height: 40px;
+  height: 42px;
   padding: 0 12px;
   border: 1px solid var(--home-line-strong);
-  border-radius: 7px;
+  border-radius: 8px;
   background: #fff;
   color: var(--home-ink);
   font-size: 14px;
 }
 
-.details-card .input-with-unit input {
+.new-panel .input-with-unit input {
   padding-right: 36px;
 }
 
-.details-card input:focus,
+.new-panel input::placeholder {
+  color: var(--home-ink-3);
+}
+
+.new-panel input:focus,
 .select-box select:focus {
   border-color: var(--home-primary);
   outline: none;
@@ -1004,11 +1079,12 @@
 .field-pair {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 14px;
+  gap: 12px;
 }
 
 .optional {
   color: var(--home-ink-3);
+  font-weight: 400;
 }
 
 .field-help {
@@ -1020,88 +1096,157 @@
   cursor: help;
 }
 
-.details-card fieldset {
+.new-panel fieldset {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
   min-width: 0;
   margin: 0;
   padding: 0;
   border: 0;
 }
 
-.details-card legend {
-  margin-bottom: 8px;
+.new-panel legend {
+  margin-bottom: 10px;
   padding: 0;
+}
+
+.new-panel .field-hint {
+  margin: 0;
+  color: var(--home-ink-3);
+  font-size: 12.5px;
+  line-height: 1.45;
 }
 
 .dims-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
 }
 
-.type-grid {
-  display: grid;
+.dims-grid-3 {
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
 }
 
-.type-card {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 3px;
-  min-height: 96px;
-  padding: 14px 16px;
+/* Less-used details, folded away. */
+.new-more {
   border: 1px solid var(--home-line);
-  border-radius: 7px;
+  border-radius: 10px;
   background: #fff;
-  color: var(--home-ink);
-  text-align: left;
+}
+
+.new-more > summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  font-weight: 500;
+  list-style: none;
   cursor: pointer;
 }
 
-.type-card:hover {
-  border-color: var(--home-line-strong);
-}
-
-.type-card.is-selected {
-  border-color: var(--home-primary);
-  box-shadow: 0 0 0 1px var(--home-primary);
-}
-
-.type-card > svg {
-  margin-bottom: 6px;
-}
-
-.type-title {
-  font-weight: 500;
-}
-
-.type-desc {
-  color: var(--home-ink-3);
-  font-size: 12px;
-}
-
-.type-card .choice-mark {
-  top: 10px;
-  right: 10px;
-  width: 20px;
-  height: 20px;
-  border-color: transparent;
-}
-
-.type-card:not(.is-selected) .choice-mark {
+.new-more > summary::-webkit-details-marker {
   display: none;
+}
+
+.new-more > summary > svg {
+  flex: none;
+  color: var(--home-ink-2);
+  transition: transform 140ms ease;
+}
+
+.new-more[open] > summary > svg {
+  transform: rotate(180deg);
+}
+
+.new-more-hint {
+  flex: 1;
+  overflow: hidden;
+  color: var(--home-ink-3);
+  font-size: 13px;
+  font-weight: 400;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.new-more-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 4px 14px 16px;
+}
+
+/* A plain text disclosure inside a fieldset. */
+.new-more-inline {
+  border: 0;
+  background: none;
+}
+
+.new-more-inline > summary {
+  padding: 2px 0;
+  color: var(--home-ink-2);
+  font-size: 13px;
+}
+
+.new-more-inline > summary::before {
+  content: "+";
+  display: inline-grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border: 1px solid var(--home-line-strong);
+  border-radius: 4px;
+  font-size: 12px;
+  line-height: 1;
+}
+
+.new-more-inline[open] > summary::before {
+  content: "−";
+}
+
+.new-more-inline > .dims-grid {
+  margin-top: 12px;
+}
+
+.type-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.type-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 14px;
+  border: 1px solid var(--home-line-strong);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--home-ink);
+  font-size: 13.5px;
+  cursor: pointer;
+}
+
+.type-chip:hover {
+  border-color: var(--home-ink-3);
+}
+
+.type-chip.is-selected {
+  border-color: var(--home-primary);
+  background: var(--home-primary);
+  color: #fff;
 }
 
 .drop-zone {
   display: flex;
   align-items: center;
   gap: 14px;
-  padding: 16px;
+  padding: 18px 16px;
   border: 1px dashed var(--home-line-strong);
-  border-radius: 8px;
-  background: #fcfbf9;
+  border-radius: 10px;
+  background: #fff;
   color: var(--home-ink-2);
   cursor: pointer;
 }
@@ -1146,20 +1291,171 @@
   white-space: nowrap;
 }
 
-.home-btn-block {
-  width: 100%;
-  margin-top: 4px;
-}
-
-/* Preview of the starting point: the plan and a massing sketch. */
-.preview-card {
-  position: relative;
+/* The main action stays in reach while the form scrolls. */
+.new-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 3;
   display: flex;
   flex-direction: column;
-  min-height: 500px;
+  align-items: center;
+  gap: 12px;
+  margin-top: -4px;
+  padding: 14px 0 18px;
+  background: linear-gradient(to bottom, rgba(249, 248, 245, 0), var(--home-bg) 18px);
+}
+
+.new-actions .field-error {
+  align-self: stretch;
+  margin: 0;
+}
+
+.home-btn-block {
+  width: 100%;
+}
+
+.new-alt {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--home-ink-2);
+  font-size: 13.5px;
+}
+
+.new-alt:hover {
+  color: var(--home-ink);
+}
+
+/* The preview stays beside the form as it scrolls. */
+.new-preview {
+  position: sticky;
+  top: 16px;
+  height: clamp(560px, calc(100vh - 88px), 860px);
   overflow: hidden;
   border: 1px solid var(--home-line);
-  border-radius: 8px;
+  border-radius: 14px;
+}
+
+/* "Pick your rooms": room pictures and what happens next. */
+.rooms-intro {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 24px;
+  background:
+    radial-gradient(120% 80% at 50% 0%, #f2f5ef 0%, transparent 70%),
+    #e9ede5;
+}
+
+.intro-rooms {
+  display: grid;
+  flex: 1;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-auto-rows: minmax(0, 1fr);
+  gap: 14px;
+  min-height: 0;
+}
+
+.intro-room {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  margin: 0;
+  overflow: hidden;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: var(--home-card-shadow-hover);
+}
+
+.intro-room img {
+  display: block;
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+  padding: 8px;
+  object-fit: contain;
+}
+
+.intro-room figcaption {
+  padding: 8px 12px 10px;
+  border-top: 1px solid #f0eee8;
+  font-size: 12.5px;
+  font-weight: 500;
+}
+
+.intro-card {
+  padding: 22px 24px;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: var(--home-card-shadow-hover);
+}
+
+.intro-card h2 {
+  margin: 0 0 16px;
+  font-family: var(--serif);
+  font-size: 22px;
+  font-weight: 400;
+}
+
+.intro-steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 20px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.intro-steps li {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.intro-steps li > span:last-child {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--home-ink-2);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.intro-steps strong {
+  color: var(--home-ink);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.intro-number {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--home-primary);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.intro-note {
+  margin: 18px 0 0;
+  padding-top: 14px;
+  border-top: 1px solid var(--home-line);
+  color: var(--home-ink-2);
+  font-size: 13px;
+}
+
+.intro-note.is-problem {
+  color: var(--danger);
+}
+
+/* Drawing and importing: the plan and a massing sketch. */
+.preview-card {
+  display: flex;
+  flex-direction: column;
   background: #efede7;
 }
 
@@ -1178,10 +1474,11 @@
 
 .preview-chip {
   padding: 8px 14px;
-  border-radius: 7px;
+  border-radius: 8px;
   background: #fff;
   box-shadow: var(--home-card-shadow);
   font-size: 13px;
+  font-weight: 500;
 }
 
 .preview-note {
@@ -1222,51 +1519,43 @@
 .preview-drawing,
 .massing-art {
   position: absolute;
-  inset: 70px 24px 64px;
+  inset: 72px 32px 72px;
   display: block;
-  width: calc(100% - 48px);
-  height: calc(100% - 134px);
-}
-
-.preview-plan .preview-drawing {
-  left: 76px;
-  width: calc(100% - 100px);
-}
-
-.preview-rail {
-  position: absolute;
-  top: 88px;
-  left: 18px;
-  z-index: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
-  padding: 14px 10px;
-  border-radius: 10px;
-  background: #fff;
-  box-shadow: var(--home-card-shadow-hover);
-  color: var(--home-ink);
+  width: calc(100% - 64px);
+  height: calc(100% - 144px);
 }
 
 .preview-size {
   position: absolute;
-  bottom: 24px;
+  bottom: 26px;
   left: 24px;
+  padding: 6px 10px;
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.85);
   color: var(--home-ink-2);
   font-size: 12px;
 }
 
-.preview-plan .preview-size {
-  left: 76px;
-}
-
 .preview-empty {
-  display: grid;
+  display: flex;
   flex: 1;
-  place-items: center;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
   padding: 80px 32px;
   color: var(--home-ink-2);
   text-align: center;
+}
+
+.preview-empty svg {
+  width: 56px;
+  height: 56px;
+  padding: 14px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: var(--home-card-shadow-hover);
+  color: var(--home-ink-2);
 }
 
 .view-switch {
@@ -1346,17 +1635,18 @@
 
 /* ── Narrow windows ────────────────────────────────────────────────────── */
 @media (max-width: 1100px) {
-  .start-grid,
-  .method-grid {
+  .start-grid {
     grid-template-columns: 1fr;
   }
 
-  .method-card {
-    min-height: 0;
+  .new-layout {
+    grid-template-columns: 1fr;
   }
 
-  .new-body {
-    grid-template-columns: 1fr;
+  .new-preview {
+    position: relative;
+    top: 0;
+    height: 560px;
   }
 
   .hero-visual {
@@ -1426,8 +1716,34 @@
     grid-template-columns: 1fr 1fr;
   }
 
-  .preview-card {
-    min-height: 420px;
+  .new-preview {
+    height: 460px;
+  }
+
+  .rooms-intro {
+    height: auto;
+    padding: 16px;
+  }
+
+  .intro-rooms {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-auto-rows: auto;
+    gap: 10px;
+  }
+
+  .intro-room img {
+    flex: none;
+    height: auto;
+    aspect-ratio: 6 / 5;
+  }
+
+  .intro-room:nth-child(n + 5) {
+    display: none;
+  }
+
+  .intro-steps {
+    grid-template-columns: 1fr;
+    gap: 12px;
   }
 
   .view-split .preview-panes {
@@ -1440,12 +1756,10 @@
     border-left: 0;
   }
 
-  .preview-note,
-  .preview-rail {
+  .preview-note {
     display: none;
   }
 
-  .preview-plan .preview-drawing,
   .preview-drawing,
   .massing-art {
     inset: 64px 16px 44px;
@@ -1453,7 +1767,6 @@
     height: calc(100% - 108px);
   }
 
-  .preview-plan .preview-size,
   .preview-size {
     bottom: 16px;
     left: 16px;

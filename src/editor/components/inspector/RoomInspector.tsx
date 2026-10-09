@@ -8,7 +8,12 @@ import { formatArea } from "@/domain/geometry/numeric";
 import { isGeneratedRoomName, ROOM_TYPE_LABEL, suggestRoomName } from "@/domain/plan/rooms";
 import { EXTERNAL_WALL_PREFERENCES, FLOOR_MATERIALS, ROOM_TYPES } from "@/domain/plan/schema";
 import type { ExternalWallPreference, FloorMaterial, Level, RoomType } from "@/domain/plan/types";
-import { Menu, MenuItem, NumberField, OptionalNumberField, SelectField, TextField } from "@/components/ui/controls";
+import { describeEntity } from "@/domain/commands";
+import { ROOM_FURNITURE } from "@/domain/furniture/catalog";
+import { canFurnish } from "@/domain/furniture/furnish";
+import { furnitureIssues } from "@/domain/furniture/issues";
+import { furnitureInRoom } from "@/domain/furniture/layout";
+import { Button, Menu, MenuItem, NumberField, OptionalNumberField, SelectField, TextField } from "@/components/ui/controls";
 import {
   ArmchairIcon,
   BathIcon,
@@ -18,6 +23,7 @@ import {
   DeskIcon,
   DoorIcon,
   LeafIcon,
+  PlusIcon,
   SofaIcon,
   SparkleIcon,
   SwapIcon,
@@ -26,6 +32,8 @@ import {
 } from "@/components/ui/icons";
 import { MATERIAL_SWATCH } from "../../rendering/konva/theme";
 import { design, editor, useSessionState } from "../../state/editor";
+import { FurnitureArt } from "../furniture/FurnitureArt";
+import { pickFurniture } from "../shell/tools";
 import { InspectorFrame, MoreSettings, run, Section } from "./frame";
 
 export const ROOM_TYPE_OPTIONS: ReadonlyArray<{ value: RoomType; label: string }> = ROOM_TYPES.map((value) => ({
@@ -93,13 +101,7 @@ export function RoomInspector({ level, roomId, focusKey }: { level: Level; roomI
         ))}
       </div>
       {tab === "details" && <Details level={level} roomId={roomId} area={area} focusKey={focusKey} designing={designing} />}
-      {tab === "furniture" && (
-        <div className="panel-empty" data-testid="room-furniture">
-          <ArmchairIcon width={26} height={26} />
-          <strong>Furniture is coming soon</strong>
-          <p>Layouts are planned from room uses and sizes today. Furniture you place here will show on the plan and in 3D.</p>
-        </div>
-      )}
+      {tab === "furniture" && <RoomFurniture level={level} roomId={roomId} />}
       {tab === "materials" && <Materials roomId={roomId} value={room.floorMaterial ?? null} />}
       {tab === "ai" && <RoomSuggestions roomId={roomId} type={room.type} />}
     </InspectorFrame>
@@ -181,6 +183,53 @@ function Details({ level, roomId, area, focusKey, designing }: { level: Level; r
   );
 }
 
+/** What's in the room, and quick ways to lay it out or add to it. */
+function RoomFurniture({ level, roomId }: { level: Level; roomId: string }) {
+  const room = level.rooms[roomId];
+  const items = furnitureInRoom(level, roomId);
+  const problems = furnitureIssues(level);
+  const standard = canFurnish(room.type);
+  const usual = ROOM_FURNITURE[room.type] ?? [];
+  return (
+    <Section>
+      {items.length ? (
+        <ul className="furniture-list" data-testid="room-furniture">
+          {items.map((item) => (
+            <li key={item.id}>
+              <button type="button" className="furniture-row" onClick={() => editor.select({ kind: "furniture", id: item.id })}>
+                <FurnitureArt kind={item.kind} width={item.width} depth={item.depth} size={32} />
+                <span>{describeEntity(level, item.id)}</span>
+                {problems.has(item.id) ? <small className="is-problem">In the way</small> : <small>{Math.round(item.width * 1000)} × {Math.round(item.depth * 1000)}</small>}
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <div className="panel-empty" data-testid="room-furniture">
+          <ArmchairIcon width={26} height={26} />
+          <strong>No furniture yet</strong>
+          <p>{standard ? "Furnish the room for a typical layout, or add pieces one at a time." : "Add pieces one at a time with the Furniture tool."}</p>
+        </div>
+      )}
+      <div className="button-row">
+        {standard && (
+          <Button variant="primary" onClick={() => editor.furnishRoom(roomId)} data-testid="furnish-room">
+            <SparkleIcon width={16} height={16} /> {items.length ? "Lay out again" : "Furnish room"}
+          </Button>
+        )}
+        <Button onClick={() => pickFurniture(usual[0] ?? "plant")} data-testid="add-furniture">
+          <PlusIcon width={16} height={16} /> Add a piece
+        </Button>
+      </div>
+      {items.length > 0 && (
+        <button type="button" className="link-btn" onClick={() => editor.clearFurniture(roomId)} data-testid="clear-room-furniture">
+          Remove all furniture from this room
+        </button>
+      )}
+    </Section>
+  );
+}
+
 /** Floor finish with a swatch of the material. */
 function MaterialSelect({ roomId, value }: { roomId: string; value: FloorMaterial | null }) {
   return (
@@ -229,7 +278,7 @@ function Materials({ roomId, value }: { roomId: string; value: FloorMaterial | n
           </button>
         ))}
       </div>
-      <p className="field-hint">Shown on the plan in Designs. Walls and fittings are coming later.</p>
+      <p className="field-hint">Shown on the plan in Designs and on the floor in 3D.</p>
     </Section>
   );
 }

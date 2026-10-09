@@ -1,8 +1,11 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
+import { defaultShapeParams, presetOutline, presetProblem, SHAPE_DEFAULT_SIZE, SHAPE_PRESET_INFO, type ShapePreset } from "@/domain/geometry/outlinePresets";
 import { DEFAULT_HOUSE, LIMITS } from "@/domain/plan/defaults";
+import type { Point2 } from "@/domain/plan/types";
 import { Button } from "@/components/ui/controls";
+import { ShapePicker } from "./ShapePicker";
 
 export interface CreateHouseValues {
   name: string;
@@ -11,6 +14,9 @@ export interface CreateHouseValues {
   externalThickness: number;
   internalThickness: number;
   wallHeight: number;
+  shape: ShapePreset;
+  /** Outside-face outline for shapes other than a rectangle. */
+  outline: Point2[] | null;
 }
 
 interface Props {
@@ -32,23 +38,69 @@ export const HOUSE_FIELDS = [
 
 export type HouseFieldKey = (typeof HOUSE_FIELDS)[number]["key"];
 
+/** The wing sizes of shapes other than a rectangle, as typed. */
+export type WingText = { front: string; wing: string };
+
+const parseNumber = (text: string) => Number(text.replace(",", "."));
+
+/** Typical outside size and wing sizes for a shape, as field text. */
+export function shapeDefaults(shape: ShapePreset): { width: string; depth: string } & WingText {
+  const { width, depth } = SHAPE_DEFAULT_SIZE[shape];
+  const p = defaultShapeParams(shape, width, depth);
+  return { width: String(width), depth: String(depth), front: String(p.front), wing: String(p.wing) };
+}
+
 /** Validates the text of the dimension fields; the name is passed through. */
-export function parseHouseValues(name: string, text: Record<HouseFieldKey, string>): { ok: true; values: CreateHouseValues } | { ok: false; error: string } {
+export function parseHouseValues(
+  name: string,
+  text: Record<HouseFieldKey, string>,
+  shape: ShapePreset = "rectangle",
+  wings: WingText = { front: "", wing: "" },
+): { ok: true; values: CreateHouseValues } | { ok: false; error: string } {
   const numbers = {} as Record<HouseFieldKey, number>;
   for (const f of HOUSE_FIELDS) {
-    const n = Number(text[f.key].replace(",", "."));
+    const n = parseNumber(text[f.key]);
     if (!Number.isFinite(n) || n <= 0) return { ok: false, error: `${f.label} must be a positive number.` };
     numbers[f.key] = n;
   }
   if (numbers.internalThickness < LIMITS.minWallThickness || numbers.internalThickness > LIMITS.maxWallThickness) {
     return { ok: false, error: `Internal wall thickness must be between ${LIMITS.minWallThickness} and ${LIMITS.maxWallThickness} m.` };
   }
-  return { ok: true, values: { name: name.trim() || "My house", ...numbers } };
+  let outline: Point2[] | null = null;
+  if (shape !== "rectangle") {
+    const params = { width: numbers.width, depth: numbers.depth, front: parseNumber(wings.front), wing: parseNumber(wings.wing) };
+    const problem = presetProblem(shape, params, numbers.externalThickness);
+    if (problem) return { ok: false, error: problem };
+    outline = presetOutline(shape, params);
+  }
+  return { ok: true, values: { name: name.trim() || "My house", ...numbers, shape, outline } };
 }
 
-/** Width/depth form with editable wall defaults for a new rectangular house. */
+/** The two wing-size fields of a shape other than a rectangle. */
+export function WingFields({ shape, idPrefix, value, onChange, testPrefix }: { shape: ShapePreset; idPrefix: string; value: WingText; onChange: (value: WingText) => void; testPrefix: string }) {
+  const info = SHAPE_PRESET_INFO[shape];
+  if (shape === "rectangle") return null;
+  return (
+    <>
+      {(["front", "wing"] as const).map((key) => (
+        <div className="field" key={key}>
+          <label htmlFor={`${idPrefix}-${key}`}>{info[key]}</label>
+          <div className="input-with-unit">
+            <input id={`${idPrefix}-${key}`} inputMode="decimal" data-testid={`${testPrefix}-${key}`} value={value[key]} onChange={(e) => onChange({ ...value, [key]: e.target.value })} />
+            <span className="unit">m</span>
+          </div>
+          <p className="field-hint">Outside face to outside face</p>
+        </div>
+      ))}
+    </>
+  );
+}
+
+/** Shape, outside size and wall defaults for a new house. */
 export function CreateHouseDialog({ mode, internalThickness, onCreate, onCancel }: Props) {
   const titleId = useId();
+  const [shape, setShape] = useState<ShapePreset>("rectangle");
+  const [wings, setWings] = useState<WingText>({ front: "", wing: "" });
   const [values, setValues] = useState<Record<HouseFieldKey | "name", string>>({
     name: "My house",
     width: String(DEFAULT_HOUSE.width),
@@ -69,7 +121,7 @@ export function CreateHouseDialog({ mode, internalThickness, onCreate, onCancel 
   const [busy, setBusy] = useState(false);
 
   const submit = async () => {
-    const parsed = parseHouseValues(values.name, values);
+    const parsed = parseHouseValues(values.name, values, shape, wings);
     if (!parsed.ok) {
       setError(parsed.error);
       return;
@@ -116,9 +168,22 @@ export function CreateHouseDialog({ mode, internalThickness, onCreate, onCancel 
         >
           <h2 id={titleId}>{mode === "project" ? "New project" : "New house"}</h2>
           <p className="dialog-lead">
-            {mode === "project" ? "Start with the outside dimensions of your house. " : "Enter the rectangular footprint. "}
+            {mode === "project" ? "Start with the shape and outside dimensions of your house. " : "Choose the shape and enter its outside dimensions. "}
             You can change dimensions later; internal walls keep their positions.
           </p>
+          <div className="field">
+            <span className="field-label">Shape</span>
+            <ShapePicker
+              value={shape}
+              onChange={(next) => {
+                setShape(next);
+                const d = shapeDefaults(next);
+                setValues((v) => ({ ...v, width: d.width, depth: d.depth }));
+                setWings({ front: d.front, wing: d.wing });
+                setError(null);
+              }}
+            />
+          </div>
           <div className="field">
             <label htmlFor={`${titleId}-name`}>Project name</label>
             <input
@@ -146,6 +211,7 @@ export function CreateHouseDialog({ mode, internalThickness, onCreate, onCancel 
                 <p className="field-hint">{f.hint}</p>
               </div>
             ))}
+            <WingFields shape={shape} idPrefix={titleId} value={wings} onChange={setWings} testPrefix="create" />
           </div>
           {error && (
             <p className="field-error" role="alert">

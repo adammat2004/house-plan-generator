@@ -14,6 +14,7 @@ import {
   level,
   openHouse,
   openLayers,
+  selectRoomFromList,
   toScreen,
   vertexOf,
 } from "./support";
@@ -377,10 +378,14 @@ test.describe("Milestone 1 editing workflow", () => {
 
     await page.getByTestId("workspace-brief").click();
     const panel = page.getByTestId("brief-panel");
-    await expect(panel.getByRole("heading", { name: "What does this house need?" })).toBeVisible();
+    await expect(panel.getByRole("heading", { name: "Select your rooms" })).toBeVisible();
+    // The default brief shows as picked rooms: a master bedroom and two doubles.
+    await expect(panel.getByTestId("pick-double_bedroom-count")).toHaveText("2");
+    await panel.getByTestId("pick-double_bedroom-dec").click();
+    await expect(panel.getByTestId("pick-double_bedroom-count")).toHaveText("1");
+    await expect(panel.getByTestId("rooms-preview-facts")).toContainText("2 bed");
+    await panel.getByTestId("rooms-more").click();
     await expect(panel.getByTestId("brief-shell")).toContainText("Garden side North");
-    await panel.getByTestId("brief-bedrooms-dec").click();
-    await expect(panel.getByTestId("brief-bedrooms")).toHaveText("2");
     await panel.getByTestId("brief-pref-kitchen_faces_garden").click();
     // The rear wall is set, so there's no prompt to mark it.
     await expect(panel.getByTestId("brief-rear-note")).toBeHidden();
@@ -463,8 +468,7 @@ test.describe("Milestone 1 editing workflow", () => {
 
     const doc = await getDoc(page);
     const bedroom = Object.values(level(doc).rooms).find((r) => r.type === "primary_bedroom")!;
-    const seed = (bedroom as unknown as { seed: { x: number; y: number } }).seed;
-    await clickAt(page, seed);
+    await selectRoomFromList(page, "Primary Bedroom");
     const inspector = page.getByTestId("inspector");
     await expect(inspector.getByRole("heading", { name: "Primary Bedroom" })).toBeVisible();
     await expect(inspector.getByTestId("room-connections")).toContainText("Door to");
@@ -509,7 +513,7 @@ test.describe("Milestone 1 editing workflow", () => {
     await page.getByTestId("open-concept-Plan A").click();
     const doc = await getDoc(page);
     const kitchen = Object.values(level(doc).rooms).find((r) => r.type === "kitchen" || r.type === "kitchen_dining")!;
-    await clickAt(page, (kitchen as unknown as { seed: { x: number; y: number } }).seed);
+    await selectRoomFromList(page, kitchen.name);
     await page.getByTestId("inspector").getByTestId("room-variations").click();
 
     // The canvas turns into the room beside its alternatives.

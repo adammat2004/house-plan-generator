@@ -1,8 +1,11 @@
 import { applyCommand } from "../commands/apply";
 import type { PlanCommand } from "../commands/types";
+import { createPlanDocument } from "../commands/factory";
 import { validateDocument } from "../commands/validate";
+import { furnishPlan } from "../furniture/furnish";
 import { deriveLevelGeometry, roomFaceIndices } from "../geometry/derive";
 import { analyzeEnvelope, type EnvelopeSide } from "../geometry/envelope";
+import { describeOutline } from "../geometry/outlineDescription";
 import { findFaceIndexContaining } from "../geometry/faces";
 import { roundToPrecision } from "../geometry/numeric";
 import { dot, sub } from "../geometry/vector";
@@ -10,8 +13,11 @@ import { axialParam, distanceToAxis } from "../geometry/walls";
 import { DEFAULT_HOUSE, DOOR_PRESET } from "../plan/defaults";
 import type { Id, Opening, PlanDocument, Point2, RoomType } from "../plan/types";
 import type { LayoutPlanner, PlanCandidate, PlanningRequest, PlanningResult } from "./planner";
-import { programFromBrief, type Program, type Relaxation, type SpaceSpec, type WindowSize } from "./program";
+import { floorFor, programFromBrief, type Program, type Relaxation, type SpaceSpec, type WindowSize } from "./program";
 import { planRoomChange } from "./roomPlanner";
+import { footprintsFor, minimumFootprint, type Footprint, type FootprintShape } from "./footprint";
+import { planAutoShapes, planWingLayouts, WING_TITLE, wingArrangementOf } from "./wingPlanner";
+import { ARRANGEMENTS, hallWidthFor, minBandDepth, zoneProgram, type Arrangement } from "./zoning";
 
 /**
  * A deterministic "strip" planner. The house interior is split into two
@@ -26,48 +32,30 @@ import { planRoomChange } from "./roomPlanner";
  * "along" runs the length of the band and "cross" towards the hall.
  */
 
-interface Arrangement {
-  id: string;
-  /** "depth": bands stacked front and rear; "width": bands side by side, hall running front to back. */
-  split: "depth" | "width";
-  /** Whether the day (living) band comes first: at the front, or on the left. */
-  dayFirst: boolean;
-  /** Reverse the order of rooms along each band. */
-  reverse: boolean;
-  /** Short name for the idea, e.g. on a concept card. */
-  title: string;
-  summary: string;
-}
-
-/** In the order offered: the first few are the most distinct from each other. */
-const ARRANGEMENTS: Arrangement[] = [
-  { id: "garden-living", split: "depth", dayFirst: false, reverse: false, title: "Living along the garden", summary: "Living spaces along the garden side, bedrooms to the front." },
-  { id: "two-wings", split: "width", dayFirst: true, reverse: false, title: "Living and sleeping wings", summary: "Living and sleeping wings either side of a hall running front to back." },
-  { id: "quiet-garden", split: "depth", dayFirst: true, reverse: false, title: "Bedrooms on the quiet side", summary: "Bedrooms on the quiet garden side, living spaces to the front." },
-  { id: "two-wings-mirrored", split: "width", dayFirst: false, reverse: false, title: "Sleeping wing first", summary: "Sleeping wing on the entrance side, living wing opposite, hall between." },
-  { id: "garden-living-reversed", split: "depth", dayFirst: false, reverse: true, title: "Garden living, mirrored", summary: "Living spaces along the garden side, bedrooms to the front, mirrored." },
-  { id: "two-wings-reversed", split: "width", dayFirst: true, reverse: true, title: "Wings, garden rooms swapped", summary: "Living and sleeping wings either side of the hall, with the rooms in each wing reversed." },
-  { id: "quiet-garden-reversed", split: "depth", dayFirst: true, reverse: true, title: "Quiet side, mirrored", summary: "Bedrooms on the quiet garden side, living spaces to the front, mirrored." },
-  { id: "two-wings-mirrored-reversed", split: "width", dayFirst: false, reverse: true, title: "Sleeping wing first, mirrored", summary: "Sleeping wing on the entrance side with its rooms reversed, living wing opposite." },
-];
-
 /** Card titles for each arrangement, keyed by id. */
 export const ARRANGEMENT_TITLE: Record<string, string> = Object.fromEntries(ARRANGEMENTS.map((a) => [a.id, a.title]));
+
+/** The card title for a layout's arrangement id, from either planner. */
+export function arrangementTitle(id: string): string | null {
+  const wing = wingArrangementOf(id);
+  return ARRANGEMENT_TITLE[id] ?? (wing ? WING_TITLE[wing] : null);
+}
 
 /**
  * Arrangements to try for "generate similar": the same split first (mirrored,
  * then the bands swapped), then the rest.
  */
-function similarOrder(baseId: string, all: Arrangement[]): Arrangement[] {
+function similarOrder(baseId: string, all: readonly Arrangement[]): Arrangement[] {
   const base = all.find((a) => a.id === baseId);
-  if (!base) return all;
+  if (!base) return [...all];
   const rank = (a: Arrangement) => (a.split !== base.split ? 3 : a.dayFirst === base.dayFirst ? 1 : 2);
   return all.filter((a) => a.id !== base.id).sort((a, b) => rank(a) - rank(b));
 }
 
 const GRID = 0.05;
-const MIN_BAND = 3;
 const snap = (v: number) => roundToPrecision(Math.round(v / GRID) * GRID);
+
+/** A sensible starting finish for each kind of room; the user can change any of them. */
 
 const WINDOW_WIDTH: Record<WindowSize, number> = { large: 2.4, standard: 1.4, small: 0.7, none: 0 };
 
@@ -82,9 +70,28 @@ export function createStripPlanner(): LayoutPlanner {
 export function planLayouts(request: PlanningRequest): PlanningResult {
   const { intent } = request;
   if (intent.action !== "generate_layouts") return planRoomChange(request);
+  const result = planWholeLayouts(request);
+  // A shape in the brief only shapes houses sized from the rooms; say so when the drawn house differs.
+  const wanted = intent.brief.houseShape;
+  if (intent.footprint !== "auto" && (wanted === "L" || wanted === "T" || wanted === "U")) {
+    const env = analyzeEnvelope(request.source.levels[0]);
+    if (env.ok && describeOutline(env.info).shape !== wanted) {
+      const note = `The brief asks for ${wanted === "L" ? "an" : "a"} ${wanted}-shaped house; these layouts keep the house you drew. Size the house from the rooms to let the planner shape it.`;
+      return { ...result, candidates: result.candidates.map((c) => ({ ...c, notes: [...c.notes, note] })) };
+    }
+  }
+  return result;
+}
+
+function planWholeLayouts(request: PlanningRequest): PlanningResult {
+  const intent = request.intent as Extract<PlanningRequest["intent"], { action: "generate_layouts" }>;
   const prefs = new Set(intent.brief.preferences);
   const allowed = ARRANGEMENTS.filter((a) => !(prefs.has("kitchen_faces_garden") && a.split === "depth" && a.dayFirst));
   const excluded = new Set(intent.exclude ?? []);
+  if (intent.footprint === "auto") return planAuto(request, allowed, excluded);
+  // Houses that aren't rectangles are laid out wing by wing.
+  const sourceEnv = analyzeEnvelope(request.source.levels[0]);
+  if (sourceEnv.ok && !sourceEnv.info.isRectangle) return planWingLayouts(request);
   const fresh = allowed.filter((a) => !excluded.has(a.id));
   const arrangements = intent.similarTo ? similarOrder(intent.similarTo, fresh) : fresh;
   const candidates: PlanCandidate[] = [];
@@ -96,20 +103,162 @@ export function planLayouts(request: PlanningRequest): PlanningResult {
       const built = buildLayout(request.source, program, arrangement, `${request.idPrefix}-${candidates.length + 1}`);
       if (built.ok) {
         const notes = [...program.notes, ...built.notes];
-        if (intent.brief.additionalInstructions.trim()) notes.push("Additional instructions are saved with the brief; this planner doesn't read free text yet.");
-        candidates.push({ document: built.document, summary: arrangement.summary, notes, seed: ARRANGEMENTS.indexOf(arrangement), arrangement: arrangement.id });
+        if (intent.brief.additionalInstructions.trim() && !request.instructionsRead) {
+          notes.push("Additional instructions are saved with the brief, but no AI read them, and this planner doesn't read free text.");
+        }
+        // Furnished, so concepts read as homes; furniture never affects validity.
+        const document = furnishPlan(built.document, `${request.idPrefix}-${candidates.length + 1}`);
+        candidates.push({ document, summary: arrangement.summary, notes, seed: ARRANGEMENTS.indexOf(arrangement), arrangement: arrangement.id });
         break;
       }
       lastProblem = built.reason;
     }
   }
   const exhausted = excluded.size > 0 && !arrangements.length;
-  return {
-    candidates,
-    issues: candidates.length
-      ? []
-      : [exhausted ? { code: "does-not-fit", message: "There are no more distinct layouts for this brief. Change the brief to explore other options." } : { code: "does-not-fit", message: `No layout fits: ${lastProblem}` }],
-  };
+  if (candidates.length) return { candidates, issues: [] };
+  if (exhausted) return { candidates, issues: [{ code: "does-not-fit", message: "There are no more distinct layouts for this brief. Change the brief to explore other options." }] };
+  return { candidates, issues: [{ code: "does-not-fit", message: tooSmallMessage(request, allowed) ?? `No layout fits: ${lastProblem}`, tooSmall: true }] };
+}
+
+/** Says how big a house the brief needs when the user's own house is too small for it. */
+function tooSmallMessage(request: PlanningRequest, allowed: readonly Arrangement[]): string | null {
+  const intent = request.intent as Extract<PlanningRequest["intent"], { action: "generate_layouts" }>;
+  const env = analyzeEnvelope(request.source.levels[0]);
+  if (!env.ok) return null;
+  const minimum = minimumFootprint(programFromBrief(intent.brief, 2), allowed, {
+    externalThickness: env.info.externalThickness,
+    hallWidth: hallWidthFor(new Set(intent.brief.preferences)),
+  });
+  if (!minimum) return null;
+  const size = (w: number, d: number) => `${Number(w.toFixed(2))} × ${Number(d.toFixed(2))} m`;
+  return `These rooms don't fit your ${size(env.info.width, env.info.depth)} house: they need about ${size(minimum.width, minimum.depth)}. Size the house from the rooms, make the house bigger in Structure, or ask for fewer rooms.`;
+}
+
+const SHAPE_WORD: Record<FootprintShape, string> = { compact: "A compact", wide: "A wide", deep: "A deep" };
+/** Most shells built per request in auto mode, so a hard brief can't stall the editor. */
+const MAX_ATTEMPTS = 40;
+
+interface AutoOption {
+  arrangement: Arrangement;
+  footprint: Footprint;
+  variant: string;
+}
+
+/**
+ * Layouts whose house size comes from the rooms. Rectangles unless the brief
+ * asks for another shape; "any" alternates rectangles with L, U and T houses.
+ */
+function planAuto(request: PlanningRequest, allowed: readonly Arrangement[], excluded: ReadonlySet<string>): PlanningResult {
+  const intent = request.intent as Extract<PlanningRequest["intent"], { action: "generate_layouts" }>;
+  const shape = intent.brief.houseShape;
+  if (!shape || shape === "rectangle") return planAutoRectangles(request, allowed, excluded);
+  if (shape !== "any") return planAutoShapes(request, [shape], excluded);
+  const boxes = planAutoRectangles(request, allowed, excluded);
+  const shaped = planAutoShapes(request, ["L", "U", "T"], excluded);
+  const candidates: PlanCandidate[] = [];
+  for (let i = 0; candidates.length < intent.count && (i < boxes.candidates.length || i < shaped.candidates.length); i++) {
+    for (const c of [shaped.candidates[i], boxes.candidates[i]]) if (c && candidates.length < intent.count) candidates.push(c);
+  }
+  return candidates.length ? { candidates, issues: [] } : { candidates, issues: boxes.issues.length ? boxes.issues : shaped.issues };
+}
+
+/**
+ * Rectangular houses sized from the rooms: each arrangement in a few
+ * footprints chosen for its program, built on a fresh shell like a template.
+ * The first round gives every arrangement a different shape, so the first
+ * few concepts differ in both plan and size.
+ */
+function planAutoRectangles(request: PlanningRequest, allowed: readonly Arrangement[], excluded: ReadonlySet<string>): PlanningResult {
+  const intent = request.intent as Extract<PlanningRequest["intent"], { action: "generate_layouts" }>;
+  const sourceLevel = request.source.levels[0];
+  const env = sourceLevel ? analyzeEnvelope(sourceLevel) : null;
+  const externalThickness = env?.ok ? env.info.externalThickness : DEFAULT_HOUSE.externalThickness;
+  const wallHeight = sourceLevel?.defaultWallHeight ?? DEFAULT_HOUSE.wallHeight;
+  const prefs = new Set(intent.brief.preferences);
+  const opts = { externalThickness, hallWidth: hallWidthFor(prefs), plot: intent.plot };
+
+  // Footprints per arrangement for the program as asked; relaxed programs only where it doesn't fit.
+  const sized = allowed.map((arrangement) => {
+    for (const relax of [0, 1, 2] as Relaxation[]) {
+      const footprints = footprintsFor(programFromBrief(intent.brief, relax), arrangement, opts);
+      if (footprints.length) return { arrangement, footprints };
+    }
+    return { arrangement, footprints: [] as Footprint[] };
+  });
+  const queue: AutoOption[] = [];
+  const seen = new Set<string>();
+  const rounds = Math.max(0, ...sized.map((s) => s.footprints.length));
+  // Arrangements with the same split share their sizes, so each takes the next size in turn.
+  const turn = sized.map(({ arrangement }, i) => sized.slice(0, i).filter((o) => o.arrangement.split === arrangement.split).length);
+  for (let round = 0; round < rounds; round++) {
+    sized.forEach(({ arrangement, footprints }, i) => {
+      if (!footprints.length) return;
+      const footprint = footprints[(turn[i] + round) % footprints.length];
+      const variant = `${arrangement.id}@${footprint.width}x${footprint.depth}`;
+      if (seen.has(variant) || excluded.has(variant)) return;
+      seen.add(variant);
+      queue.push({ arrangement, footprint, variant });
+    });
+  }
+  if (intent.similarTo) {
+    // Same size first, in the arrangements most like the original, then the rest.
+    const [baseId, size] = intent.similarTo.split("@");
+    const order = similarOrder(baseId, [...allowed]).map((a) => a.id);
+    const rank = (o: AutoOption) => (`${o.footprint.width}x${o.footprint.depth}` === size ? 0 : 100) + (order.indexOf(o.arrangement.id) + 1 || 50);
+    queue.sort((a, b) => rank(a) - rank(b));
+  }
+
+  const candidates: PlanCandidate[] = [];
+  let lastProblem = "these rooms don't fit any house the planner can draw.";
+  let attempts = 0;
+  for (const option of queue) {
+    if (candidates.length >= intent.count || attempts >= MAX_ATTEMPTS) break;
+    const prefix = `${request.idPrefix}-${candidates.length + 1}`;
+    for (const relax of [0, 1, 2] as Relaxation[]) {
+      attempts++;
+      const shell = createPlanDocument({
+        id: `${prefix}-plan`,
+        name: request.source.name,
+        width: option.footprint.width,
+        depth: option.footprint.depth,
+        externalThickness,
+        wallHeight,
+        idPrefix: `${prefix}-s`,
+      });
+      const program = programFromBrief(intent.brief, relax);
+      const built = buildLayout(shell, program, option.arrangement, prefix);
+      if (!built.ok) {
+        lastProblem = built.reason;
+        continue;
+      }
+      const { width, depth, shape } = option.footprint;
+      const notes = [...program.notes, ...built.notes];
+      if (intent.brief.additionalInstructions.trim() && !request.instructionsRead) {
+        notes.push("Additional instructions are saved with the brief, but no AI read them, and this planner doesn't read free text.");
+      }
+      candidates.push({
+        document: furnishPlan(built.document, prefix),
+        summary: `${SHAPE_WORD[shape]} ${width} × ${depth} m house. ${option.arrangement.summary}`,
+        notes,
+        seed: ARRANGEMENTS.indexOf(option.arrangement),
+        arrangement: option.arrangement.id,
+        variant: option.variant,
+        footprint: option.footprint,
+      });
+      break;
+    }
+  }
+  if (candidates.length) return { candidates, issues: [] };
+  if (excluded.size && !queue.length) {
+    return { candidates, issues: [{ code: "does-not-fit", message: "There are no more distinct layouts for these rooms. Change the rooms to explore other options." }] };
+  }
+  const minimum = minimumFootprint(programFromBrief(intent.brief, 2), allowed, opts);
+  const plot = intent.plot;
+  const message =
+    minimum && (plot?.maxWidth || plot?.maxDepth)
+      ? `These rooms need a house of at least about ${minimum.width} × ${minimum.depth} m, and the plot allows ${plot.maxWidth ?? "any"} × ${plot.maxDepth ?? "any"} m. Raise the plot size or choose fewer rooms.`
+      : `No layout fits: ${lastProblem}`;
+  return { candidates, issues: [{ code: "does-not-fit", message }] };
 }
 
 type BuildResult = { ok: true; document: PlanDocument; notes: string[] } | { ok: false; reason: string };
@@ -130,9 +279,8 @@ function buildLayout(source: PlanDocument, program: Program, arrangement: Arrang
   if (!env0.ok) return { ok: false, reason: "the source plan's envelope is invalid." };
   if (program.spaces.length < 2) return { ok: false, reason: "the brief needs at least two spaces." };
   const rearSide: EnvelopeSide = (sourceLevel.rearWallId && env0.info.sideOfWall[sourceLevel.rearWallId]) || "north";
-  const accessible = prefs.has("accessible_layout");
-  const hallWidth = accessible ? 1.5 : 1.2;
-  const doorWidth = accessible ? 1 : DOOR_PRESET.width;
+  const hallWidth = hallWidthFor(prefs);
+  const doorWidth = prefs.has("accessible_layout") ? 1 : DOOR_PRESET.width;
   const notes: string[] = [];
 
   let doc: PlanDocument = { ...source, id: `${prefix}-plan` };
@@ -147,7 +295,7 @@ function buildLayout(source: PlanDocument, program: Program, arrangement: Arrang
       type: "createFootprint",
       width: env0.info.width,
       depth: env0.info.depth,
-      externalThickness: env0.info.thickness.south,
+      externalThickness: env0.info.externalThickness,
       wallHeight: sourceLevel.defaultWallHeight,
       idPrefix: `${prefix}-f`,
     }) ?? run({ type: "setRearWall", wallId: envSides(doc)[rearSide] });
@@ -173,33 +321,14 @@ function buildLayout(source: PlanDocument, program: Program, arrangement: Arrang
   const at = (a: number, c: number) => (depthSplit ? uv(a, c) : uv(c, a));
 
   // Zone the program into two bands; spill bedrooms into the day band if the night band overflows.
-  let day = program.spaces.filter((s) => s.zone === "day");
-  let night = program.spaces.filter((s) => s.zone === "night");
-  if (!day.length || !night.length) {
-    const all = [...day, ...night];
-    const half = Math.ceil(all.length / 2);
-    [day, night] = [all.slice(0, half), all.slice(half)];
-  }
-  day = orderDay(day, arrangement, prefs);
-  night = orderNight(night, arrangement, prefs);
-  const minSum = (spaces: SpaceSpec[]) => spaces.reduce((sum, s) => sum + s.minWidth, 0);
-  while (minSum(night) > L + 1e-9) {
-    const spill = [...night].reverse().find((s) => s.type === "bedroom");
-    if (!spill) break;
-    night = night.filter((s) => s !== spill);
-    day = [...day, spill];
-    notes.push(`${spill.name} sits with the living spaces to fit the footprint.`);
-  }
-  if (minSum(night) > L + 1e-9 || minSum(day) > L + 1e-9) {
-    return { ok: false, reason: `${depthSplit ? "the house is too narrow" : "the house is too shallow"} for every room at its minimum width.` };
-  }
+  const zoning = zoneProgram(program, arrangement, L);
+  if (!zoning) return { ok: false, reason: `${depthSplit ? "the house is too narrow" : "the house is too shallow"} for every room at its minimum width.` };
+  notes.push(...zoning.notes);
 
   // Band depths in proportion to how much area each band needs, with a usable minimum.
   const rest = roundToPrecision(T - hallWidth);
-  const firstSpaces = arrangement.dayFirst ? day : night;
-  const secondSpaces = arrangement.dayFirst ? night : day;
-  // A band holding an ensuite needs room for it and a strip of bedroom beyond.
-  const minDepth = (spaces: SpaceSpec[]) => (spaces.some((s) => s.ensuite) ? MIN_BAND + 0.5 : MIN_BAND);
+  const { first: firstSpaces, second: secondSpaces } = zoning;
+  const minDepth = minBandDepth;
   if (rest < minDepth(firstSpaces) + minDepth(secondSpaces)) return { ok: false, reason: "the house is too small for two rows of rooms and a hall." };
   const need = (spaces: SpaceSpec[]) => spaces.reduce((sum, s) => sum + s.target, 0) / L;
   const share = rest * (need(firstSpaces) / (need(firstSpaces) + need(secondSpaces)));
@@ -292,7 +421,7 @@ function buildLayout(source: PlanDocument, program: Program, arrangement: Arrang
     const face = findFaceIndexContaining(deriveLevelGeometry(level).faces, room.point);
     const roomId = [...roomFaceIndices(level)].find(([, f]) => f === face)?.[0];
     if (!roomId) return { ok: false, reason: `couldn't find the region for ${room.name}.` };
-    const problem = run({ type: "updateRoom", roomId, changes: { name: room.name, type: room.type, targetArea: room.target ?? null } });
+    const problem = run({ type: "updateRoom", roomId, changes: { name: room.name, type: room.type, targetArea: room.target ?? null, floorMaterial: floorFor(room.type) } });
     if (problem) return { ok: false, reason: problem };
   }
 
@@ -404,44 +533,3 @@ function distribute(length: number, spaces: SpaceSpec[]): number[] | null {
   if (length - cuts[cuts.length - 2] < mins[mins.length - 1] - 1e-6) return null;
   return cuts;
 }
-
-const isKitchen = (s: SpaceSpec) => s.type === "kitchen" || s.type === "kitchen_dining";
-
-/**
- * Day rooms along their band. Depth split: living at the start. Width split
- * (band runs front → rear): the kitchen or the living room takes the garden end.
- */
-function orderDay(spaces: SpaceSpec[], arrangement: Arrangement, prefs: ReadonlySet<string>): SpaceSpec[] {
-  const rank = (s: SpaceSpec): number => {
-    const kitchenAtGarden = prefs.has("kitchen_faces_garden");
-    if (arrangement.split === "depth") {
-      return ({ living: 0, dining: 1, kitchen_dining: 2, kitchen: 2, utility: 3, office: 4, garage: 5 } as Record<string, number>)[s.type] ?? 6;
-    }
-    const order = kitchenAtGarden
-      ? { garage: 0, office: 1, living: 2, dining: 3, utility: 4, kitchen_dining: 5, kitchen: 5 }
-      : { garage: 0, office: 1, utility: 2, kitchen: 3, kitchen_dining: 3, dining: 4, living: 5 };
-    return (order as Record<string, number>)[s.type] ?? 6;
-  };
-  const sorted = [...spaces].sort((a, b) => rank(a) - rank(b) || a.key.localeCompare(b.key));
-  if (prefs.has("utility_near_kitchen")) {
-    const utility = sorted.find((s) => s.type === "utility");
-    const kitchen = sorted.find(isKitchen);
-    if (utility && kitchen) {
-      const rest = sorted.filter((s) => s !== utility);
-      rest.splice(rest.indexOf(kitchen) + (arrangement.split === "width" && prefs.has("kitchen_faces_garden") ? 0 : 1), 0, utility);
-      return maybeReverse(rest, arrangement);
-    }
-  }
-  return maybeReverse(sorted, arrangement);
-}
-
-/** Night rooms: the primary bedroom at the end furthest from the living room. */
-function orderNight(spaces: SpaceSpec[], arrangement: Arrangement, prefs: ReadonlySet<string>): SpaceSpec[] {
-  const primaryFirst = arrangement.split === "width" && !prefs.has("kitchen_faces_garden");
-  const rank = (s: SpaceSpec) => (s.type === "primary_bedroom" ? 0 : s.type === "bedroom" ? 1 : 2);
-  const sorted = [...spaces].sort((a, b) => rank(a) - rank(b) || a.key.localeCompare(b.key));
-  return maybeReverse(primaryFirst ? sorted : sorted.reverse(), arrangement);
-}
-
-const maybeReverse = (spaces: SpaceSpec[], arrangement: Arrangement) => (arrangement.reverse ? [...spaces].reverse() : spaces);
-

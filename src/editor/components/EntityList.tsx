@@ -2,6 +2,7 @@
 
 import { describeEntity } from "@/domain/commands";
 import { deriveLevelGeometry, deriveRoomRegions, roomFaceIndices } from "@/domain/geometry/derive";
+import { roomAtPoint } from "@/domain/design/analysis";
 import { formatArea } from "@/domain/geometry/numeric";
 import { editor, editorStores, useDocumentState, useSessionState } from "../state/editor";
 import type { EntityKind } from "../state/stores";
@@ -36,6 +37,7 @@ export function EntityList() {
   const rooms = Object.values(level.rooms).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
   const walls = Object.values(level.walls);
   const openings = Object.values(level.openings);
+  const furniture = Object.values(level.furniture);
 
   return (
     <nav className="entity-list" aria-label="Plan contents">
@@ -72,6 +74,18 @@ export function EntityList() {
         <ul>
           {openings.length === 0 && <li className="empty">None yet — use the Door or Window tool.</li>}
           {openings.map((o) => item("opening", o.id, describeEntity(level, o.id), `${o.width.toFixed(3)} m · ${describeEntity(level, o.wallId)}`))}
+        </ul>
+      </details>
+      <details>
+        <summary>
+          Furniture <span className="count">{furniture.length}</span>
+        </summary>
+        <ul>
+          {furniture.length === 0 && <li className="empty">None yet. Use the Furniture tool in Designs.</li>}
+          {furniture.map((f) => {
+            const roomId = roomAtPoint(level, f.position);
+            return item("furniture", f.id, describeEntity(level, f.id), roomId ? level.rooms[roomId].name : "Outside");
+          })}
         </ul>
       </details>
     </nav>

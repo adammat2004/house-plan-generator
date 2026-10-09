@@ -37,6 +37,7 @@ function Panel() {
   const [tab, setTab] = useState<Tab>("chat");
   const chat = useSessionState((s) => s.designer.chat);
   const running = useSessionState((s) => s.designer.status === "running");
+  const ai = useSessionState((s) => s.designer.ai);
   const selection = useSessionState((s) => s.selection);
   const room = useDocumentState((s) => (selection?.kind === "room" ? s.history.present.levels[0].rooms[selection.id] : undefined));
   const [text, setText] = useState("");
@@ -77,6 +78,13 @@ function Panel() {
           {!chat.length && (
             <div className="ai-intro">
               <p>Ask for changes in your own words. I&rsquo;ll offer options you can apply, undo, or keep as a separate concept.</p>
+              <p className="ai-source" data-testid="ai-source">
+                {ai === "available"
+                  ? "Claude reads your requests. It never draws the plan itself: the planners do, and every option is checked."
+                  : ai === "off"
+                    ? "Using the built-in reader, which understands simple requests. Add an Anthropic API key to have Claude read them."
+                    : ""}
+              </p>
               <div className="ai-examples">
                 {EXAMPLES.map((e) => (
                   <button key={e} type="button" className="suggestion-row" onClick={() => send(e)}>
@@ -90,7 +98,7 @@ function Panel() {
           {chat.map((m) => (
             <Message key={m.id} message={m} />
           ))}
-          {running && <p className="ai-thinking">Working on it…</p>}
+          {running && <p className="ai-thinking">{ai === "available" ? "Reading your request…" : "Working on it…"}</p>}
         </div>
       ) : (
         <div className="ai-log">

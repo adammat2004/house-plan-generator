@@ -19,8 +19,12 @@ import {
   SofaIcon,
   SunIcon,
 } from "@/components/ui/icons";
+import type { Level } from "@/domain/plan/types";
+import { useRenders } from "../../state/editor";
 import { openConcept } from "../shell/tools";
 import { ConceptPreview } from "./ConceptPreview";
+import { RoomGallery, useLook } from "./RoomGallery";
+import { useStill } from "./useStill";
 import type { Concept } from "./concepts";
 import type { PlanPalette } from "./PlanThumbnail";
 
@@ -74,6 +78,7 @@ export function ConceptDetail({ concept, onClose }: { concept: Concept; onClose:
       <div className="concept-detail-body">
         {tab === "overview" && (
           <>
+            <ExteriorPicture planId={concept.meta.id} level={concept.level} />
             <div className="viewer">
               <ConceptPreview level={concept.level} palette={VIEWS[view].palette} className="viewer-main" />
               <span className="viewer-caption">{VIEWS[view].label}</span>
@@ -126,6 +131,9 @@ export function ConceptDetail({ concept, onClose }: { concept: Concept; onClose:
           </>
         )}
         {tab === "rooms" && (
+          <>
+          <RoomGallery planId={concept.meta.id} level={concept.level} />
+          <h3 className="detail-heading">All rooms</h3>
           <ul className="room-list">
             {a.rooms.map((r) => (
               <li key={r.id}>
@@ -138,6 +146,7 @@ export function ConceptDetail({ concept, onClose }: { concept: Concept; onClose:
               </li>
             ))}
           </ul>
+          </>
         )}
         {tab === "dimensions" && (
           <dl className="area-list">
@@ -178,5 +187,21 @@ export function ConceptDetail({ concept, onClose }: { concept: Concept; onClose:
         </button>
       </footer>
     </aside>
+  );
+}
+
+/** The house from the garden: its photo render if there is one, else the 3D view. */
+function ExteriorPicture({ planId, level }: { planId: string; level: Level }) {
+  const { appearance } = useLook();
+  const photo = useRenders((s) => s.byPlan[planId]?.exterior);
+  const { ref, url } = useStill(level, { kind: "exterior" }, { width: 640, height: 360 }, appearance);
+  const src = photo?.url ?? url;
+  if (url === null && !photo) return null;
+  return (
+    <div className="exterior-picture" ref={ref} data-testid="exterior-picture">
+      {/* eslint-disable-next-line @next/next/no-img-element -- object and data URLs made in the browser */}
+      {src ? <img src={src} alt="The house from the garden" /> : <span className="photo-empty">Drawing…</span>}
+      <span className="photo-badge">{photo ? "Photo render" : "3D view"}</span>
+    </div>
   );
 }

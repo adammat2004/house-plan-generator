@@ -3,10 +3,17 @@
 import { memo } from "react";
 import type { Ring } from "@/domain/geometry/polygons";
 import type { Level, RoomType } from "@/domain/plan/types";
-import { PLAN_THEME as T, ROOM_FILL, ZONE_FILL } from "../../rendering/konva/theme";
+import { FURNITURE_FILL, PLAN_THEME as T, ROOM_FILL, ZONE_FILL } from "../../rendering/konva/theme";
 import { buildPlanScene, type PlanScene } from "../../rendering/scene/planScene";
 
-const path = (rings: Ring[]) => rings.map((ring) => `M${ring.map((p) => `${p.x} ${p.y}`).join("L")}Z`).join("");
+/**
+ * Coordinates rounded to the millimetre. Drawings are rendered on the server
+ * and again in the browser, whose trigonometry can differ in the last digits;
+ * rounding keeps both identical so hydration matches.
+ */
+const pt = (p: { x: number; y: number }) => `${Math.round(p.x * 1000) / 1000} ${Math.round(p.y * 1000) / 1000}`;
+export const svgLine = (points: ReadonlyArray<{ x: number; y: number }>, closed = false) => `M${points.map(pt).join("L")}${closed ? "Z" : ""}`;
+const path = (rings: Ring[]) => rings.map((ring) => svgLine(ring, true)).join("");
 
 /** Neutral cream floors with lighter circulation and wet rooms, for drawings outside the editor. */
 const WARM_FILL: Partial<Record<RoomType, string>> = { hall: "#f8f4ec", bathroom: "#ede7dc", ensuite: "#ede7dc", wc: "#ede7dc", utility: "#ede7dc" };
@@ -41,6 +48,15 @@ export function PlanDrawing({ scene, palette = "type", detail = false, highlight
             ))}
         </g>
       ) : null}
+      {detail && scene.furniture.length > 0 && (
+        <g stroke={T.furnitureStroke} strokeWidth={0.018} strokeLinejoin="round" opacity={0.85}>
+          {scene.furniture.flatMap((f) =>
+            f.parts.map((part, i) => (
+              <path key={`${f.id}-${i}`} d={svgLine(part.ring, part.closed)} fill={part.closed && part.tone !== "none" ? FURNITURE_FILL[part.tone] : "none"} />
+            )),
+          )}
+        </g>
+      )}
       {/* A hairline keeps thin internal walls legible at thumbnail size. */}
       <path d={path(scene.wallMass.flatMap((p) => [p.outer, ...p.holes]))} fill={T.wallFill} stroke={T.wallFill} strokeWidth={0.04} fillRule="evenodd" />
       {detail && (
@@ -48,13 +64,13 @@ export function PlanDrawing({ scene, palette = "type", detail = false, highlight
           {scene.openings.map((o) =>
             o.kind === "door" ? (
               <g key={o.id}>
-                {o.leaf && <path d={`M${o.leaf[0].x} ${o.leaf[0].y}L${o.leaf[1].x} ${o.leaf[1].y}`} />}
-                {o.arc && <path d={`M${o.arc.map((p) => `${p.x} ${p.y}`).join("L")}`} strokeDasharray="0.08 0.06" />}
+                {o.leaf && <path d={svgLine(o.leaf)} />}
+                {o.arc && <path d={svgLine(o.arc)} strokeDasharray="0.08 0.06" />}
               </g>
             ) : (
               <g key={o.id}>
                 {o.frame && <path d={path([o.frame])} fill="#fbfaf7" />}
-                {o.glazing?.map(([a, b], i) => <path key={i} d={`M${a.x} ${a.y}L${b.x} ${b.y}`} stroke={T.glazing} />)}
+                {o.glazing?.map(([a, b], i) => <path key={i} d={svgLine([a, b])} stroke={T.glazing} />)}
               </g>
             ),
           )}
@@ -81,7 +97,7 @@ export const PlanThumbnail = memo(function PlanThumbnail({
   className?: string;
   /** Margin around the house, m. */
   pad?: number;
-  /** Also draw door swings and window frames (for larger drawings). */
+  /** Also draw door swings, window frames and furniture (for larger drawings). */
   detail?: boolean;
 }) {
   const scene = buildPlanScene(level);

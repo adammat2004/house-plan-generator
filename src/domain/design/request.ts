@@ -1,4 +1,4 @@
-import { BRIEF_LIMITS, type BriefSpace, type HouseBrief } from "../brief/schema";
+import { BRIEF_LIMITS, houseShapeStep, type BriefSpace, type HouseBrief, type HouseShape } from "../brief/schema";
 import type { Id, Level, RoomType } from "../plan/types";
 import { assessPlan } from "./analysis";
 import type { RoomGoal } from "./intent";
@@ -55,6 +55,16 @@ const ROOM_WORDS: Array<[RegExp, RoomType[]]> = [
   [/\bgarage\b/, ["garage"]],
 ];
 
+/** A house shape asked for in a clause: "L-shaped", "a courtyard house", "any shape". */
+function houseShapeIn(clause: string): HouseShape | null {
+  const letter = /\b([ltu])[- ]?shaped?\b/.exec(clause)?.[1];
+  if (letter) return letter.toUpperCase() as HouseShape;
+  if (/\bcourtyard\b/.test(clause)) return "U";
+  if (/\bany shape\b|\bwhatever shape\b/.test(clause)) return "any";
+  if (/\b(?:rectangular|box[- ]shaped|a simple box)\b/.test(clause)) return "rectangle";
+  return null;
+}
+
 /** Which room a clause is about: a room named in it, then a room type, then the fallback. */
 function findRoom(clause: string, level: Level, fallback: Id | null): Id | null {
   const rooms = assessPlan(level).rooms;
@@ -82,6 +92,15 @@ export function interpretRequest(text: string, level: Level, brief: HouseBrief, 
   let next = { ...brief };
 
   for (const clause of clauses) {
+    // The shape of the house is part of the brief.
+    const shape = houseShapeIn(clause);
+    if (shape) {
+      if (next.houseShape !== shape) {
+        next = { ...next, houseShape: shape };
+        steps.push({ kind: "brief", patch: { houseShape: shape }, describe: houseShapeStep(shape), clause });
+      }
+      continue;
+    }
     // Asking for a new space changes the brief: a room-level edit can't add rooms.
     const adding = /\b(?:add|include|need|want|give me|make room for)\b/.test(clause);
     const removing = /\b(?:remove|drop|without|lose|get rid of)\b/.test(clause) && !/\bwall\b/.test(clause);

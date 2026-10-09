@@ -10,9 +10,11 @@ import { resizeViewport } from "../viewport/viewport";
 const CURSORS = {
   select: "default",
   wall: "crosshair",
+  outline: "crosshair",
   room: "pointer",
   door: "copy",
   window: "copy",
+  furniture: "copy",
 } as const;
 
 /**

@@ -1,10 +1,12 @@
 import { deriveLevelGeometry, deriveRoomRegions, roomFaceIndices } from "@/domain/geometry/derive";
 import { analyzeEnvelope } from "@/domain/geometry/envelope";
-import type { Ring } from "@/domain/geometry/polygons";
+import { outlineEdges, reflexVertices, SIDE_NORMAL, slabPartition } from "@/domain/geometry/outline";
+import type { PolygonWithHoles, Ring } from "@/domain/geometry/polygons";
 import type { Rect } from "@/domain/geometry/vector";
 import { pointAtParam, type WallAxis } from "@/domain/geometry/walls";
 import type { FloorMaterial, Id, Level, Point2, RoomType } from "@/domain/plan/types";
 import { plant, type Tile, type Tree } from "../scene/site";
+import { furnitureBoxes, type FurnitureTone } from "./furnitureModel";
 
 /**
  * The house as plain 3D data, derived from a plan level: wall pieces around
@@ -15,7 +17,7 @@ import { plant, type Tile, type Tree } from "../scene/site";
 
 /** An upright box: `length` along `angle` (radians, plan CCW from +x), `depth` across it, `height` up from `z0`. */
 export interface Box {
-  kind: "wall" | "lintel" | "sill" | "frame" | "door" | "glass" | "roof" | "parapet";
+  kind: "wall" | "lintel" | "sill" | "frame" | "door" | "glass" | "roof" | "parapet" | "furniture";
   center: Point2;
   z0: number;
   length: number;
@@ -25,6 +27,9 @@ export interface Box {
   wallId?: Id;
   /** For external wall pieces: the outward unit normal in plan, so the outside face can take the exterior finish. */
   outward?: Point2;
+  /** For furniture: what it's made of, and which piece it belongs to. */
+  tone?: FurnitureTone;
+  furnitureId?: Id;
 }
 
 export interface FloorPiece {
@@ -32,7 +37,8 @@ export interface FloorPiece {
   name: string;
   type: RoomType;
   material: FloorMaterial | null;
-  rings: Ring[];
+  /** The clear floor: usually one polygon, more if walls pinch the room apart. */
+  polygons: PolygonWithHoles[];
   label: Point2;
   area: number;
   bounds: Rect;
@@ -42,13 +48,20 @@ export interface DimensionLabel {
   text: string;
   at: Point2;
   z: number;
+  /** Room labels carry the area under the name. */
+  kind?: "dimension" | "room";
+  detail?: string;
 }
 
 export interface HouseModel {
   boxes: Box[];
   floors: FloorPiece[];
-  /** Outside faces of the envelope, or null if the plan has none. */
+  /** Bounding box of the outline's outside faces, or null if the plan has none. */
   outside: Rect | null;
+  /** The outline's outside faces, or null. */
+  outline: Ring | null;
+  /** Rectangles tiling the outline's outside faces: the roof slabs, and the ceilings under them. */
+  slabs: Rect[];
   /** Height of the tallest wall as built (before cutaway). */
   wallHeight: number;
   labels: DimensionLabel[];
@@ -61,6 +74,9 @@ export interface HouseModelOptions {
   roof: boolean;
   dimensions: boolean;
   landscape: boolean;
+  furniture: boolean;
+  /** Name and area floating over each room. */
+  roomLabels?: boolean;
 }
 
 export const CUTAWAY_HEIGHT = 1.2;
@@ -68,6 +84,7 @@ const FRAME = 0.05;
 const GLASS = 0.02;
 const ROOF_SLAB = 0.25;
 const PARAPET = 0.3;
+const PARAPET_THICKNESS = 0.15;
 const DOOR_OPEN = Math.PI / 6;
 
 const cache = new WeakMap<Level, Map<string, HouseModel>>();
@@ -108,7 +125,7 @@ function build(level: Level, options: HouseModelOptions): HouseModel {
       name: room.name,
       type: room.type,
       material: room.floorMaterial ?? null,
-      rings: region.clear.flatMap((p) => [p.outer, ...p.holes]),
+      polygons: region.clear,
       label: region.labelPoint,
       area: region.clearArea,
       bounds: {
@@ -120,21 +137,42 @@ function build(level: Level, options: HouseModelOptions): HouseModel {
     });
   }
 
+  if (options.furniture) {
+    for (const item of Object.values(level.furniture)) boxes.push(...furnitureBoxes(item, options.cutaway ? CUTAWAY_HEIGHT : Infinity));
+  }
+
   // A flat roof with a parapet, sitting on the walls.
-  if (options.roof && outside && !options.cutaway) {
-    const cx = (outside.minX + outside.maxX) / 2;
-    const cy = (outside.minY + outside.maxY) / 2;
-    const w = outside.maxX - outside.minX;
-    const d = outside.maxY - outside.minY;
-    boxes.push({ kind: "roof", center: { x: cx, y: cy }, z0: wallHeight, length: w, depth: d, height: ROOF_SLAB, angle: 0 });
-    const t = 0.15;
-    const top = wallHeight + ROOF_SLAB;
-    boxes.push(
-      { kind: "parapet", center: { x: cx, y: outside.maxY - t / 2 }, z0: top, length: w, depth: t, height: PARAPET, angle: 0 },
-      { kind: "parapet", center: { x: cx, y: outside.minY + t / 2 }, z0: top, length: w, depth: t, height: PARAPET, angle: 0 },
-      { kind: "parapet", center: { x: outside.minX + t / 2, y: cy }, z0: top, length: d - 2 * t, depth: t, height: PARAPET, angle: Math.PI / 2 },
-      { kind: "parapet", center: { x: outside.maxX - t / 2, y: cy }, z0: top, length: d - 2 * t, depth: t, height: PARAPET, angle: Math.PI / 2 },
-    );
+  const outline = env.ok ? env.info.outsideRing : null;
+  const slabs = outline ? slabPartition(outline) : [];
+  if (options.roof && outside && outline && !options.cutaway) {
+    if (env.ok && env.info.isRectangle) {
+      const cx = (outside.minX + outside.maxX) / 2;
+      const cy = (outside.minY + outside.maxY) / 2;
+      const w = outside.maxX - outside.minX;
+      const d = outside.maxY - outside.minY;
+      boxes.push({ kind: "roof", center: { x: cx, y: cy }, z0: wallHeight, length: w, depth: d, height: ROOF_SLAB, angle: 0 });
+      const t = PARAPET_THICKNESS;
+      const top = wallHeight + ROOF_SLAB;
+      boxes.push(
+        { kind: "parapet", center: { x: cx, y: outside.maxY - t / 2 }, z0: top, length: w, depth: t, height: PARAPET, angle: 0 },
+        { kind: "parapet", center: { x: cx, y: outside.minY + t / 2 }, z0: top, length: w, depth: t, height: PARAPET, angle: 0 },
+        { kind: "parapet", center: { x: outside.minX + t / 2, y: cy }, z0: top, length: d - 2 * t, depth: t, height: PARAPET, angle: Math.PI / 2 },
+        { kind: "parapet", center: { x: outside.maxX - t / 2, y: cy }, z0: top, length: d - 2 * t, depth: t, height: PARAPET, angle: Math.PI / 2 },
+      );
+    } else {
+      for (const r of slabs) {
+        boxes.push({
+          kind: "roof",
+          center: { x: (r.minX + r.maxX) / 2, y: (r.minY + r.maxY) / 2 },
+          z0: wallHeight,
+          length: r.maxX - r.minX,
+          depth: r.maxY - r.minY,
+          height: ROOF_SLAB,
+          angle: 0,
+        });
+      }
+      boxes.push(...parapets(outline, wallHeight + ROOF_SLAB));
+    }
   }
 
   const labels: DimensionLabel[] = [];
@@ -146,7 +184,45 @@ function build(level: Level, options: HouseModelOptions): HouseModel {
     );
   }
 
-  return { boxes, floors, outside, wallHeight, labels, site: options.landscape && outside ? plant(outside) : null };
+  if (options.roomLabels) {
+    const z = (options.cutaway ? CUTAWAY_HEIGHT : wallHeight) + 0.15;
+    for (const floor of floors) {
+      if (floor.type === "hall" || floor.area < 2.5) continue;
+      labels.push({ kind: "room", text: floor.name, detail: `${floor.area.toFixed(1)} m²`, at: floor.label, z });
+    }
+  }
+
+  return { boxes, floors, outside, outline, slabs, wallHeight, labels, site: options.landscape && outside ? plant(outside) : null };
+}
+
+/**
+ * A parapet just inside every outside face. Horizontal runs take the outward
+ * corners and reach across the inward ones; vertical runs stop short of the
+ * outward corners, so the strips meet without overlapping or leaving gaps.
+ */
+function parapets(outline: Ring, z0: number): Box[] {
+  const t = PARAPET_THICKNESS;
+  const n = outline.length;
+  const reflex = new Set(reflexVertices(outline));
+  return outlineEdges(outline).map((e) => {
+    const forward = e.horizontal ? e.end.x > e.start.x : e.end.y > e.start.y;
+    const loReflex = reflex.has(forward ? e.index : (e.index + 1) % n);
+    const hiReflex = reflex.has(forward ? (e.index + 1) % n : e.index);
+    const lo = e.horizontal ? e.min - (loReflex ? t : 0) : e.min + (loReflex ? 0 : t);
+    const hi = e.horizontal ? e.max + (hiReflex ? t : 0) : e.max - (hiReflex ? 0 : t);
+    const inward = SIDE_NORMAL[e.facing];
+    const across = e.line - (e.horizontal ? inward.y : inward.x) * (t / 2);
+    const mid = (lo + hi) / 2;
+    return {
+      kind: "parapet",
+      center: e.horizontal ? { x: mid, y: across } : { x: across, y: mid },
+      z0,
+      length: hi - lo,
+      depth: t,
+      height: PARAPET,
+      angle: e.horizontal ? 0 : Math.PI / 2,
+    };
+  });
 }
 
 /** Solid wall between openings, sills and lintels around them, and the glass and doors in them. */

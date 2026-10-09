@@ -99,8 +99,11 @@ test.describe("Home screen and project library", () => {
     await expect(preview).toContainText("Width must be a positive number");
     await page.getByTestId("new-width").fill("12");
 
+    // Location and project type are folded under More details.
+    await page.getByTestId("new-more").locator("summary").click();
     await page.getByTestId("new-project-location").selectOption("ireland");
     await page.getByRole("checkbox", { name: /Extension/ }).click();
+    await expect(page.getByTestId("new-more")).toContainText("Ireland · Extension");
     await createHouse(page, { name: "Kitchen extension" });
     const project = (await getProject(page)) as unknown as { name: string; details: unknown };
     expect(project.name).toBe("Kitchen extension");

@@ -29,6 +29,8 @@ export const planOriginSchema = z.discriminatedUnion("kind", [
     notes: z.array(z.string().max(400)).max(20).optional(),
     /** The planner's arrangement for whole-plan layouts; optional for plans saved before it existed. */
     arrangement: z.string().max(60).optional(),
+    /** For layouts sized from the rooms: arrangement@WxD, which tells layouts in the same arrangement apart. */
+    variant: z.string().max(80).optional(),
   }),
 ]);
 
@@ -55,11 +57,31 @@ export const EXTERIOR_FINISHES = ["white_render", "brick", "timber", "dark_rende
 export const FRAME_FINISHES = ["black", "white", "oak"] as const;
 export const ROOF_FINISHES = ["membrane", "zinc"] as const;
 
+/** How rooms are furnished and finished in photo renders. */
+export const INTERIOR_STYLES = ["modern", "scandinavian", "warm_minimal", "industrial", "farmhouse", "coastal"] as const;
+export const INTERIOR_STYLE_LABEL: Record<InteriorStyle, string> = {
+  modern: "Modern",
+  scandinavian: "Scandinavian",
+  warm_minimal: "Warm minimal",
+  industrial: "Industrial",
+  farmhouse: "Farmhouse",
+  coastal: "Coastal",
+};
+
 export const appearanceSchema = z.object({
   exterior: z.enum(EXTERIOR_FINISHES),
   frames: z.enum(FRAME_FINISHES),
   roof: z.enum(ROOF_FINISHES),
+  /** Optional: projects saved before photo renders use the default style. */
+  interiorStyle: z.enum(INTERIOR_STYLES).optional(),
 });
+
+/**
+ * Where generated layouts get their house size: the user's own house
+ * ("source"), or chosen per layout from the rooms ("auto"), within a plot.
+ */
+export const plotSchema = z.object({ maxWidth: z.number().min(4).max(200).optional(), maxDepth: z.number().min(4).max(200).optional() });
+export const sizingSchema = z.object({ footprint: z.enum(["source", "auto"]), plot: plotSchema.optional() });
 
 export const DEFAULT_APPEARANCE: Appearance = { exterior: "white_render", frames: "black", roof: "membrane" };
 
@@ -82,6 +104,8 @@ const rawProjectSchema = z.object({
   details: projectDetailsSchema.optional(),
   /** Optional: projects saved before the 3D view have the default look. */
   appearance: appearanceSchema.optional(),
+  /** Optional: absent means layouts use the user's own house. */
+  sizing: sizingSchema.optional(),
   activePlanId: idSchema,
   plans: z
     .array(z.object({ ...planVariantShape, document: z.unknown() }))
@@ -97,6 +121,8 @@ export type Appearance = z.infer<typeof appearanceSchema>;
 export type ExteriorFinish = Appearance["exterior"];
 export type FrameFinish = Appearance["frames"];
 export type RoofFinish = Appearance["roof"];
+export type InteriorStyle = (typeof INTERIOR_STYLES)[number];
+export type Sizing = z.infer<typeof sizingSchema>;
 export type PlanScope = z.infer<typeof planScopeSchema>;
 export type PlanVariantMeta = Omit<z.infer<typeof rawProjectSchema>["plans"][number], "document">;
 export interface PlanVariant extends PlanVariantMeta {
@@ -110,6 +136,7 @@ export interface ProjectDocument {
   brief: HouseBrief;
   details?: ProjectDetails;
   appearance?: Appearance;
+  sizing?: Sizing;
   activePlanId: Id;
   plans: PlanVariant[];
 }

@@ -34,6 +34,14 @@ export const RoomIcon = (p: IconProps) => (
   </svg>
 );
 
+export const OutlineIcon = (p: IconProps) => (
+  <svg {...base} {...p}>
+    <path d="M4 4h9v6h7v10H4z" />
+    <circle cx="4" cy="4" r="1.6" fill="currentColor" />
+    <circle cx="13" cy="10" r="1.6" fill="currentColor" />
+  </svg>
+);
+
 export const DoorIcon = (p: IconProps) => (
   <svg {...base} {...p}>
     <path d="M5 20V4" />

@@ -9,12 +9,13 @@ import { downloadProject, downloadUrl, projectFileName, readProjectFile } from "
 import { loadPreviousRevision, loadStartupProject, type PlanStorage } from "@/persistence/planStorage";
 import { exportPlanImage } from "../rendering/konva/stageRegistry";
 import { exportModel, snapshot3d } from "../rendering/three/registry";
-import { editor, editorStores, useProjectState, useSessionState } from "../state/editor";
+import { design, editor, editorStores, renders, useProjectState, useSessionState } from "../state/editor";
 import { saveStatusStore, setSaveStatus } from "../state/saveStatus";
 import { DEFAULT_VIEW3D, projectAutosaveSource, projectDocument } from "../state/stores";
 import { toolController } from "../tools/instance";
 import { worldToScreen } from "../viewport/viewport";
 import { CreateHouseDialog, type CreateHouseValues } from "./CreateHouseDialog";
+import { OutlineConfirmDialog } from "./OutlineConfirmDialog";
 import { AiDesignerPanel } from "./designer/AiDesignerPanel";
 import { BriefPanel } from "./designer/BriefPanel";
 import { ConceptBoard } from "./designer/ConceptBoard";
@@ -86,6 +87,12 @@ export default function EditorApp({ projectId, start }: EditorAppProps) {
     document.title = `${projectName} · HomeDesign`;
   }, [projectName]);
 
+  // Whether Claude reads requests here (or the built-in rules do), and whether photo renders are set up.
+  useEffect(() => {
+    void design.checkAi();
+    void renders.checkAvailable();
+  }, []);
+
   // Load the project from the library, then start autosaving committed changes to it.
   useEffect(() => {
     let cancelled = false;
@@ -104,12 +111,20 @@ export default function EditorApp({ projectId, start }: EditorAppProps) {
       }
       // The library key is the project's identity, whatever id an imported file carried.
       editor.loadProject({ ...result.project, id: projectId });
+      void renders.load(projectId, new Set(result.project.plans.map((p) => p.id)));
       if (result.kind === "loaded") {
         saveStatusStore.setState({ status: { state: "saved", at: Date.now() }, previousAvailable: result.previousAvailable });
       } else {
         editor.notify("info", `The latest autosave was damaged (${result.reason}); the previous saved version was restored.`);
       }
       if (start === "draw") selectTool("wall");
+      else if (start === "rooms") editor.setWorkspace("brief");
+      else if (start === "concepts") {
+        // Started from a list of rooms: open on the generated layouts, the first one in focus.
+        const first = result.project.plans.find((p) => p.origin.kind === "generated");
+        editor.setWorkspace("design");
+        editor.setDesigner({ focusPlanId: first?.id ?? null });
+      }
       editorStores.session.setState({ ready: true });
       setPhase({ kind: "ready" });
       stop = startAutosave(projectAutosaveSource(editorStores), store, setSaveStatus);
@@ -117,6 +132,7 @@ export default function EditorApp({ projectId, start }: EditorAppProps) {
     return () => {
       cancelled = true;
       stop?.();
+      renders.reset();
     };
   }, [projectId, start]);
 
@@ -138,7 +154,10 @@ export default function EditorApp({ projectId, start }: EditorAppProps) {
 
   const createHouse = useCallback((values: CreateHouseValues): string | null => {
     editorStores.session.setState((s) => ({ settings: { ...s.settings, internalThickness: values.internalThickness } }));
-    const result = editor.dispatch({ type: "createFootprint", ...values });
+    const { name, width, depth, externalThickness, wallHeight, outline } = values;
+    const result = editor.dispatch(
+      outline ? { type: "createOutline", outline, externalThickness, wallHeight, name } : { type: "createFootprint", width, depth, externalThickness, wallHeight, name },
+    );
     if (!result.ok) return result.issues[0]?.message ?? "Invalid dimensions";
     if (values.name.trim()) editor.renameProject(values.name);
     editorStores.session.setState({ createDialogOpen: false, selection: null });
@@ -293,7 +312,7 @@ export default function EditorApp({ projectId, start }: EditorAppProps) {
         )}
         <BriefPanel />
         {!briefing && !onBoard && <FloorsPanel />}
-        {!onBoard && !presenting && (
+        {!onBoard && !presenting && !briefing && (
           <>
             <div className="bottom-centre">
               {!briefing && !designing && <VariationTray />}
@@ -305,6 +324,7 @@ export default function EditorApp({ projectId, start }: EditorAppProps) {
         )}
         <NoticeToast />
       </main>
+      {ready && <OutlineConfirmDialog />}
       {ready && dialogOpen && (
         <CreateHouseDialog
           mode="replace"

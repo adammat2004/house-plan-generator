@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { useStore } from "zustand";
 import { assessPlan, briefFit, PLAN_FEATURE_LABEL, type PlanAssessment } from "@/domain/design/analysis";
-import { ARRANGEMENT_TITLE } from "@/domain/design/stripPlanner";
+import { arrangementTitle } from "@/domain/design/stripPlanner";
 import type { Level } from "@/domain/plan/types";
 import type { PlanVariantMeta } from "@/domain/project/schema";
 import { editorStores, useProjectState } from "../../state/editor";
@@ -26,7 +26,8 @@ function titleOf(meta: PlanVariantMeta, a: PlanAssessment): string {
   if (!AUTO_LABEL.test(meta.label)) return meta.label;
   if (meta.origin.kind === "generated" && meta.scope.kind === "rooms" && meta.origin.summary) return meta.origin.summary.replace(/\.$/, "");
   const arrangement = meta.origin.kind === "generated" ? meta.origin.arrangement : undefined;
-  if (arrangement && ARRANGEMENT_TITLE[arrangement]) return ARRANGEMENT_TITLE[arrangement];
+  const title = arrangement ? arrangementTitle(arrangement) : null;
+  if (title) return title;
   const lead = a.features.find((f) => f === "open_plan" || f === "separate_living" || f === "kitchen_diner");
   return lead ? PLAN_FEATURE_LABEL[lead] : "Variation";
 }

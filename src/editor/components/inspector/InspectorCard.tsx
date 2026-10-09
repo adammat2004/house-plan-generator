@@ -2,6 +2,7 @@
 
 import { useDocumentState, useSessionState } from "../../state/editor";
 import { displayedDocument } from "../../state/stores";
+import { FurnitureInspector } from "./FurnitureInspector";
 import { HouseInspector } from "./HouseInspector";
 import { OpeningInspector } from "./OpeningInspector";
 import { RoomInspector } from "./RoomInspector";
@@ -19,6 +20,7 @@ export function InspectorCard({ roomFocusKey }: { roomFocusKey: number | null })
   else if (selection?.kind === "opening" && level.openings[selection.id]) body = <OpeningInspector level={level} opening={level.openings[selection.id]} />;
   else if (selection?.kind === "room" && level.rooms[selection.id]) body = <RoomInspector key={selection.id} level={level} roomId={selection.id} focusKey={roomFocusKey} />;
   else if (selection?.kind === "house" && selection.id === level.id) body = <HouseInspector level={level} />;
+  else if (selection?.kind === "furniture" && level.furniture[selection.id]) body = <FurnitureInspector level={level} item={level.furniture[selection.id]} />;
   if (!body) return null;
 
   return (

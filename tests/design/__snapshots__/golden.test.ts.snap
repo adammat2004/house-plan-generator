@@ -1,0 +1,2196 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`golden: rectangular houses stay exactly as they were > builds the same templates 1`] = `"b213987c9832d717"`;
+
+exports[`golden: rectangular houses stay exactly as they were > builds the same templates 2`] = `"d78d42d8fe0adfd0"`;
+
+exports[`golden: rectangular houses stay exactly as they were > builds the same templates 3`] = `"c46b05e807ba81ae"`;
+
+exports[`golden: rectangular houses stay exactly as they were > builds the same templates 4`] = `"039182254a4e8862"`;
+
+exports[`golden: rectangular houses stay exactly as they were > creates the same empty house 1`] = `"3c4e45f7468e064b"`;
+
+exports[`golden: rectangular houses stay exactly as they were > creates the same empty house 2`] = `"3c35f55bcc8ac390"`;
+
+exports[`golden: rectangular houses stay exactly as they were > draws the same 3D model, dimensions and photo keys 1`] = `"17776a022ceef234"`;
+
+exports[`golden: rectangular houses stay exactly as they were > draws the same 3D model, dimensions and photo keys 2`] = `"6e071e2033817dad"`;
+
+exports[`golden: rectangular houses stay exactly as they were > draws the same 3D model, dimensions and photo keys 3`] = `"d13137e0e842bde3"`;
+
+exports[`golden: rectangular houses stay exactly as they were > draws the same 3D model, dimensions and photo keys 4`] = `"6e7712e6d23f097d"`;
+
+exports[`golden: rectangular houses stay exactly as they were > draws the same 3D model, dimensions and photo keys 5`] = `"6c9abddad22b9420"`;
+
+exports[`golden: rectangular houses stay exactly as they were > draws the same 3D model, dimensions and photo keys 6`] = `"147nz1t"`;
+
+exports[`golden: rectangular houses stay exactly as they were > draws the same 3D model, dimensions and photo keys 7`] = `"rvybd0"`;
+
+exports[`golden: rectangular houses stay exactly as they were > draws the same 3D model, dimensions and photo keys 8`] = `"1cyzvge"`;
+
+exports[`golden: rectangular houses stay exactly as they were > draws the same 3D model, dimensions and photo keys 9`] = `"97c7abfcaabe0a5f"`;
+
+exports[`golden: rectangular houses stay exactly as they were > draws the same 3D model, dimensions and photo keys 10`] = `"009f268033c45c36"`;
+
+exports[`golden: rectangular houses stay exactly as they were > draws the same 3D model, dimensions and photo keys 11`] = `"b8f718d8e6e3ee1b"`;
+
+exports[`golden: rectangular houses stay exactly as they were > draws the same 3D model, dimensions and photo keys 12`] = `"67c9bf1bc3960d74"`;
+
+exports[`golden: rectangular houses stay exactly as they were > draws the same 3D model, dimensions and photo keys 13`] = `"bc60bc831ee70c38"`;
+
+exports[`golden: rectangular houses stay exactly as they were > draws the same 3D model, dimensions and photo keys 14`] = `"g6s07n"`;
+
+exports[`golden: rectangular houses stay exactly as they were > draws the same 3D model, dimensions and photo keys 15`] = `"11lxrfa"`;
+
+exports[`golden: rectangular houses stay exactly as they were > draws the same 3D model, dimensions and photo keys 16`] = `"t6ts74"`;
+
+exports[`golden: rectangular houses stay exactly as they were > gives the same too-small message 1`] = `
+{
+  "candidates": [],
+  "issues": [
+    {
+      "code": "does-not-fit",
+      "message": "These rooms don't fit your 6 × 6 m house: they need about 14.5 × 11.5 m. Size the house from the rooms, make the house bigger in Structure, or ask for fewer rooms.",
+      "tooSmall": true,
+    },
+  ],
+}
+`;
+
+exports[`golden: rectangular houses stay exactly as they were > lays out the same plans inside the user's house 1`] = `
+{
+  "candidates": [
+    {
+      "arrangement": "garden-living",
+      "changedRoomIds": undefined,
+      "document": "2214b3cb2cf0f68d",
+      "footprint": undefined,
+      "goal": undefined,
+      "notes": [
+        "Living, kitchen and dining share one open-plan space so the brief fits this footprint.",
+        "Bedroom 2 sits with the living spaces to fit the footprint.",
+      ],
+      "summary": "Living spaces along the garden side, bedrooms to the front.",
+      "title": undefined,
+      "variant": undefined,
+    },
+    {
+      "arrangement": "two-wings",
+      "changedRoomIds": undefined,
+      "document": "cf4daf22b5c18bf2",
+      "footprint": undefined,
+      "goal": undefined,
+      "notes": [
+        "Kitchen and dining are combined so the brief fits this footprint.",
+        "Bedroom 3 sits with the living spaces to fit the footprint.",
+      ],
+      "summary": "Living and sleeping wings either side of a hall running front to back.",
+      "title": undefined,
+      "variant": undefined,
+    },
+    {
+      "arrangement": "quiet-garden",
+      "changedRoomIds": undefined,
+      "document": "0abcbdcb3541bdb1",
+      "footprint": undefined,
+      "goal": undefined,
+      "notes": [
+        "Living, kitchen and dining share one open-plan space so the brief fits this footprint.",
+        "Bedroom 2 sits with the living spaces to fit the footprint.",
+      ],
+      "summary": "Bedrooms on the quiet garden side, living spaces to the front.",
+      "title": undefined,
+      "variant": undefined,
+    },
+    {
+      "arrangement": "two-wings-mirrored",
+      "changedRoomIds": undefined,
+      "document": "037a82ca360f7eee",
+      "footprint": undefined,
+      "goal": undefined,
+      "notes": [
+        "Kitchen and dining are combined so the brief fits this footprint.",
+        "Bedroom 3 sits with the living spaces to fit the footprint.",
+      ],
+      "summary": "Sleeping wing on the entrance side, living wing opposite, hall between.",
+      "title": undefined,
+      "variant": undefined,
+    },
+    {
+      "arrangement": "garden-living-reversed",
+      "changedRoomIds": undefined,
+      "document": "ceed15217da9afec",
+      "footprint": undefined,
+      "goal": undefined,
+      "notes": [
+        "Living, kitchen and dining share one open-plan space so the brief fits this footprint.",
+        "Bedroom 3 sits with the living spaces to fit the footprint.",
+      ],
+      "summary": "Living spaces along the garden side, bedrooms to the front, mirrored.",
+      "title": undefined,
+      "variant": undefined,
+    },
+    {
+      "arrangement": "two-wings-reversed",
+      "changedRoomIds": undefined,
+      "document": "38208d567d67e309",
+      "footprint": undefined,
+      "goal": undefined,
+      "notes": [
+        "Kitchen and dining are combined so the brief fits this footprint.",
+        "Bedroom 2 sits with the living spaces to fit the footprint.",
+      ],
+      "summary": "Living and sleeping wings either side of the hall, with the rooms in each wing reversed.",
+      "title": undefined,
+      "variant": undefined,
+    },
+  ],
+  "issues": [],
+}
+`;
+
+exports[`golden: rectangular houses stay exactly as they were > lays out the same plans inside the user's house 2`] = `
+{
+  "candidates": [
+    {
+      "arrangement": "garden-living",
+      "changedRoomIds": undefined,
+      "document": "1ae0c1d6b3362293",
+      "footprint": undefined,
+      "goal": undefined,
+      "notes": [
+        "Kitchen and dining are combined so the brief fits this footprint.",
+        "Bedroom 2 sits with the living spaces to fit the footprint.",
+      ],
+      "summary": "Living spaces along the garden side, bedrooms to the front.",
+      "title": undefined,
+      "variant": undefined,
+    },
+    {
+      "arrangement": "two-wings",
+      "changedRoomIds": undefined,
+      "document": "f0d9898429cb423f",
+      "footprint": undefined,
+      "goal": undefined,
+      "notes": [
+        "Living, kitchen and dining share one open-plan space so the brief fits this footprint.",
+        "Bedroom 3 sits with the living spaces to fit the footprint.",
+      ],
+      "summary": "Living and sleeping wings either side of a hall running front to back.",
+      "title": undefined,
+      "variant": undefined,
+    },
+    {
+      "arrangement": "quiet-garden",
+      "changedRoomIds": undefined,
+      "document": "48300c5853182ee9",
+      "footprint": undefined,
+      "goal": undefined,
+      "notes": [
+        "Kitchen and dining are combined so the brief fits this footprint.",
+        "Bedroom 2 sits with the living spaces to fit the footprint.",
+      ],
+      "summary": "Bedrooms on the quiet garden side, living spaces to the front.",
+      "title": undefined,
+      "variant": undefined,
+    },
+    {
+      "arrangement": "two-wings-mirrored",
+      "changedRoomIds": undefined,
+      "document": "2b60c7904658f1ec",
+      "footprint": undefined,
+      "goal": undefined,
+      "notes": [
+        "Living, kitchen and dining share one open-plan space so the brief fits this footprint.",
+        "Bedroom 3 sits with the living spaces to fit the footprint.",
+      ],
+      "summary": "Sleeping wing on the entrance side, living wing opposite, hall between.",
+      "title": undefined,
+      "variant": undefined,
+    },
+    {
+      "arrangement": "garden-living-reversed",
+      "changedRoomIds": undefined,
+      "document": "b4a97a9ba6b90dfd",
+      "footprint": undefined,
+      "goal": undefined,
+      "notes": [
+        "Kitchen and dining are combined so the brief fits this footprint.",
+        "Bedroom 3 sits with the living spaces to fit the footprint.",
+      ],
+      "summary": "Living spaces along the garden side, bedrooms to the front, mirrored.",
+      "title": undefined,
+      "variant": undefined,
+    },
+    {
+      "arrangement": "two-wings-reversed",
+      "changedRoomIds": undefined,
+      "document": "0fe75b772d213d1b",
+      "footprint": undefined,
+      "goal": undefined,
+      "notes": [
+        "Living, kitchen and dining share one open-plan space so the brief fits this footprint.",
+        "Bedroom 2 sits with the living spaces to fit the footprint.",
+      ],
+      "summary": "Living and sleeping wings either side of the hall, with the rooms in each wing reversed.",
+      "title": undefined,
+      "variant": undefined,
+    },
+  ],
+  "issues": [],
+}
+`;
+
+exports[`golden: rectangular houses stay exactly as they were > lays out the same plans inside the user's house 3`] = `
+{
+  "candidates": [
+    {
+      "arrangement": "garden-living",
+      "changedRoomIds": undefined,
+      "document": "32a8367b00a91a81",
+      "footprint": undefined,
+      "goal": undefined,
+      "notes": [
+        "Kitchen and dining are combined so the brief fits this footprint.",
+        "Bedroom 2 sits with the living spaces to fit the footprint.",
+      ],
+      "summary": "Living spaces along the garden side, bedrooms to the front.",
+      "title": undefined,
+      "variant": undefined,
+    },
+    {
+      "arrangement": "two-wings",
+      "changedRoomIds": undefined,
+      "document": "395a501fd484870e",
+      "footprint": undefined,
+      "goal": undefined,
+      "notes": [
+        "Kitchen and dining are combined so the brief fits this footprint.",
+        "Bedroom 3 sits with the living spaces to fit the footprint.",
+      ],
+      "summary": "Living and sleeping wings either side of a hall running front to back.",
+      "title": undefined,
+      "variant": undefined,
+    },
+    {
+      "arrangement": "quiet-garden",
+      "changedRoomIds": undefined,
+      "document": "f86d9f6e700f23ff",
+      "footprint": undefined,
+      "goal": undefined,
+      "notes": [
+        "Kitchen and dining are combined so the brief fits this footprint.",
+        "Bedroom 2 sits with the living spaces to fit the footprint.",
+      ],
+      "summary": "Bedrooms on the quiet garden side, living spaces to the front.",
+      "title": undefined,
+      "variant": undefined,
+    },
+    {
+      "arrangement": "two-wings-mirrored",
+      "changedRoomIds": undefined,
+      "document": "60c53735b535d7de",
+      "footprint": undefined,
+      "goal": undefined,
+      "notes": [
+        "Kitchen and dining are combined so the brief fits this footprint.",
+        "Bedroom 3 sits with the living spaces to fit the footprint.",
+      ],
+      "summary": "Sleeping wing on the entrance side, living wing opposite, hall between.",
+      "title": undefined,
+      "variant": undefined,
+    },
+    {
+      "arrangement": "garden-living-reversed",
+      "changedRoomIds": undefined,
+      "document": "681b0f289264210e",
+      "footprint": undefined,
+      "goal": undefined,
+      "notes": [
+        "Kitchen and dining are combined so the brief fits this footprint.",
+        "Bedroom 3 sits with the living spaces to fit the footprint.",
+      ],
+      "summary": "Living spaces along the garden side, bedrooms to the front, mirrored.",
+      "title": undefined,
+      "variant": undefined,
+    },
+    {
+      "arrangement": "two-wings-reversed",
+      "changedRoomIds": undefined,
+      "document": "3d16955e6d9314ca",
+      "footprint": undefined,
+      "goal": undefined,
+      "notes": [
+        "Kitchen and dining are combined so the brief fits this footprint.",
+        "Bedroom 2 sits with the living spaces to fit the footprint.",
+      ],
+      "summary": "Living and sleeping wings either side of the hall, with the rooms in each wing reversed.",
+      "title": undefined,
+      "variant": undefined,
+    },
+  ],
+  "issues": [],
+}
+`;
+
+exports[`golden: rectangular houses stay exactly as they were > lays out the same plans inside the user's house 4`] = `
+{
+  "candidates": [
+    {
+      "arrangement": "garden-living",
+      "changedRoomIds": undefined,
+      "document": "80eedd04cecef19a",
+      "footprint": undefined,
+      "goal": undefined,
+      "notes": [],
+      "summary": "Living spaces along the garden side, bedrooms to the front.",
+      "title": undefined,
+      "variant": undefined,
+    },
+    {
+      "arrangement": "two-wings",
+      "changedRoomIds": undefined,
+      "document": "d7f0d7e563ace662",
+      "footprint": undefined,
+      "goal": undefined,
+      "notes": [
+        "Living, kitchen and dining share one open-plan space so the brief fits this footprint.",
+        "Bedroom 3 sits with the living spaces to fit the footprint.",
+      ],
+      "summary": "Living and sleeping wings either side of a hall running front to back.",
+      "title": undefined,
+      "variant": undefined,
+    },
+    {
+      "arrangement": "quiet-garden",
+      "changedRoomIds": undefined,
+      "document": "3ac6cd037b5cdbfb",
+      "footprint": undefined,
+      "goal": undefined,
+      "notes": [],
+      "summary": "Bedrooms on the quiet garden side, living spaces to the front.",
+      "title": undefined,
+      "variant": undefined,
+    },
+    {
+      "arrangement": "two-wings-mirrored",
+      "changedRoomIds": undefined,
+      "document": "20425812f2a47c0b",
+      "footprint": undefined,
+      "goal": undefined,
+      "notes": [
+        "Living, kitchen and dining share one open-plan space so the brief fits this footprint.",
+        "Bedroom 3 sits with the living spaces to fit the footprint.",
+      ],
+      "summary": "Sleeping wing on the entrance side, living wing opposite, hall between.",
+      "title": undefined,
+      "variant": undefined,
+    },
+    {
+      "arrangement": "garden-living-reversed",
+      "changedRoomIds": undefined,
+      "document": "e6d0601aed6c2d68",
+      "footprint": undefined,
+      "goal": undefined,
+      "notes": [],
+      "summary": "Living spaces along the garden side, bedrooms to the front, mirrored.",
+      "title": undefined,
+      "variant": undefined,
+    },
+    {
+      "arrangement": "two-wings-reversed",
+      "changedRoomIds": undefined,
+      "document": "1db51aeb473a1027",
+      "footprint": undefined,
+      "goal": undefined,
+      "notes": [
+        "Living, kitchen and dining share one open-plan space so the brief fits this footprint.",
+        "Bedroom 2 sits with the living spaces to fit the footprint.",
+      ],
+      "summary": "Living and sleeping wings either side of the hall, with the rooms in each wing reversed.",
+      "title": undefined,
+      "variant": undefined,
+    },
+  ],
+  "issues": [],
+}
+`;
+
+exports[`golden: rectangular houses stay exactly as they were > lays out the same plans inside the user's house 5`] = `
+{
+  "candidates": [
+    {
+      "arrangement": "garden-living",
+      "changedRoomIds": undefined,
+      "document": "5dad40edcc1d3637",
+      "footprint": undefined,
+      "goal": undefined,
+      "notes": [
+        "Kitchen and dining are combined so the brief fits this footprint.",
+      ],
+      "summary": "Living spaces along the garden side, bedrooms to the front.",
+      "title": undefined,
+      "variant": undefined,
+    },
+    {
+      "arrangement": "quiet-garden",
+      "changedRoomIds": undefined,
+      "document": "f26c3fd49906a09d",
+      "footprint": undefined,
+      "goal": undefined,
+      "notes": [
+        "Kitchen and dining are combined so the brief fits this footprint.",
+      ],
+      "summary": "Bedrooms on the quiet garden side, living spaces to the front.",
+      "title": undefined,
+      "variant": undefined,
+    },
+    {
+      "arrangement": "garden-living-reversed",
+      "changedRoomIds": undefined,
+      "document": "881b189794eb87b8",
+      "footprint": undefined,
+      "goal": undefined,
+      "notes": [
+        "Kitchen and dining are combined so the brief fits this footprint.",
+      ],
+      "summary": "Living spaces along the garden side, bedrooms to the front, mirrored.",
+      "title": undefined,
+      "variant": undefined,
+    },
+    {
+      "arrangement": "quiet-garden-reversed",
+      "changedRoomIds": undefined,
+      "document": "61cb313c3f406b48",
+      "footprint": undefined,
+      "goal": undefined,
+      "notes": [
+        "Kitchen and dining are combined so the brief fits this footprint.",
+      ],
+      "summary": "Bedrooms on the quiet garden side, living spaces to the front, mirrored.",
+      "title": undefined,
+      "variant": undefined,
+    },
+  ],
+  "issues": [],
+}
+`;
+
+exports[`golden: rectangular houses stay exactly as they were > lays out the same plans inside the user's house 6`] = `
+{
+  "candidates": [
+    {
+      "arrangement": "garden-living",
+      "changedRoomIds": undefined,
+      "document": "68dcf7fa249519d6",
+      "footprint": undefined,
+      "goal": undefined,
+      "notes": [
+        "Bedroom 2 sits with the living spaces to fit the footprint.",
+      ],
+      "summary": "Living spaces along the garden side, bedrooms to the front.",
+      "title": undefined,
+      "variant": undefined,
+    },
+    {
+      "arrangement": "two-wings",
+      "changedRoomIds": undefined,
+      "document": "26090d5f8306941d",
+      "footprint": undefined,
+      "goal": undefined,
+      "notes": [],
+      "summary": "Living and sleeping wings either side of a hall running front to back.",
+      "title": undefined,
+      "variant": undefined,
+    },
+    {
+      "arrangement": "two-wings-mirrored",
+      "changedRoomIds": undefined,
+      "document": "9b87e0760ba3c7b1",
+      "footprint": undefined,
+      "goal": undefined,
+      "notes": [],
+      "summary": "Sleeping wing on the entrance side, living wing opposite, hall between.",
+      "title": undefined,
+      "variant": undefined,
+    },
+    {
+      "arrangement": "garden-living-reversed",
+      "changedRoomIds": undefined,
+      "document": "d3d95bf0f5236736",
+      "footprint": undefined,
+      "goal": undefined,
+      "notes": [
+        "Bedroom 3 sits with the living spaces to fit the footprint.",
+      ],
+      "summary": "Living spaces along the garden side, bedrooms to the front, mirrored.",
+      "title": undefined,
+      "variant": undefined,
+    },
+    {
+      "arrangement": "two-wings-reversed",
+      "changedRoomIds": undefined,
+      "document": "cfb844715bcf934b",
+      "footprint": undefined,
+      "goal": undefined,
+      "notes": [],
+      "summary": "Living and sleeping wings either side of the hall, with the rooms in each wing reversed.",
+      "title": undefined,
+      "variant": undefined,
+    },
+    {
+      "arrangement": "two-wings-mirrored-reversed",
+      "changedRoomIds": undefined,
+      "document": "36b6b254630738fb",
+      "footprint": undefined,
+      "goal": undefined,
+      "notes": [],
+      "summary": "Sleeping wing on the entrance side with its rooms reversed, living wing opposite.",
+      "title": undefined,
+      "variant": undefined,
+    },
+  ],
+  "issues": [],
+}
+`;
+
+exports[`golden: rectangular houses stay exactly as they were > lays out the same plans inside the user's house 7`] = `
+{
+  "candidates": [
+    {
+      "arrangement": "garden-living",
+      "changedRoomIds": undefined,
+      "document": "59b20f563f514bd8",
+      "footprint": undefined,
+      "goal": undefined,
+      "notes": [
+        "1 door or window didn't fit and was left out.",
+      ],
+      "summary": "Living spaces along the garden side, bedrooms to the front.",
+      "title": undefined,
+      "variant": undefined,
+    },
+    {
+      "arrangement": "two-wings",
+      "changedRoomIds": undefined,
+      "document": "b95010ce303d5a40",
+      "footprint": undefined,
+      "goal": undefined,
+      "notes": [],
+      "summary": "Living and sleeping wings either side of a hall running front to back.",
+      "title": undefined,
+      "variant": undefined,
+    },
+    {
+      "arrangement": "quiet-garden",
+      "changedRoomIds": undefined,
+      "document": "18b8a72bf231e820",
+      "footprint": undefined,
+      "goal": undefined,
+      "notes": [
+        "1 door or window didn't fit and was left out.",
+      ],
+      "summary": "Bedrooms on the quiet garden side, living spaces to the front.",
+      "title": undefined,
+      "variant": undefined,
+    },
+    {
+      "arrangement": "two-wings-mirrored",
+      "changedRoomIds": undefined,
+      "document": "06093a5748ac07c8",
+      "footprint": undefined,
+      "goal": undefined,
+      "notes": [],
+      "summary": "Sleeping wing on the entrance side, living wing opposite, hall between.",
+      "title": undefined,
+      "variant": undefined,
+    },
+    {
+      "arrangement": "garden-living-reversed",
+      "changedRoomIds": undefined,
+      "document": "12fc3682156dc343",
+      "footprint": undefined,
+      "goal": undefined,
+      "notes": [],
+      "summary": "Living spaces along the garden side, bedrooms to the front, mirrored.",
+      "title": undefined,
+      "variant": undefined,
+    },
+    {
+      "arrangement": "two-wings-reversed",
+      "changedRoomIds": undefined,
+      "document": "0ff14fed7341a6f9",
+      "footprint": undefined,
+      "goal": undefined,
+      "notes": [
+        "1 door or window didn't fit and was left out.",
+      ],
+      "summary": "Living and sleeping wings either side of the hall, with the rooms in each wing reversed.",
+      "title": undefined,
+      "variant": undefined,
+    },
+  ],
+  "issues": [],
+}
+`;
+
+exports[`golden: rectangular houses stay exactly as they were > lays out the same plans inside the user's house 8`] = `
+{
+  "candidates": [
+    {
+      "arrangement": "two-wings",
+      "changedRoomIds": undefined,
+      "document": "3012703688ef0d66",
+      "footprint": undefined,
+      "goal": undefined,
+      "notes": [
+        "Kitchen and dining are combined so the brief fits this footprint.",
+        "Bedroom 3 sits with the living spaces to fit the footprint.",
+      ],
+      "summary": "Living and sleeping wings either side of a hall running front to back.",
+      "title": undefined,
+      "variant": undefined,
+    },
+    {
+      "arrangement": "quiet-garden",
+      "changedRoomIds": undefined,
+      "document": "c17104afab147a92",
+      "footprint": undefined,
+      "goal": undefined,
+      "notes": [
+        "Living, kitchen and dining share one open-plan space so the brief fits this footprint.",
+        "Bedroom 2 sits with the living spaces to fit the footprint.",
+      ],
+      "summary": "Bedrooms on the quiet garden side, living spaces to the front.",
+      "title": undefined,
+      "variant": undefined,
+    },
+    {
+      "arrangement": "two-wings-mirrored",
+      "changedRoomIds": undefined,
+      "document": "8b720bc06ea29a2f",
+      "footprint": undefined,
+      "goal": undefined,
+      "notes": [
+        "Kitchen and dining are combined so the brief fits this footprint.",
+        "Bedroom 3 sits with the living spaces to fit the footprint.",
+      ],
+      "summary": "Sleeping wing on the entrance side, living wing opposite, hall between.",
+      "title": undefined,
+      "variant": undefined,
+    },
+  ],
+  "issues": [],
+}
+`;
+
+exports[`golden: rectangular houses stay exactly as they were > lays out the same plans inside the user's house 9`] = `
+{
+  "candidates": [
+    {
+      "arrangement": "two-wings-reversed",
+      "changedRoomIds": undefined,
+      "document": "a828c0bd05dc9d47",
+      "footprint": undefined,
+      "goal": undefined,
+      "notes": [
+        "Kitchen and dining are combined so the brief fits this footprint.",
+        "Bedroom 2 sits with the living spaces to fit the footprint.",
+      ],
+      "summary": "Living and sleeping wings either side of the hall, with the rooms in each wing reversed.",
+      "title": undefined,
+      "variant": undefined,
+    },
+    {
+      "arrangement": "two-wings-mirrored",
+      "changedRoomIds": undefined,
+      "document": "11e4dce4143e42b0",
+      "footprint": undefined,
+      "goal": undefined,
+      "notes": [
+        "Kitchen and dining are combined so the brief fits this footprint.",
+        "Bedroom 3 sits with the living spaces to fit the footprint.",
+      ],
+      "summary": "Sleeping wing on the entrance side, living wing opposite, hall between.",
+      "title": undefined,
+      "variant": undefined,
+    },
+    {
+      "arrangement": "two-wings-mirrored-reversed",
+      "changedRoomIds": undefined,
+      "document": "8e85250c6372962d",
+      "footprint": undefined,
+      "goal": undefined,
+      "notes": [
+        "Kitchen and dining are combined so the brief fits this footprint.",
+        "Bedroom 2 sits with the living spaces to fit the footprint.",
+      ],
+      "summary": "Sleeping wing on the entrance side with its rooms reversed, living wing opposite.",
+      "title": undefined,
+      "variant": undefined,
+    },
+  ],
+  "issues": [],
+}
+`;
+
+exports[`golden: rectangular houses stay exactly as they were > makes the same room proposals 1`] = `
+{
+  "candidates": [
+    {
+      "arrangement": undefined,
+      "changedRoomIds": [
+        "g-1-f-room1",
+        "g-1-w5-room1",
+      ],
+      "document": "9a99dd7acd395e20",
+      "footprint": undefined,
+      "goal": "make_larger",
+      "notes": [],
+      "summary": "Kitchen / Living / Dining 1.44 m² larger, taking space from bedroom 2.",
+      "title": "Larger kitchen / living / dining",
+      "variant": "larger:g-1-w5:0.3",
+    },
+  ],
+  "issues": [],
+}
+`;
+
+exports[`golden: rectangular houses stay exactly as they were > makes the same room proposals 2`] = `
+{
+  "candidates": [
+    {
+      "arrangement": undefined,
+      "changedRoomIds": [
+        "g-1-f-room1",
+        "g-1-w2-room1",
+      ],
+      "document": "fc4fef36f5900480",
+      "footprint": undefined,
+      "goal": "make_smaller",
+      "notes": [],
+      "summary": "Kitchen / Living / Dining 3.00 m² smaller, giving the space to hall.",
+      "title": "Compact kitchen / living / dining",
+      "variant": "smaller:g-1-w2:0.6",
+    },
+    {
+      "arrangement": undefined,
+      "changedRoomIds": [
+        "g-1-f-room1",
+        "g-1-w5-room1",
+      ],
+      "document": "0419573dab70a7ac",
+      "footprint": undefined,
+      "goal": "make_smaller",
+      "notes": [],
+      "summary": "Kitchen / Living / Dining 2.88 m² smaller, giving the space to bedroom 2.",
+      "title": "Compact kitchen / living / dining",
+      "variant": "smaller:g-1-w5:0.6",
+    },
+    {
+      "arrangement": undefined,
+      "changedRoomIds": [
+        "g-1-f-room1",
+        "g-1-w2-room1",
+      ],
+      "document": "6481b62d856b3f67",
+      "footprint": undefined,
+      "goal": "make_smaller",
+      "notes": [],
+      "summary": "Kitchen / Living / Dining 1.50 m² smaller, giving the space to hall.",
+      "title": "Compact kitchen / living / dining",
+      "variant": "smaller:g-1-w2:0.3",
+    },
+  ],
+  "issues": [],
+}
+`;
+
+exports[`golden: rectangular houses stay exactly as they were > makes the same room proposals 3`] = `
+{
+  "candidates": [
+    {
+      "arrangement": undefined,
+      "changedRoomIds": [
+        "g-1-f-room1",
+      ],
+      "document": "13dec53f920db3ea",
+      "footprint": undefined,
+      "goal": "more_natural_light",
+      "notes": [],
+      "summary": "Wider windows on every outside wall of kitchen / living / dining.",
+      "title": "Kitchen / living / dining with wider windows",
+      "variant": "light:wider",
+    },
+    {
+      "arrangement": undefined,
+      "changedRoomIds": [
+        "g-1-f-room1",
+      ],
+      "document": "a2daba34229c8a4c",
+      "footprint": undefined,
+      "goal": "more_natural_light",
+      "notes": [],
+      "summary": "A 2.4 m picture window on the north wall of kitchen / living / dining.",
+      "title": "Kitchen / living / dining with a picture window",
+      "variant": "light:picture:g-1-f-wall3",
+    },
+  ],
+  "issues": [],
+}
+`;
+
+exports[`golden: rectangular houses stay exactly as they were > makes the same room proposals 4`] = `
+{
+  "candidates": [
+    {
+      "arrangement": undefined,
+      "changedRoomIds": [
+        "g-1-f-room1",
+      ],
+      "document": "0839b2ed714cf4bb",
+      "footprint": undefined,
+      "goal": "increase_garden_connection",
+      "notes": [],
+      "summary": "1.8 m garden doors from kitchen / living / dining, in place of the window.",
+      "title": "Kitchen / living / dining with 1.8 m garden doors",
+      "variant": "garden:1.8",
+    },
+    {
+      "arrangement": undefined,
+      "changedRoomIds": [
+        "g-1-f-room1",
+      ],
+      "document": "7c793b230d05664e",
+      "footprint": undefined,
+      "goal": "increase_garden_connection",
+      "notes": [],
+      "summary": "2.4 m garden doors from kitchen / living / dining, in place of the window.",
+      "title": "Kitchen / living / dining with 2.4 m garden doors",
+      "variant": "garden:2.4",
+    },
+  ],
+  "issues": [],
+}
+`;
+
+exports[`golden: rectangular houses stay exactly as they were > makes the same room proposals 5`] = `
+{
+  "candidates": [],
+  "issues": [
+    {
+      "code": "does-not-fit",
+      "message": "Kitchen / Living / Dining has no living space beside it that can be opened up.",
+    },
+  ],
+}
+`;
+
+exports[`golden: rectangular houses stay exactly as they were > makes the same room proposals 6`] = `
+{
+  "candidates": [
+    {
+      "arrangement": undefined,
+      "changedRoomIds": [
+        "g-1-f-room1",
+      ],
+      "document": "a0594c809857d606",
+      "footprint": undefined,
+      "goal": "add_storage",
+      "notes": [],
+      "summary": "A 1.5 m run of shelving on the south wall of kitchen / living / dining.",
+      "title": "Kitchen / living / dining with shelving",
+      "variant": "storage:shelving:0,-1,4.8999999999999995",
+    },
+    {
+      "arrangement": undefined,
+      "changedRoomIds": [
+        "g-1-f-room1",
+      ],
+      "document": "70618b7e4151dddb",
+      "footprint": undefined,
+      "goal": "add_storage",
+      "notes": [],
+      "summary": "A 1.0 m run of shelving on the north wall of kitchen / living / dining.",
+      "title": "Kitchen / living / dining with shelving",
+      "variant": "storage:shelving:0,1,9.7",
+    },
+    {
+      "arrangement": undefined,
+      "changedRoomIds": [
+        "g-1-f-room1",
+      ],
+      "document": "a4763502861a133a",
+      "footprint": undefined,
+      "goal": "add_storage",
+      "notes": [],
+      "summary": "A 1.0 m run of shelving on the west wall of kitchen / living / dining.",
+      "title": "Kitchen / living / dining with shelving",
+      "variant": "storage:shelving:-1,0,0.3",
+    },
+  ],
+  "issues": [],
+}
+`;
+
+exports[`golden: rectangular houses stay exactly as they were > makes the same room proposals 7`] = `
+{
+  "candidates": [],
+  "issues": [
+    {
+      "code": "does-not-fit",
+      "message": "An ensuite goes off a bedroom; kitchen / living / dining isn't one.",
+    },
+  ],
+}
+`;
+
+exports[`golden: rectangular houses stay exactly as they were > makes the same room proposals 8`] = `
+{
+  "candidates": [
+    {
+      "arrangement": undefined,
+      "changedRoomIds": [
+        "g-1-w1-room1",
+        "g-1-w4-room1",
+      ],
+      "document": "146d8f5618b6df37",
+      "footprint": undefined,
+      "goal": "make_larger",
+      "notes": [],
+      "summary": "Primary Bedroom 0.99 m² larger, taking space from bedroom 3.",
+      "title": "Larger primary bedroom",
+      "variant": "larger:g-1-w4:0.3",
+    },
+  ],
+  "issues": [],
+}
+`;
+
+exports[`golden: rectangular houses stay exactly as they were > makes the same room proposals 9`] = `
+{
+  "candidates": [
+    {
+      "arrangement": undefined,
+      "changedRoomIds": [
+        "g-1-w1-room1",
+        "g-1-w7-room1",
+      ],
+      "document": "8f59ea6a8ae172a9",
+      "footprint": undefined,
+      "goal": "make_smaller",
+      "notes": [],
+      "summary": "Primary Bedroom 0.81 m² smaller, giving the space to ensuite.",
+      "title": "Compact primary bedroom",
+      "variant": "smaller:g-1-w7:0.6",
+    },
+    {
+      "arrangement": undefined,
+      "changedRoomIds": [
+        "g-1-w1-room1",
+        "g-1-w4-room1",
+      ],
+      "document": "e480a0d529c95bd3",
+      "footprint": undefined,
+      "goal": "make_smaller",
+      "notes": [],
+      "summary": "Primary Bedroom 0.99 m² smaller, giving the space to bedroom 3.",
+      "title": "Compact primary bedroom",
+      "variant": "smaller:g-1-w4:0.3",
+    },
+    {
+      "arrangement": undefined,
+      "changedRoomIds": [
+        "g-1-w1-room1",
+        "g-1-w7-room1",
+      ],
+      "document": "9f59b13076936e01",
+      "footprint": undefined,
+      "goal": "make_smaller",
+      "notes": [],
+      "summary": "Primary Bedroom 1.21 m² smaller, giving the space to ensuite.",
+      "title": "Compact primary bedroom",
+      "variant": "smaller:g-1-w7:0.9",
+    },
+  ],
+  "issues": [],
+}
+`;
+
+exports[`golden: rectangular houses stay exactly as they were > makes the same room proposals 10`] = `
+{
+  "candidates": [
+    {
+      "arrangement": undefined,
+      "changedRoomIds": [
+        "g-1-w1-room1",
+      ],
+      "document": "1fc4e586e1586317",
+      "footprint": undefined,
+      "goal": "more_natural_light",
+      "notes": [],
+      "summary": "Wider windows on every outside wall of primary bedroom.",
+      "title": "Primary bedroom with wider windows",
+      "variant": "light:wider",
+    },
+    {
+      "arrangement": undefined,
+      "changedRoomIds": [
+        "g-1-w1-room1",
+      ],
+      "document": "8f84f912e7cbbb43",
+      "footprint": undefined,
+      "goal": "more_natural_light",
+      "notes": [],
+      "summary": "A 2.4 m picture window on the south wall of primary bedroom.",
+      "title": "Primary bedroom with a picture window",
+      "variant": "light:picture:g-1-f-wall1",
+    },
+  ],
+  "issues": [],
+}
+`;
+
+exports[`golden: rectangular houses stay exactly as they were > makes the same room proposals 11`] = `
+{
+  "candidates": [],
+  "issues": [
+    {
+      "code": "does-not-fit",
+      "message": "Primary Bedroom doesn't reach the garden wall. Try a room along the rear of the house.",
+    },
+  ],
+}
+`;
+
+exports[`golden: rectangular houses stay exactly as they were > makes the same room proposals 12`] = `
+{
+  "candidates": [],
+  "issues": [
+    {
+      "code": "does-not-fit",
+      "message": "Primary Bedroom has no living space beside it that can be opened up.",
+    },
+  ],
+}
+`;
+
+exports[`golden: rectangular houses stay exactly as they were > makes the same room proposals 13`] = `
+{
+  "candidates": [],
+  "issues": [
+    {
+      "code": "does-not-fit",
+      "message": "There's no free stretch of wall in primary bedroom for storage.",
+    },
+  ],
+}
+`;
+
+exports[`golden: rectangular houses stay exactly as they were > makes the same room proposals 14`] = `
+{
+  "candidates": [],
+  "issues": [
+    {
+      "code": "does-not-fit",
+      "message": "I can add an ensuite to rectangular bedrooms; primary bedroom has a more complex shape.",
+    },
+  ],
+}
+`;
+
+exports[`golden: rectangular houses stay exactly as they were > makes the same room proposals 15`] = `
+{
+  "candidates": [
+    {
+      "arrangement": undefined,
+      "changedRoomIds": [
+        "g-1-w2-room1",
+        "g-1-f-room1",
+      ],
+      "document": "6f172d867f568216",
+      "footprint": undefined,
+      "goal": "make_larger",
+      "notes": [],
+      "summary": "Hall 4.44 m² larger, taking space from kitchen / living / dining.",
+      "title": "Larger hall",
+      "variant": "larger:g-1-w2:0.6",
+    },
+    {
+      "arrangement": undefined,
+      "changedRoomIds": [
+        "g-1-w2-room1",
+        "g-1-f-room1",
+      ],
+      "document": "7e3e948f63e00a03",
+      "footprint": undefined,
+      "goal": "make_larger",
+      "notes": [],
+      "summary": "Hall 2.22 m² larger, taking space from kitchen / living / dining.",
+      "title": "Larger hall",
+      "variant": "larger:g-1-w2:0.3",
+    },
+    {
+      "arrangement": undefined,
+      "changedRoomIds": [
+        "g-1-w2-room1",
+        "g-1-f-room1",
+      ],
+      "document": "5e2eefcc1522df72",
+      "footprint": undefined,
+      "goal": "make_larger",
+      "notes": [],
+      "summary": "Hall 6.66 m² larger, taking space from kitchen / living / dining.",
+      "title": "Larger hall",
+      "variant": "larger:g-1-w2:0.9",
+    },
+  ],
+  "issues": [],
+}
+`;
+
+exports[`golden: rectangular houses stay exactly as they were > makes the same room proposals 16`] = `
+{
+  "candidates": [],
+  "issues": [
+    {
+      "code": "does-not-fit",
+      "message": "Hall can't shrink without making a neighbouring room too small.",
+    },
+  ],
+}
+`;
+
+exports[`golden: rectangular houses stay exactly as they were > makes the same room proposals 17`] = `
+{
+  "candidates": [],
+  "issues": [
+    {
+      "code": "does-not-fit",
+      "message": "There's no room for more windows in hall.",
+    },
+  ],
+}
+`;
+
+exports[`golden: rectangular houses stay exactly as they were > makes the same room proposals 18`] = `
+{
+  "candidates": [],
+  "issues": [
+    {
+      "code": "does-not-fit",
+      "message": "Hall doesn't reach the garden wall. Try a room along the rear of the house.",
+    },
+  ],
+}
+`;
+
+exports[`golden: rectangular houses stay exactly as they were > makes the same room proposals 19`] = `
+{
+  "candidates": [],
+  "issues": [
+    {
+      "code": "does-not-fit",
+      "message": "Hall has no living space beside it that can be opened up.",
+    },
+  ],
+}
+`;
+
+exports[`golden: rectangular houses stay exactly as they were > makes the same room proposals 20`] = `
+{
+  "candidates": [
+    {
+      "arrangement": undefined,
+      "changedRoomIds": [
+        "g-1-w2-room1",
+      ],
+      "document": "78ed8b573237d8a4",
+      "footprint": undefined,
+      "goal": "add_storage",
+      "notes": [],
+      "summary": "A 1.0 m run of shelving on the east wall of hall.",
+      "title": "Hall with shelving",
+      "variant": "storage:shelving:1,0,7.699999999999999",
+    },
+    {
+      "arrangement": undefined,
+      "changedRoomIds": [
+        "g-1-w2-room1",
+      ],
+      "document": "4990d40d733facad",
+      "footprint": undefined,
+      "goal": "add_storage",
+      "notes": [],
+      "summary": "A 1.0 m run of shelving on the south wall of hall.",
+      "title": "Hall with shelving",
+      "variant": "storage:shelving:0,-1,3.6999999999999997",
+    },
+    {
+      "arrangement": undefined,
+      "changedRoomIds": [
+        "g-1-w2-room1",
+      ],
+      "document": "bbfa5482f3fcc77c",
+      "footprint": undefined,
+      "goal": "add_storage",
+      "notes": [],
+      "summary": "A 1.0 m run of shelving on the north wall of hall.",
+      "title": "Hall with shelving",
+      "variant": "storage:shelving:0,1,4.8",
+    },
+  ],
+  "issues": [],
+}
+`;
+
+exports[`golden: rectangular houses stay exactly as they were > makes the same room proposals 21`] = `
+{
+  "candidates": [],
+  "issues": [
+    {
+      "code": "does-not-fit",
+      "message": "An ensuite goes off a bedroom; hall isn't one.",
+    },
+  ],
+}
+`;
+
+exports[`golden: rectangular houses stay exactly as they were > makes the same room proposals 22`] = `
+{
+  "candidates": [
+    {
+      "arrangement": undefined,
+      "changedRoomIds": [
+        "g-1-w3-room1",
+        "g-1-w4-room1",
+      ],
+      "document": "57f881de5c5c4033",
+      "footprint": undefined,
+      "goal": "make_larger",
+      "notes": [],
+      "summary": "Bathroom 0.99 m² larger, taking space from bedroom 3.",
+      "title": "Larger bathroom",
+      "variant": "larger:g-1-w3:0.3",
+    },
+  ],
+  "issues": [],
+}
+`;
+
+exports[`golden: rectangular houses stay exactly as they were > makes the same room proposals 23`] = `
+{
+  "candidates": [
+    {
+      "arrangement": undefined,
+      "changedRoomIds": [
+        "g-1-w3-room1",
+        "g-1-w4-room1",
+      ],
+      "document": "3df2373813e4fc74",
+      "footprint": undefined,
+      "goal": "make_smaller",
+      "notes": [],
+      "summary": "Bathroom 0.99 m² smaller, giving the space to bedroom 3.",
+      "title": "Compact bathroom",
+      "variant": "smaller:g-1-w3:0.3",
+    },
+  ],
+  "issues": [],
+}
+`;
+
+exports[`golden: rectangular houses stay exactly as they were > makes the same room proposals 24`] = `
+{
+  "candidates": [
+    {
+      "arrangement": undefined,
+      "changedRoomIds": [
+        "g-1-w3-room1",
+      ],
+      "document": "b7de6c31751f39be",
+      "footprint": undefined,
+      "goal": "more_natural_light",
+      "notes": [],
+      "summary": "Wider windows on every outside wall of bathroom.",
+      "title": "Bathroom with wider windows",
+      "variant": "light:wider",
+    },
+    {
+      "arrangement": undefined,
+      "changedRoomIds": [
+        "g-1-w3-room1",
+      ],
+      "document": "4046c47c659c90a9",
+      "footprint": undefined,
+      "goal": "more_natural_light",
+      "notes": [],
+      "summary": "A 2.4 m picture window on the west wall of bathroom.",
+      "title": "Bathroom with a picture window",
+      "variant": "light:picture:g-1-f-wall4",
+    },
+  ],
+  "issues": [],
+}
+`;
+
+exports[`golden: rectangular houses stay exactly as they were > makes the same room proposals 25`] = `
+{
+  "candidates": [],
+  "issues": [
+    {
+      "code": "does-not-fit",
+      "message": "Bathroom doesn't reach the garden wall. Try a room along the rear of the house.",
+    },
+  ],
+}
+`;
+
+exports[`golden: rectangular houses stay exactly as they were > makes the same room proposals 26`] = `
+{
+  "candidates": [],
+  "issues": [
+    {
+      "code": "does-not-fit",
+      "message": "Bathroom has no living space beside it that can be opened up.",
+    },
+  ],
+}
+`;
+
+exports[`golden: rectangular houses stay exactly as they were > makes the same room proposals 27`] = `
+{
+  "candidates": [],
+  "issues": [
+    {
+      "code": "does-not-fit",
+      "message": "There's no free stretch of wall in bathroom for storage.",
+    },
+  ],
+}
+`;
+
+exports[`golden: rectangular houses stay exactly as they were > makes the same room proposals 28`] = `
+{
+  "candidates": [],
+  "issues": [
+    {
+      "code": "does-not-fit",
+      "message": "An ensuite goes off a bedroom; bathroom isn't one.",
+    },
+  ],
+}
+`;
+
+exports[`golden: rectangular houses stay exactly as they were > makes the same room proposals 29`] = `
+{
+  "candidates": [
+    {
+      "arrangement": undefined,
+      "changedRoomIds": [
+        "g-1-w4-room1",
+        "g-1-w1-room1",
+      ],
+      "document": "175028f4714599ea",
+      "footprint": undefined,
+      "goal": "make_larger",
+      "notes": [],
+      "summary": "Bedroom 3 0.99 m² larger, taking space from primary bedroom.",
+      "title": "Larger bedroom 3",
+      "variant": "larger:g-1-w4:0.3",
+    },
+    {
+      "arrangement": undefined,
+      "changedRoomIds": [
+        "g-1-w4-room1",
+        "g-1-w3-room1",
+      ],
+      "document": "f80dcd2e913407ef",
+      "footprint": undefined,
+      "goal": "make_larger",
+      "notes": [],
+      "summary": "Bedroom 3 0.99 m² larger, taking space from bathroom.",
+      "title": "Larger bedroom 3",
+      "variant": "larger:g-1-w3:0.3",
+    },
+  ],
+  "issues": [],
+}
+`;
+
+exports[`golden: rectangular houses stay exactly as they were > makes the same room proposals 30`] = `
+{
+  "candidates": [
+    {
+      "arrangement": undefined,
+      "changedRoomIds": [
+        "g-1-w4-room1",
+        "g-1-w1-room1",
+      ],
+      "document": "09dec776ee3fb5b6",
+      "footprint": undefined,
+      "goal": "make_smaller",
+      "notes": [],
+      "summary": "Bedroom 3 0.99 m² smaller, giving the space to primary bedroom.",
+      "title": "Compact bedroom 3",
+      "variant": "smaller:g-1-w4:0.3",
+    },
+    {
+      "arrangement": undefined,
+      "changedRoomIds": [
+        "g-1-w4-room1",
+        "g-1-w3-room1",
+      ],
+      "document": "57f881de5c5c4033",
+      "footprint": undefined,
+      "goal": "make_smaller",
+      "notes": [],
+      "summary": "Bedroom 3 0.99 m² smaller, giving the space to bathroom.",
+      "title": "Compact bedroom 3",
+      "variant": "smaller:g-1-w3:0.3",
+    },
+  ],
+  "issues": [],
+}
+`;
+
+exports[`golden: rectangular houses stay exactly as they were > makes the same room proposals 31`] = `
+{
+  "candidates": [
+    {
+      "arrangement": undefined,
+      "changedRoomIds": [
+        "g-1-w4-room1",
+      ],
+      "document": "3571656e53769c0d",
+      "footprint": undefined,
+      "goal": "more_natural_light",
+      "notes": [],
+      "summary": "Wider windows on every outside wall of bedroom 3.",
+      "title": "Bedroom 3 with wider windows",
+      "variant": "light:wider",
+    },
+    {
+      "arrangement": undefined,
+      "changedRoomIds": [
+        "g-1-w4-room1",
+      ],
+      "document": "1d5bbf585f6f64d1",
+      "footprint": undefined,
+      "goal": "more_natural_light",
+      "notes": [],
+      "summary": "A 1.9 m picture window on the south wall of bedroom 3.",
+      "title": "Bedroom 3 with a picture window",
+      "variant": "light:picture:g-1-f-wall1",
+    },
+  ],
+  "issues": [],
+}
+`;
+
+exports[`golden: rectangular houses stay exactly as they were > makes the same room proposals 32`] = `
+{
+  "candidates": [],
+  "issues": [
+    {
+      "code": "does-not-fit",
+      "message": "Bedroom 3 doesn't reach the garden wall. Try a room along the rear of the house.",
+    },
+  ],
+}
+`;
+
+exports[`golden: rectangular houses stay exactly as they were > makes the same room proposals 33`] = `
+{
+  "candidates": [],
+  "issues": [
+    {
+      "code": "does-not-fit",
+      "message": "Bedroom 3 has no living space beside it that can be opened up.",
+    },
+  ],
+}
+`;
+
+exports[`golden: rectangular houses stay exactly as they were > makes the same room proposals 34`] = `
+{
+  "candidates": [
+    {
+      "arrangement": undefined,
+      "changedRoomIds": [
+        "g-1-w4-room1",
+      ],
+      "document": "e41f9ce2dd391d61",
+      "footprint": undefined,
+      "goal": "add_storage",
+      "notes": [],
+      "summary": "A 1.2 m wardrobe on the west wall of bedroom 3.",
+      "title": "Bedroom 3 with a wardrobe",
+      "variant": "storage:wardrobe:-1,0,1.9000000000000001",
+    },
+  ],
+  "issues": [],
+}
+`;
+
+exports[`golden: rectangular houses stay exactly as they were > makes the same room proposals 35`] = `
+{
+  "candidates": [],
+  "issues": [
+    {
+      "code": "does-not-fit",
+      "message": "Bedroom 3 is too small for an ensuite, or every corner has its door.",
+    },
+  ],
+}
+`;
+
+exports[`golden: rectangular houses stay exactly as they were > makes the same room proposals 36`] = `
+{
+  "candidates": [
+    {
+      "arrangement": undefined,
+      "changedRoomIds": [
+        "g-1-w5-room1",
+        "g-1-f-room1",
+      ],
+      "document": "18286e768b5b0751",
+      "footprint": undefined,
+      "goal": "make_larger",
+      "notes": [],
+      "summary": "Bedroom 2 2.88 m² larger, taking space from kitchen / living / dining.",
+      "title": "Larger bedroom 2",
+      "variant": "larger:g-1-w5:0.6",
+    },
+    {
+      "arrangement": undefined,
+      "changedRoomIds": [
+        "g-1-w5-room1",
+        "g-1-f-room1",
+      ],
+      "document": "49109fd200305737",
+      "footprint": undefined,
+      "goal": "make_larger",
+      "notes": [],
+      "summary": "Bedroom 2 1.44 m² larger, taking space from kitchen / living / dining.",
+      "title": "Larger bedroom 2",
+      "variant": "larger:g-1-w5:0.3",
+    },
+    {
+      "arrangement": undefined,
+      "changedRoomIds": [
+        "g-1-w5-room1",
+        "g-1-f-room1",
+      ],
+      "document": "60c701c08d2a9b90",
+      "footprint": undefined,
+      "goal": "make_larger",
+      "notes": [],
+      "summary": "Bedroom 2 4.32 m² larger, taking space from kitchen / living / dining.",
+      "title": "Larger bedroom 2",
+      "variant": "larger:g-1-w5:0.9",
+    },
+  ],
+  "issues": [],
+}
+`;
+
+exports[`golden: rectangular houses stay exactly as they were > makes the same room proposals 37`] = `
+{
+  "candidates": [
+    {
+      "arrangement": undefined,
+      "changedRoomIds": [
+        "g-1-w5-room1",
+        "g-1-w2-room1",
+      ],
+      "document": "d37b94db3161049e",
+      "footprint": undefined,
+      "goal": "make_smaller",
+      "notes": [],
+      "summary": "Bedroom 2 1.38 m² smaller, giving the space to hall.",
+      "title": "Compact bedroom 2",
+      "variant": "smaller:g-1-w2:0.6",
+    },
+    {
+      "arrangement": undefined,
+      "changedRoomIds": [
+        "g-1-w5-room1",
+        "g-1-f-room1",
+      ],
+      "document": "9a99dd7acd395e20",
+      "footprint": undefined,
+      "goal": "make_smaller",
+      "notes": [],
+      "summary": "Bedroom 2 1.44 m² smaller, giving the space to kitchen / living / dining.",
+      "title": "Compact bedroom 2",
+      "variant": "smaller:g-1-w5:0.3",
+    },
+    {
+      "arrangement": undefined,
+      "changedRoomIds": [
+        "g-1-w5-room1",
+        "g-1-w2-room1",
+      ],
+      "document": "063c26040a1ee54c",
+      "footprint": undefined,
+      "goal": "make_smaller",
+      "notes": [],
+      "summary": "Bedroom 2 0.69 m² smaller, giving the space to hall.",
+      "title": "Compact bedroom 2",
+      "variant": "smaller:g-1-w2:0.3",
+    },
+  ],
+  "issues": [],
+}
+`;
+
+exports[`golden: rectangular houses stay exactly as they were > makes the same room proposals 38`] = `
+{
+  "candidates": [
+    {
+      "arrangement": undefined,
+      "changedRoomIds": [
+        "g-1-w5-room1",
+      ],
+      "document": "78d0c6ee669f7ce8",
+      "footprint": undefined,
+      "goal": "more_natural_light",
+      "notes": [],
+      "summary": "Wider windows on every outside wall of bedroom 2.",
+      "title": "Bedroom 2 with wider windows",
+      "variant": "light:wider",
+    },
+    {
+      "arrangement": undefined,
+      "changedRoomIds": [
+        "g-1-w5-room1",
+      ],
+      "document": "af05144cb70f8624",
+      "footprint": undefined,
+      "goal": "more_natural_light",
+      "notes": [],
+      "summary": "A 2.4 m picture window on the east wall of bedroom 2.",
+      "title": "Bedroom 2 with a picture window",
+      "variant": "light:picture:g-1-f-wall2",
+    },
+  ],
+  "issues": [],
+}
+`;
+
+exports[`golden: rectangular houses stay exactly as they were > makes the same room proposals 39`] = `
+{
+  "candidates": [],
+  "issues": [
+    {
+      "code": "does-not-fit",
+      "message": "The garden wall of bedroom 2 is too short for garden doors.",
+    },
+  ],
+}
+`;
+
+exports[`golden: rectangular houses stay exactly as they were > makes the same room proposals 40`] = `
+{
+  "candidates": [],
+  "issues": [
+    {
+      "code": "does-not-fit",
+      "message": "Bedroom 2 has no living space beside it that can be opened up.",
+    },
+  ],
+}
+`;
+
+exports[`golden: rectangular houses stay exactly as they were > makes the same room proposals 41`] = `
+{
+  "candidates": [
+    {
+      "arrangement": undefined,
+      "changedRoomIds": [
+        "g-1-w5-room1",
+      ],
+      "document": "30b2342ffb4e4de0",
+      "footprint": undefined,
+      "goal": "add_storage",
+      "notes": [],
+      "summary": "A 1.8 m wardrobe on the west wall of bedroom 2.",
+      "title": "Bedroom 2 with a wardrobe",
+      "variant": "storage:wardrobe:-1,0,5.3999999999999995",
+    },
+  ],
+  "issues": [],
+}
+`;
+
+exports[`golden: rectangular houses stay exactly as they were > makes the same room proposals 42`] = `
+{
+  "candidates": [],
+  "issues": [
+    {
+      "code": "does-not-fit",
+      "message": "Bedroom 2 is too small for an ensuite, or every corner has its door.",
+    },
+  ],
+}
+`;
+
+exports[`golden: rectangular houses stay exactly as they were > makes the same room proposals 43`] = `
+{
+  "candidates": [
+    {
+      "arrangement": undefined,
+      "changedRoomIds": [
+        "g-1-w7-room1",
+        "g-1-w1-room1",
+      ],
+      "document": "a4f35a67f8980df2",
+      "footprint": undefined,
+      "goal": "make_larger",
+      "notes": [],
+      "summary": "Ensuite 0.75 m² larger, taking space from primary bedroom.",
+      "title": "Larger ensuite",
+      "variant": "larger:g-1-w7:0.6",
+    },
+    {
+      "arrangement": undefined,
+      "changedRoomIds": [
+        "g-1-w7-room1",
+        "g-1-w1-room1",
+      ],
+      "document": "4079955380627ed4",
+      "footprint": undefined,
+      "goal": "make_larger",
+      "notes": [],
+      "summary": "Ensuite 1.12 m² larger, taking space from primary bedroom.",
+      "title": "Larger ensuite",
+      "variant": "larger:g-1-w7:0.9",
+    },
+    {
+      "arrangement": undefined,
+      "changedRoomIds": [
+        "g-1-w7-room1",
+        "g-1-w1-room1",
+      ],
+      "document": "6625e529fec69c8d",
+      "footprint": undefined,
+      "goal": "make_larger",
+      "notes": [],
+      "summary": "Ensuite 0.54 m² larger, taking space from primary bedroom.",
+      "title": "Larger ensuite",
+      "variant": "larger:g-1-w6:0.3",
+    },
+  ],
+  "issues": [],
+}
+`;
+
+exports[`golden: rectangular houses stay exactly as they were > makes the same room proposals 44`] = `
+{
+  "candidates": [
+    {
+      "arrangement": undefined,
+      "changedRoomIds": [
+        "g-1-w7-room1",
+        "g-1-w1-room1",
+      ],
+      "document": "23a651ae7af025de",
+      "footprint": undefined,
+      "goal": "make_smaller",
+      "notes": [],
+      "summary": "Ensuite 1.08 m² smaller, giving the space to primary bedroom.",
+      "title": "Compact ensuite",
+      "variant": "smaller:g-1-w6:0.6",
+    },
+    {
+      "arrangement": undefined,
+      "changedRoomIds": [
+        "g-1-w7-room1",
+        "g-1-w1-room1",
+      ],
+      "document": "6e0f52c6a9991311",
+      "footprint": undefined,
+      "goal": "make_smaller",
+      "notes": [],
+      "summary": "Ensuite 0.54 m² smaller, giving the space to primary bedroom.",
+      "title": "Compact ensuite",
+      "variant": "smaller:g-1-w6:0.3",
+    },
+  ],
+  "issues": [],
+}
+`;
+
+exports[`golden: rectangular houses stay exactly as they were > makes the same room proposals 45`] = `
+{
+  "candidates": [
+    {
+      "arrangement": undefined,
+      "changedRoomIds": [
+        "g-1-w7-room1",
+      ],
+      "document": "0de351496b1faf77",
+      "footprint": undefined,
+      "goal": "more_natural_light",
+      "notes": [],
+      "summary": "Wider windows on every outside wall of ensuite.",
+      "title": "Ensuite with wider windows",
+      "variant": "light:wider",
+    },
+    {
+      "arrangement": undefined,
+      "changedRoomIds": [
+        "g-1-w7-room1",
+      ],
+      "document": "8dddc1c89e556df5",
+      "footprint": undefined,
+      "goal": "more_natural_light",
+      "notes": [],
+      "summary": "A 1.2 m picture window on the east wall of ensuite.",
+      "title": "Ensuite with a picture window",
+      "variant": "light:picture:g-1-f-wall2",
+    },
+  ],
+  "issues": [],
+}
+`;
+
+exports[`golden: rectangular houses stay exactly as they were > makes the same room proposals 46`] = `
+{
+  "candidates": [],
+  "issues": [
+    {
+      "code": "does-not-fit",
+      "message": "Ensuite doesn't reach the garden wall. Try a room along the rear of the house.",
+    },
+  ],
+}
+`;
+
+exports[`golden: rectangular houses stay exactly as they were > makes the same room proposals 47`] = `
+{
+  "candidates": [],
+  "issues": [
+    {
+      "code": "does-not-fit",
+      "message": "Ensuite has no living space beside it that can be opened up.",
+    },
+  ],
+}
+`;
+
+exports[`golden: rectangular houses stay exactly as they were > makes the same room proposals 48`] = `
+{
+  "candidates": [
+    {
+      "arrangement": undefined,
+      "changedRoomIds": [
+        "g-1-w7-room1",
+      ],
+      "document": "ea0c5f503f7d748d",
+      "footprint": undefined,
+      "goal": "add_storage",
+      "notes": [],
+      "summary": "A 1.0 m run of shelving on the north wall of ensuite.",
+      "title": "Ensuite with shelving",
+      "variant": "storage:shelving:0,1,3.6",
+    },
+  ],
+  "issues": [],
+}
+`;
+
+exports[`golden: rectangular houses stay exactly as they were > makes the same room proposals 49`] = `
+{
+  "candidates": [],
+  "issues": [
+    {
+      "code": "does-not-fit",
+      "message": "An ensuite goes off a bedroom; ensuite isn't one.",
+    },
+  ],
+}
+`;
+
+exports[`golden: rectangular houses stay exactly as they were > sizes the same houses from the rooms 1`] = `
+{
+  "candidates": [
+    {
+      "arrangement": "garden-living",
+      "changedRoomIds": undefined,
+      "document": "3b12a6a64f34ce94",
+      "footprint": {
+        "depth": 11,
+        "shape": "compact",
+        "width": 10.5,
+      },
+      "goal": undefined,
+      "notes": [],
+      "summary": "A compact 10.5 × 11 m house. Living spaces along the garden side, bedrooms to the front.",
+      "title": undefined,
+      "variant": "garden-living@10.5x11",
+    },
+    {
+      "arrangement": "two-wings",
+      "changedRoomIds": undefined,
+      "document": "282aba907b0021bf",
+      "footprint": {
+        "depth": 10.5,
+        "shape": "compact",
+        "width": 11,
+      },
+      "goal": undefined,
+      "notes": [],
+      "summary": "A compact 11 × 10.5 m house. Living and sleeping wings either side of a hall running front to back.",
+      "title": undefined,
+      "variant": "two-wings@11x10.5",
+    },
+    {
+      "arrangement": "quiet-garden",
+      "changedRoomIds": undefined,
+      "document": "03c4ac156d097adc",
+      "footprint": {
+        "depth": 8,
+        "shape": "wide",
+        "width": 16.5,
+      },
+      "goal": undefined,
+      "notes": [],
+      "summary": "A wide 16.5 × 8 m house. Bedrooms on the quiet garden side, living spaces to the front.",
+      "title": undefined,
+      "variant": "quiet-garden@16.5x8",
+    },
+    {
+      "arrangement": "two-wings-mirrored",
+      "changedRoomIds": undefined,
+      "document": "0f886ef6c06abfd2",
+      "footprint": {
+        "depth": 16.5,
+        "shape": "deep",
+        "width": 8,
+      },
+      "goal": undefined,
+      "notes": [],
+      "summary": "A deep 8 × 16.5 m house. Sleeping wing on the entrance side, living wing opposite, hall between.",
+      "title": undefined,
+      "variant": "two-wings-mirrored@8x16.5",
+    },
+    {
+      "arrangement": "garden-living-reversed",
+      "changedRoomIds": undefined,
+      "document": "9547c7543ff7b22b",
+      "footprint": {
+        "depth": 11,
+        "shape": "compact",
+        "width": 10.5,
+      },
+      "goal": undefined,
+      "notes": [],
+      "summary": "A compact 10.5 × 11 m house. Living spaces along the garden side, bedrooms to the front, mirrored.",
+      "title": undefined,
+      "variant": "garden-living-reversed@10.5x11",
+    },
+    {
+      "arrangement": "two-wings-reversed",
+      "changedRoomIds": undefined,
+      "document": "a864d8d241f7e89e",
+      "footprint": {
+        "depth": 10.5,
+        "shape": "compact",
+        "width": 11,
+      },
+      "goal": undefined,
+      "notes": [],
+      "summary": "A compact 11 × 10.5 m house. Living and sleeping wings either side of the hall, with the rooms in each wing reversed.",
+      "title": undefined,
+      "variant": "two-wings-reversed@11x10.5",
+    },
+  ],
+  "issues": [],
+}
+`;
+
+exports[`golden: rectangular houses stay exactly as they were > sizes the same houses from the rooms 2`] = `
+{
+  "candidates": [
+    {
+      "arrangement": "garden-living",
+      "changedRoomIds": undefined,
+      "document": "4ca5bba058f77394",
+      "footprint": {
+        "depth": 11.5,
+        "shape": "wide",
+        "width": 15.5,
+      },
+      "goal": undefined,
+      "notes": [],
+      "summary": "A wide 15.5 × 11.5 m house. Living spaces along the garden side, bedrooms to the front.",
+      "title": undefined,
+      "variant": "garden-living@15.5x11.5",
+    },
+    {
+      "arrangement": "two-wings",
+      "changedRoomIds": undefined,
+      "document": "a2ddf499776a24a3",
+      "footprint": {
+        "depth": 15.5,
+        "shape": "deep",
+        "width": 11.5,
+      },
+      "goal": undefined,
+      "notes": [],
+      "summary": "A deep 11.5 × 15.5 m house. Living and sleeping wings either side of a hall running front to back.",
+      "title": undefined,
+      "variant": "two-wings@11.5x15.5",
+    },
+    {
+      "arrangement": "quiet-garden",
+      "changedRoomIds": undefined,
+      "document": "eefd98db9d8489f9",
+      "footprint": {
+        "depth": 9.5,
+        "shape": "wide",
+        "width": 20.5,
+      },
+      "goal": undefined,
+      "notes": [],
+      "summary": "A wide 20.5 × 9.5 m house. Bedrooms on the quiet garden side, living spaces to the front.",
+      "title": undefined,
+      "variant": "quiet-garden@20.5x9.5",
+    },
+    {
+      "arrangement": "two-wings-mirrored",
+      "changedRoomIds": undefined,
+      "document": "b1f0ba22db5d7170",
+      "footprint": {
+        "depth": 20.5,
+        "shape": "deep",
+        "width": 9.5,
+      },
+      "goal": undefined,
+      "notes": [],
+      "summary": "A deep 9.5 × 20.5 m house. Sleeping wing on the entrance side, living wing opposite, hall between.",
+      "title": undefined,
+      "variant": "two-wings-mirrored@9.5x20.5",
+    },
+    {
+      "arrangement": "garden-living-reversed",
+      "changedRoomIds": undefined,
+      "document": "164b3550dacf6acf",
+      "footprint": {
+        "depth": 11.5,
+        "shape": "wide",
+        "width": 15.5,
+      },
+      "goal": undefined,
+      "notes": [],
+      "summary": "A wide 15.5 × 11.5 m house. Living spaces along the garden side, bedrooms to the front, mirrored.",
+      "title": undefined,
+      "variant": "garden-living-reversed@15.5x11.5",
+    },
+    {
+      "arrangement": "two-wings-reversed",
+      "changedRoomIds": undefined,
+      "document": "e68e60bb7aa5f85b",
+      "footprint": {
+        "depth": 15.5,
+        "shape": "deep",
+        "width": 11.5,
+      },
+      "goal": undefined,
+      "notes": [],
+      "summary": "A deep 11.5 × 15.5 m house. Living and sleeping wings either side of the hall, with the rooms in each wing reversed.",
+      "title": undefined,
+      "variant": "two-wings-reversed@11.5x15.5",
+    },
+  ],
+  "issues": [],
+}
+`;
+
+exports[`golden: rectangular houses stay exactly as they were > sizes the same houses from the rooms 3`] = `
+{
+  "candidates": [
+    {
+      "arrangement": "garden-living",
+      "changedRoomIds": undefined,
+      "document": "2692ace674821f48",
+      "footprint": {
+        "depth": 11,
+        "shape": "compact",
+        "width": 10,
+      },
+      "goal": undefined,
+      "notes": [
+        "Kitchen and dining are combined so the brief fits this footprint.",
+        "Bedroom 2 sits with the living spaces to fit the footprint.",
+      ],
+      "summary": "A compact 10 × 11 m house. Living spaces along the garden side, bedrooms to the front.",
+      "title": undefined,
+      "variant": "garden-living@10x11",
+    },
+    {
+      "arrangement": "two-wings",
+      "changedRoomIds": undefined,
+      "document": "d67e4a77fbdc51ed",
+      "footprint": {
+        "depth": 11.5,
+        "shape": "compact",
+        "width": 10,
+      },
+      "goal": undefined,
+      "notes": [],
+      "summary": "A compact 10 × 11.5 m house. Living and sleeping wings either side of a hall running front to back.",
+      "title": undefined,
+      "variant": "two-wings@10x11.5",
+    },
+    {
+      "arrangement": "quiet-garden",
+      "changedRoomIds": undefined,
+      "document": "ae447e60f2910a90",
+      "footprint": {
+        "depth": 11,
+        "shape": "compact",
+        "width": 10,
+      },
+      "goal": undefined,
+      "notes": [
+        "Kitchen and dining are combined so the brief fits this footprint.",
+        "Bedroom 2 sits with the living spaces to fit the footprint.",
+      ],
+      "summary": "A compact 10 × 11 m house. Bedrooms on the quiet garden side, living spaces to the front.",
+      "title": undefined,
+      "variant": "quiet-garden@10x11",
+    },
+    {
+      "arrangement": "two-wings-mirrored",
+      "changedRoomIds": undefined,
+      "document": "0f886ef6c06abfd2",
+      "footprint": {
+        "depth": 16.5,
+        "shape": "deep",
+        "width": 8,
+      },
+      "goal": undefined,
+      "notes": [],
+      "summary": "A deep 8 × 16.5 m house. Sleeping wing on the entrance side, living wing opposite, hall between.",
+      "title": undefined,
+      "variant": "two-wings-mirrored@8x16.5",
+    },
+  ],
+  "issues": [],
+}
+`;
+
+exports[`golden: rectangular houses stay exactly as they were > sizes the same houses from the rooms 4`] = `
+{
+  "candidates": [],
+  "issues": [
+    {
+      "code": "does-not-fit",
+      "message": "These rooms need a house of at least about 14.5 × 11.5 m, and the plot allows 9 × 9 m. Raise the plot size or choose fewer rooms.",
+    },
+  ],
+}
+`;

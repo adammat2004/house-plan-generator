@@ -1,4 +1,4 @@
-import type { Door, ExternalWallPreference, FloorMaterial, Id, Opening, PlanDocument, Point2, RoomType, Window } from "../plan/types";
+import type { Door, ExternalWallPreference, FloorMaterial, Furniture, Id, Opening, PlanDocument, Point2, RoomType, Window } from "../plan/types";
 
 export type IssueCode =
   | "not-found"
@@ -54,6 +54,8 @@ export interface RoomChanges {
   externalWall?: ExternalWallPreference | null;
 }
 
+export type FurnitureChanges = Partial<Pick<Furniture, "position" | "rotation" | "width" | "depth" | "height">>;
+
 /**
  * Optional `idPrefix` lets the caller supply entropy for any IDs a command
  * creates (vertices, rooms after a split). IDs are generated outside the
@@ -74,7 +76,24 @@ export type PlanCommand = CommandBase &
         wallHeight: number;
         name?: string;
       }
+    | {
+        type: "createOutline";
+        /** Outside-face corners of a right-angle outline, in either direction, from any corner. */
+        outline: Point2[];
+        externalThickness: number;
+        wallHeight: number;
+        name?: string;
+      }
     | { type: "resizeFootprint"; width?: number; depth?: number }
+    | {
+        type: "moveOutlineEdge";
+        wallId: Id;
+        /** How far to push the stretch out of the house (negative pulls it in), m. */
+        outward: number;
+        /** The stretch, measured along the wall from its start like opening offsets; the whole wall by default. */
+        from?: number;
+        to?: number;
+      }
     | { type: "addWall"; wallId?: Id; start: Point2; end: Point2; thickness: number; height?: number }
     | {
         type: "moveWall";
@@ -95,6 +114,10 @@ export type PlanCommand = CommandBase &
     | { type: "updateOpening"; openingId: Id; changes: OpeningChanges }
     | { type: "deleteOpening"; openingId: Id }
     | { type: "updateRoom"; roomId: Id; changes: RoomChanges }
+    | { type: "addFurniture"; item: Furniture }
+    | { type: "updateFurniture"; furnitureId: Id; changes: FurnitureChanges }
+    | { type: "deleteFurniture"; furnitureId: Id }
+    | { type: "replaceFurniture"; remove: Id[]; add: Furniture[] }
     | { type: "setRearWall"; wallId: Id | null }
     | { type: "renameDocument"; name: string }
     | { type: "replaceDocument"; document: unknown }

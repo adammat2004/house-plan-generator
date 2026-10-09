@@ -89,6 +89,8 @@ function PresentRail() {
   const tab = useSessionState((s) => s.view3d.panelTab);
   const panelOpen = useSessionState((s) => s.view3d.panelOpen);
   const roomsOpen = useSessionState((s) => s.view3d.roomsOpen);
+  const display = useSessionState((s) => s.view3d.display);
+  const furnitureShown = display.furniture;
   const open = (panelTab: View3DState["panelTab"]) => set3d({ panelTab, panelOpen: true });
   const item = (id: View3DState["panelTab"], label: string, Icon: typeof EyeIcon, testId: string) => (
     <button type="button" className={`tool-btn${panelOpen && tab === id ? " is-active" : ""}`} onClick={() => open(id)} data-testid={testId}>
@@ -103,7 +105,15 @@ function PresentRail() {
         <RoomIcon width={20} height={20} />
         <span>Rooms</span>
       </button>
-      <button type="button" className="tool-btn" aria-disabled="true" data-tooltip="Furniture is coming soon" data-tooltip-side="right">
+      <button
+        type="button"
+        className={`tool-btn${furnitureShown ? " is-active" : ""}`}
+        aria-pressed={furnitureShown}
+        onClick={() => set3d({ display: { ...display, furniture: !furnitureShown } })}
+        data-tooltip={furnitureShown ? "Hide furniture" : "Show furniture"}
+        data-tooltip-side="right"
+        data-testid="rail-furniture"
+      >
         <ArmchairIcon width={20} height={20} />
         <span>Furniture</span>
       </button>

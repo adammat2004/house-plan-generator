@@ -74,7 +74,7 @@ describe("strip planner", () => {
     const tiny = generate({ ...DEFAULT_BRIEF, bedrooms: 6, bathrooms: 4 }, withRear(newHouse(5, 6)));
     expect(tiny.candidates).toEqual([]);
     expect(tiny.issues[0].code).toBe("does-not-fit");
-    const room = planLayouts({ intent: { action: "redesign_room", roomId: "r", goals: ["add_storage"] }, source: newHouse(), brief: DEFAULT_BRIEF, idPrefix: "t" });
+    const room = planLayouts({ intent: { action: "redesign_room", roomId: "r", goals: ["improve_privacy"] }, source: newHouse(), brief: DEFAULT_BRIEF, idPrefix: "t" });
     expect(room.issues[0].code).toBe("unsupported-intent");
   });
 });

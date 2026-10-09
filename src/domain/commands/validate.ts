@@ -1,7 +1,9 @@
 import { deriveLevelGeometry, openingHostIntervals, roomFaceIndices, type LevelGeometry } from "../geometry/derive";
 import { EPS } from "../geometry/numeric";
+import { pointInRing } from "../geometry/polygons";
 import { connectedWallIds } from "../geometry/topology";
 import { pointKey } from "../geometry/vector";
+import { pointAtParam } from "../geometry/walls";
 import { LIMITS } from "../plan/defaults";
 import type { Level, PlanDocument } from "../plan/types";
 import { describeEntity } from "./describe";
@@ -19,6 +21,7 @@ export function validateLevelStructure(level: Level, geometry = deriveLevelGeome
     ...Object.entries(level.walls),
     ...Object.entries(level.openings),
     ...Object.entries(level.rooms),
+    ...Object.entries(level.furniture),
   ]) {
     if (entity.id !== key) {
       issues.push({ code: "invalid-structure", message: `Entity key ${key} does not match its id ${entity.id}.`, entityIds: [key] });
@@ -72,7 +75,7 @@ export function validateLevelStructure(level: Level, geometry = deriveLevelGeome
   const envelopeIds = new Set(level.envelope.wallIds);
   for (const wall of Object.values(level.walls)) {
     if (!envelopeIds.has(wall.id) && wall.role !== "internal") {
-      issues.push({ code: "envelope-invalid", message: "Only the four envelope walls can be external.", entityIds: [wall.id] });
+      issues.push({ code: "envelope-invalid", message: "Only the house outline's walls can be external.", entityIds: [wall.id] });
     }
   }
 
@@ -85,16 +88,26 @@ export function validateLevelStructure(level: Level, geometry = deriveLevelGeome
     } else seen.set(key, id);
   }
 
+  // Internal walls stay inside the outline. Each stretch of a wall between
+  // the points where it meets the outline must lie inside the house.
   const r = env.info.axisRect;
+  const ring = env.info.axisRing;
   for (const wall of Object.values(level.walls)) {
     if (wall.role !== "internal") continue;
-    for (const vid of [wall.startVertexId, wall.endVertexId]) {
-      const p = level.vertices[vid];
-      if (p.x < r.minX - EPS || p.x > r.maxX + EPS || p.y < r.minY - EPS || p.y > r.maxY + EPS) {
-        issues.push({ code: "outside-envelope", message: `${label(wall.id)} extends outside the house.`, entityIds: [wall.id] });
-        break;
+    const axis = geometry.axes.get(wall.id);
+    if (!axis) continue;
+    const ends = [level.vertices[wall.startVertexId], level.vertices[wall.endVertexId]];
+    let outside = ends.some((p) => p.x < r.minX - EPS || p.x > r.maxX + EPS || p.y < r.minY - EPS || p.y > r.maxY + EPS);
+    if (!outside && !env.info.isRectangle) {
+      const cuts = [0, axis.length];
+      for (const c of geometry.contacts.get(wall.id) ?? []) if (envelopeIds.has(c.otherWallId)) cuts.push(c.s);
+      cuts.sort((a, b) => a - b);
+      for (let i = 0; i + 1 < cuts.length && !outside; i++) {
+        if (cuts[i + 1] - cuts[i] <= EPS) continue;
+        outside = !pointInRing(ring, pointAtParam(axis, (cuts[i] + cuts[i + 1]) / 2));
       }
     }
+    if (outside) issues.push({ code: "outside-envelope", message: `${label(wall.id)} extends outside the house.`, entityIds: [wall.id] });
   }
 
   for (const [a, b] of geometry.overlaps) {

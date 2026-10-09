@@ -21,6 +21,8 @@ export default defineConfig({
     command: `npx next start --port ${PORT}`,
     url: `http://localhost:${PORT}`,
     reuseExistingServer: false,
+    // Tests never make paid calls: empty keys (which .env.local can't override) keep Claude and Gemini off.
+    env: { ANTHROPIC_API_KEY: "", GEMINI_API_KEY: "" },
     timeout: 120_000,
   },
 });

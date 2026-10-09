@@ -1,5 +1,6 @@
 import type { HouseBrief } from "../brief/schema";
 import type { PlanDocument } from "../plan/types";
+import type { Footprint } from "./footprint";
 import type { DesignIntent, RoomGoal } from "./intent";
 
 /**
@@ -16,6 +17,8 @@ export interface PlanningRequest {
   brief: HouseBrief;
   /** Prefix for every id the planner creates (documents, walls, rooms, openings). */
   idPrefix: string;
+  /** The brief's free-text notes have already been read into its structured fields. */
+  instructionsRead?: boolean;
 }
 
 export interface PlanCandidate {
@@ -28,6 +31,8 @@ export interface PlanCandidate {
   seed: number;
   /** Which arrangement of the planner produced a whole-plan layout, for "generate similar". */
   arrangement?: string;
+  /** For layouts whose house size was chosen from the rooms: the outside size and its shape. */
+  footprint?: Footprint;
   /** Room changes: a short name for the option, the goal it pursues, and a key that identifies it across requests. */
   title?: string;
   goal?: RoomGoal;
@@ -39,6 +44,8 @@ export interface PlanCandidate {
 export interface PlanningIssue {
   code: "unsupported-intent" | "does-not-fit" | "invalid-source";
   message: string;
+  /** The user's own house is too small for the brief; sizing houses from the rooms would work. */
+  tooSmall?: boolean;
 }
 
 export interface PlanningResult {

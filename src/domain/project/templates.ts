@@ -1,7 +1,9 @@
 import type { HouseBrief } from "../brief/schema";
 import { createPlanDocument } from "../commands/factory";
 import { planLayouts } from "../design/stripPlanner";
-import type { PlanDocument } from "../plan/types";
+import { presetOutline } from "../geometry/outlinePresets";
+import { ringSignedArea } from "../geometry/polygons";
+import type { PlanDocument, Point2 } from "../plan/types";
 import { projectFromPlan, type ProjectDocument } from "./schema";
 
 /**
@@ -16,9 +18,11 @@ export interface ProjectTemplate {
   id: string;
   name: string;
   description: string;
-  /** Outside dimensions of the footprint, m. */
+  /** Outside dimensions of the footprint (its bounding box), m. */
   width: number;
   depth: number;
+  /** Outside faces of a footprint that isn't a rectangle. */
+  outline?: Point2[];
   brief: HouseBrief;
   /** Which planner arrangement to use (its candidate index). */
   arrangement: number;
@@ -73,14 +77,32 @@ export const PROJECT_TEMPLATES: readonly ProjectTemplate[] = [
     arrangement: 0,
     style: "annexe",
   },
+  {
+    id: "l-bungalow-3",
+    name: "L-shaped Bungalow",
+    description: "A single-storey home in two wings, wrapped around a sheltered garden corner.",
+    width: 15,
+    depth: 13,
+    outline: presetOutline("L", { width: 15, depth: 13, front: 6, wing: 6 }),
+    brief: { bedrooms: 3, bathrooms: 2, requiredSpaces: ["kitchen", "living", "dining", "utility"], preferences: ["open_plan"], additionalInstructions: "" },
+    arrangement: 0,
+    style: "bungalow",
+  },
 ];
 
 /** Gross external floor area, m². */
-export const templateArea = (t: ProjectTemplate) => Math.round(t.width * t.depth);
+export const templateArea = (t: ProjectTemplate) => Math.round(t.outline ? ringSignedArea(t.outline) : t.width * t.depth);
 
 /** Lays out a template's plan. Ids are namespaced by `idPrefix`, so every call can produce a fresh copy. */
 export function buildTemplatePlan(template: ProjectTemplate, idPrefix: string): PlanDocument | null {
-  const source = createPlanDocument({ id: `${idPrefix}-source`, name: template.name, width: template.width, depth: template.depth, idPrefix: `${idPrefix}-src` });
+  const source = createPlanDocument({
+    id: `${idPrefix}-source`,
+    name: template.name,
+    width: template.width,
+    depth: template.depth,
+    idPrefix: `${idPrefix}-src`,
+    ...(template.outline ? { outline: template.outline } : {}),
+  });
   const result = planLayouts({
     intent: { action: "generate_layouts", brief: template.brief, count: template.arrangement + 1 },
     source,

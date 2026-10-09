@@ -1,8 +1,10 @@
 import { deriveLevelGeometry } from "../geometry/derive";
 import type { Level, PlanDocument } from "../plan/types";
 import { createFootprint, resizeFootprint } from "./handlers/footprint";
+import { addFurniture, deleteFurniture, replaceFurniture, updateFurniture } from "./handlers/furniture";
 import { setRearWall, updateRoom } from "./handlers/metadata";
 import { addOpening, deleteOpening, updateOpening } from "./handlers/openings";
+import { createOutline, moveOutlineEdge } from "./handlers/outline";
 import { addWall, deleteWall, moveWall, moveWallEndpoint, updateWall } from "./handlers/walls";
 import { IdSource } from "./ids";
 import { CommandFailure, fail } from "./ops";
@@ -52,14 +54,21 @@ function run(document: PlanDocument, command: PlanCommand): CommandResult {
       next = createFootprint(level, command, ids);
       reconcileFrom = null;
       break;
+    case "createOutline":
+      next = createOutline(level, command, ids);
+      reconcileFrom = null;
+      break;
     case "resizeFootprint":
       next = resizeFootprint(level, command);
+      break;
+    case "moveOutlineEdge":
+      next = moveOutlineEdge(level, command, ids);
       break;
     case "addWall":
       next = addWall(level, command, ids);
       break;
     case "moveWall":
-      next = moveWall(level, command);
+      next = moveWall(level, command, ids);
       break;
     case "moveWallEndpoint":
       next = moveWallEndpoint(level, command, ids);
@@ -82,6 +91,21 @@ function run(document: PlanDocument, command: PlanCommand): CommandResult {
       break;
     case "updateRoom":
       next = updateRoom(level, command.roomId, command.changes);
+      break;
+    case "addFurniture":
+      next = addFurniture(level, command.item);
+      ids.reserve(command.item.id);
+      break;
+    case "updateFurniture":
+      next = updateFurniture(level, command.furnitureId, command.changes);
+      break;
+    case "deleteFurniture":
+      next = deleteFurniture(level, [command.furnitureId]);
+      break;
+    case "replaceFurniture":
+      if (!Array.isArray(command.remove) || !Array.isArray(command.add)) fail("invalid-value", "Nothing to change.");
+      next = replaceFurniture(level, command.remove, command.add);
+      for (const item of command.add) ids.reserve(item.id);
       break;
     case "setRearWall":
       next = setRearWall(level, command.wallId);
@@ -109,7 +133,7 @@ function run(document: PlanDocument, command: PlanCommand): CommandResult {
   if (semantic.length) return { ok: false, issues: semantic };
 
   const nextDocument: PlanDocument =
-    command.type === "createFootprint" && command.name?.trim()
+    (command.type === "createFootprint" || command.type === "createOutline") && command.name?.trim()
       ? { ...document, name: command.name.trim(), levels: [next, ...document.levels.slice(1)] }
       : { ...document, levels: [next, ...document.levels.slice(1)] };
   return { ok: true, document: nextDocument, createdIds: ids.created, changed: true };

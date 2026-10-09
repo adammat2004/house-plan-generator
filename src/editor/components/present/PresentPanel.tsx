@@ -163,7 +163,7 @@ function ViewTab() {
         <Toggle label="Cutaway walls" checked={display.cutaway} onChange={() => toggle("cutaway")} testId="display-cutaway" />
         <Toggle label="Show dimensions" checked={display.dimensions} onChange={() => toggle("dimensions")} testId="display-dimensions" />
         <Toggle label="Show landscape" checked={display.landscape} onChange={() => toggle("landscape")} testId="display-landscape" />
-        <Toggle label="Show furniture" checked={false} disabled hint="Coming soon" onChange={() => undefined} testId="display-furniture" />
+        <Toggle label="Show furniture" checked={display.furniture} onChange={() => toggle("furniture")} testId="display-furniture" />
       </div>
       <h3 className="detail-heading">Quick views</h3>
       <div className="quick-views">

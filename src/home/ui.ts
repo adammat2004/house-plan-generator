@@ -16,7 +16,7 @@ export function useHomeUi<T>(selector: (state: HomeUiState) => T): T {
 }
 
 /** The new-project page, optionally with a starting method chosen. */
-export const newProjectHref = (method?: "scratch" | "dimensions" | "import") => (method ? `/new?method=${method}` : "/new");
+export const newProjectHref = (method?: "rooms" | "scratch" | "dimensions" | "import") => (method ? `/new?method=${method}` : "/new");
 export const showHomeNotice = (tone: "error" | "info", message: string) => homeUi.setState({ notice: { tone, message } });
 
 /** Relative "Edited 2 hours ago" wording. */

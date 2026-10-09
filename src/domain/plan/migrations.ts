@@ -28,6 +28,28 @@ const STEPS: Record<number, (raw: Record<string, unknown>) => Record<string, unk
         })
       : raw.levels,
   }),
+  // v2 → v3: levels gained furniture; older plans have none.
+  2: (raw) => ({
+    ...raw,
+    schemaVersion: 3,
+    levels: Array.isArray(raw.levels)
+      ? raw.levels.map((level: unknown) => (typeof level === "object" && level !== null ? { furniture: {}, ...level } : level))
+      : raw.levels,
+  }),
+  // v3 → v4: the envelope became any right-angle outline; a rectangle is one with four walls.
+  3: (raw) => ({
+    ...raw,
+    schemaVersion: 4,
+    levels: Array.isArray(raw.levels)
+      ? raw.levels.map((level: unknown) => {
+          if (typeof level !== "object" || level === null) return level;
+          const envelope = (level as { envelope?: unknown }).envelope;
+          if (typeof envelope !== "object" || envelope === null) return level;
+          const { kind, ...rest } = envelope as Record<string, unknown>;
+          return { ...level, envelope: { kind: kind === "rectangle" ? "polygon" : kind, ...rest } };
+        })
+      : raw.levels,
+  }),
 };
 
 /** Brings a raw parsed file up to the current schema version. */

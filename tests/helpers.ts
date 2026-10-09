@@ -1,10 +1,15 @@
 import { applyCommand, createPlanDocument, type PlanCommand, type PlanIssue } from "@/domain/commands";
 import { deriveLevelGeometry, deriveRoomRegions, roomFaceIndices } from "@/domain/geometry/derive";
 import { analyzeEnvelope } from "@/domain/geometry/envelope";
-import type { Level, PlanDocument, Room } from "@/domain/plan/types";
+import type { Level, PlanDocument, Point2, Room } from "@/domain/plan/types";
 
 export function newHouse(width = 8, depth = 10): PlanDocument {
   return createPlanDocument({ id: "doc-1", name: "Test house", width, depth, externalThickness: 0.3, wallHeight: 2.4 });
+}
+
+/** A house with the given outside-face outline, 300 mm external walls. */
+export function newOutlineHouse(outline: Point2[]): PlanDocument {
+  return createPlanDocument({ id: "doc-1", name: "Test house", outline, externalThickness: 0.3, wallHeight: 2.4 });
 }
 
 export const level = (doc: PlanDocument): Level => doc.levels[0];

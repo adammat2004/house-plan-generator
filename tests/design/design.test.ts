@@ -115,9 +115,9 @@ describe("AI designer workflow", () => {
   it("explains room goals it can't act on yet", async () => {
     const { stores, design } = setup();
     const roomId = Object.keys(level(stores.documents.getState().history.present).rooms)[0];
-    expect(await design.redesignRoom(roomId, ["add_storage"])).toEqual([]);
+    expect(await design.redesignRoom(roomId, ["improve_privacy"])).toEqual([]);
     expect(stores.project.getState().plans).toHaveLength(1);
-    expect(stores.session.getState().designer.chat.at(-1)?.text).toMatch(/furniture/);
+    expect(stores.session.getState().designer.chat.at(-1)?.text).toMatch(/privacy/i);
   });
 
   it("swaps two rooms' uses in one undoable step", async () => {

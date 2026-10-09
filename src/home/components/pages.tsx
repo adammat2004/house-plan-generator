@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useId, useMemo, useState, type ReactNode } from "react";
-import { ArrowRightIcon, BlankCanvasIcon, DimensionsIcon, ImportPlanIcon, PlayCircleIcon, PlusIcon } from "@/components/ui/icons";
+import { ArrowRightIcon, BlankCanvasIcon, DimensionsIcon, ImportPlanIcon, PlayCircleIcon, PlusIcon, SparkleIcon } from "@/components/ui/icons";
 import { PROJECT_TEMPLATES, templateArea } from "@/domain/project/templates";
 import { PlanThumbnail } from "@/editor/components/designer/PlanThumbnail";
 import type { ProjectSummary } from "@/persistence/planStorage";
@@ -147,6 +147,7 @@ export function HomeDashboard() {
       <section className="home-section">
         <SectionHeader title="Start a new project" />
         <div className="start-grid">
+          <StartOption Icon={SparkleIcon} title="Pick your rooms" text="Choose bedrooms, bathrooms and spaces. We size the house and lay out options." href={newProjectHref("rooms")} testId="start-rooms" />
           <StartOption Icon={BlankCanvasIcon} title="Draw from scratch" text="Start with a blank outline and draw your floor plan." href={newProjectHref("scratch")} testId="start-scratch" />
           <StartOption Icon={DimensionsIcon} title="Enter dimensions" text="Create a plan using your measurements." href={newProjectHref("dimensions")} testId="start-dimensions" />
           <StartOption Icon={ImportPlanIcon} title="Import floor plan" text="Open a saved floor plan project file to get started." href={newProjectHref("import")} testId="start-import" />

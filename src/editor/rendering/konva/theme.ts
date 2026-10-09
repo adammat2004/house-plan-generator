@@ -27,6 +27,8 @@ export const PLAN_THEME = {
   rear: "#a8642e",
   glass: "#e6eff6",
   houseShadow: "rgba(40, 38, 30, 0.16)",
+  furnitureStroke: "#5f6461",
+  labelHalo: "rgba(255, 255, 255, 0.8)",
   fontFamily: "Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif",
 } as const;
 
@@ -97,4 +99,13 @@ export const ZONE_FILL: Record<RoomType, string> = {
   storage: "#e9e5dd",
   garage: "#e2e0db",
   other: "#efece6",
+};
+
+/** Furniture symbol fills, light so room tints and labels still read through. */
+export const FURNITURE_FILL: Record<"body" | "soft" | "dark" | "water" | "leaf", string> = {
+  body: "#fdfcf9",
+  soft: "#efebe3",
+  dark: "#4a4f4d",
+  water: "#e3ecef",
+  leaf: "#b7c99a",
 };

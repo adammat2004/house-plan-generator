@@ -1,12 +1,16 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { GLTFExporter } from "three/examples/jsm/exporters/GLTFExporter.js";
-import { CSS2DObject, CSS2DRenderer } from "three/examples/jsm/renderers/CSS2DRenderer.js";
+import { CSS2DRenderer } from "three/examples/jsm/renderers/CSS2DRenderer.js";
 import { analyzeEnvelope } from "@/domain/geometry/envelope";
 import type { Id, Level, RoomType } from "@/domain/plan/types";
 import type { Appearance } from "@/domain/project/schema";
-import { MATERIAL_FILL, PLAN_THEME, SITE_THEME } from "../konva/theme";
-import { buildHouseModel, type Box, type HouseModel, type HouseModelOptions } from "./houseModel";
+import { PLAN_THEME } from "../konva/theme";
+import { buildHouseModel, type HouseModel, type HouseModelOptions } from "./houseModel";
+import { roomCameraPose } from "../scene/roomCamera";
+import { applyLighting, buildHouse, clearGroup, TextureCache, type Ground, type Lighting, type Sky } from "./sceneBuilder";
+
+export type { Lighting };
 
 /**
  * The three.js side of the 3D view: turns a HouseModel into meshes and runs
@@ -16,7 +20,6 @@ import { buildHouseModel, type Box, type HouseModel, type HouseModelOptions } fr
 
 /** "exterior" is the garden-side quick view, orbitable like "orbit". */
 export type CameraMode = "orbit" | "pan" | "walk" | "interior" | "aerial" | "exterior";
-export type Lighting = "morning" | "midday" | "evening" | "night";
 
 export interface ViewerState {
   level: Level;
@@ -25,8 +28,8 @@ export interface ViewerState {
   lighting: Lighting;
   shadows: boolean;
   sunAzimuth: number;
-  ground: "lawn" | "gravel" | "paving";
-  sky: "clear" | "overcast";
+  ground: Ground;
+  sky: Sky;
   selectedRoomId: Id | null;
 }
 
@@ -35,97 +38,22 @@ export type PreviewView = { kind: "exterior" } | { kind: "room"; roomId: Id };
 const EYE = 1.6;
 const DAY_ROOMS: ReadonlySet<RoomType> = new Set(["living", "kitchen", "kitchen_dining", "dining", "office"]);
 
-const EXTERIOR: Record<Appearance["exterior"], string> = { white_render: "#f1eee7", brick: "#9d5b43", timber: "#8c6a49", dark_render: "#33373a" };
-const FRAMES: Record<Appearance["frames"], string> = { black: "#24282b", white: "#f4f4f1", oak: "#b4885a" };
-const ROOF: Record<Appearance["roof"], string> = { membrane: "#3b3f42", zinc: "#8d949a" };
-const GROUND: Record<ViewerState["ground"], string> = { lawn: "#8ea36a", gravel: "#cdc4b2", paving: "#d9d1c3" };
-
-const LIGHTS: Record<Lighting, { azimuth: number; elevation: number; sun: string; sunPower: number; sky: string; ground: string; hemi: number; background: string }> = {
-  morning: { azimuth: 100, elevation: 20, sun: "#ffd9a8", sunPower: 2.3, sky: "#cfe0f0", ground: "#b9a98f", hemi: 0.9, background: "#dfe8ee" },
-  midday: { azimuth: 160, elevation: 58, sun: "#fff4e3", sunPower: 2.8, sky: "#d8e6f2", ground: "#bfb39c", hemi: 1.1, background: "#e9eef1" },
-  evening: { azimuth: 250, elevation: 12, sun: "#ffb27a", sunPower: 2.1, sky: "#e8cdb8", ground: "#9c8c76", hemi: 0.7, background: "#efdccd" },
-  night: { azimuth: 210, elevation: 40, sun: "#9fb4d8", sunPower: 0.35, sky: "#2a3550", ground: "#141821", hemi: 0.35, background: "#1c2230" },
-};
-
-/** Tiled canvas textures for the finishes that aren't plain colours. */
-function patternTexture(kind: "brick" | "timber" | "planks"): THREE.CanvasTexture | null {
-  if (typeof document === "undefined") return null;
-  const canvas = document.createElement("canvas");
-  canvas.width = 128;
-  canvas.height = 128;
-  const g = canvas.getContext("2d");
-  if (!g) return null;
-  if (kind === "brick") {
-    g.fillStyle = "#d8cfc2";
-    g.fillRect(0, 0, 128, 128);
-    for (let row = 0; row < 8; row++) {
-      for (let col = -1; col < 4; col++) {
-        const shade = 140 + ((row * 7 + col * 13) % 5) * 9;
-        g.fillStyle = `rgb(${shade + 20}, ${shade * 0.55}, ${shade * 0.42})`;
-        g.fillRect(col * 32 + (row % 2) * 16 + 1, row * 16 + 1, 30, 14);
-      }
-    }
-  } else if (kind === "timber") {
-    for (let i = 0; i < 8; i++) {
-      g.fillStyle = i % 2 ? "#8a6847" : "#7f5f40";
-      g.fillRect(i * 16, 0, 16, 128);
-      g.fillStyle = "#4e3a28";
-      g.fillRect(i * 16, 0, 1.5, 128);
-    }
-  } else {
-    for (let i = 0; i < 8; i++) {
-      for (let j = 0; j < 2; j++) {
-        g.fillStyle = (i + j) % 3 === 0 ? "#d7b994" : (i + j) % 3 === 1 ? "#cfae86" : "#dcc09c";
-        g.fillRect(j * 64 + ((i % 2) * 32), i * 16, 64, 16);
-        g.fillStyle = "rgba(90, 60, 30, 0.35)";
-        g.fillRect(j * 64 + ((i % 2) * 32), i * 16, 64, 1);
-        g.fillRect(j * 64 + ((i % 2) * 32), i * 16, 1, 16);
-      }
-    }
-  }
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
-  texture.colorSpace = THREE.SRGBColorSpace;
-  return texture;
-}
-
-/** Box UVs in metres ÷ tile size, so patterns keep their scale on any wall. */
-function worldUVs(geometry: THREE.BoxGeometry, l: number, h: number, d: number, tile: number) {
-  const uv = geometry.attributes.uv as THREE.BufferAttribute;
-  // Faces in BoxGeometry order: +x, −x, +y, −y, +z, −z; four vertices each.
-  const dims: Array<[number, number]> = [
-    [d, h],
-    [d, h],
-    [l, d],
-    [l, d],
-    [l, h],
-    [l, h],
-  ];
-  for (let face = 0; face < 6; face++) {
-    for (let v = 0; v < 4; v++) {
-      const i = face * 4 + v;
-      uv.setXY(i, (uv.getX(i) * dims[face][0]) / tile, (uv.getY(i) * dims[face][1]) / tile);
-    }
-  }
-  uv.needsUpdate = true;
-}
-
 export class HouseViewer {
   readonly renderer: THREE.WebGLRenderer;
   private readonly labelRenderer: CSS2DRenderer;
   readonly scene = new THREE.Scene();
   readonly camera = new THREE.PerspectiveCamera(45, 1, 0.1, 400);
   private readonly controls: OrbitControls;
-  private readonly hemi = new THREE.HemisphereLight();
-  private readonly sun = new THREE.DirectionalLight();
+  readonly hemi = new THREE.HemisphereLight();
+  readonly sun = new THREE.DirectionalLight();
   private house = new THREE.Group();
-  private nightLights = new THREE.Group();
+  readonly nightLights = new THREE.Group();
   private floors: THREE.Mesh[] = [];
   private model: HouseModel | null = null;
   private state: ViewerState | null = null;
   private houseKey = "";
   private mode: CameraMode = "orbit";
-  private readonly textures = new Map<string, THREE.Texture | null>();
+  private readonly textures = new TextureCache();
   private readonly keys = new Set<string>();
   private walk = { yaw: 0, pitch: -0.05 };
   private down: { x: number; y: number; id: number } | null = null;
@@ -213,188 +141,16 @@ export class HouseViewer {
   }
 
   // ── Building ─────────────────────────────────────────────────────────
-  private texture(kind: "brick" | "timber" | "planks") {
-    if (!this.textures.has(kind)) this.textures.set(kind, patternTexture(kind));
-    return this.textures.get(kind) ?? null;
-  }
-
   private rebuild() {
     const state = this.state!;
-    this.clear(this.house);
-    this.floors = [];
+    clearGroup(this.house, this.textures);
     const model = buildHouseModel(state.level, state.display);
     this.model = model;
-    const { appearance } = state;
-    const std = (color: string, extra: THREE.MeshStandardMaterialParameters = {}) => new THREE.MeshStandardMaterial({ color, roughness: 0.92, metalness: 0, ...extra });
-    const interior = std("#f3f1ec");
-    const top = std(PLAN_THEME.wallFill);
-    const exteriorMap = appearance.exterior === "brick" ? this.texture("brick") : appearance.exterior === "timber" ? this.texture("timber") : null;
-    const exterior = std(exteriorMap ? "#ffffff" : EXTERIOR[appearance.exterior], exteriorMap ? { map: exteriorMap } : {});
-    const frame = std(FRAMES[appearance.frames], { roughness: 0.6 });
-    const glass = new THREE.MeshStandardMaterial({ color: "#a9c7da", transparent: true, opacity: 0.32, roughness: 0.05, metalness: 0.2, depthWrite: false });
-    const door = std("#eee8de", { roughness: 0.8 });
-    const roof = std(ROOF[appearance.roof], { roughness: 0.75, metalness: appearance.roof === "zinc" ? 0.4 : 0 });
-
-    for (const box of model.boxes) this.house.add(this.boxMesh(box, { interior, top, exterior, exteriorTiled: !!exteriorMap, frame, glass, door, roof }));
-
-    // Floors as thin slabs following each room's outline.
-    for (const floor of model.floors) {
-      const shapes = floor.rings.map((ring) => new THREE.Shape(ring.map((p) => new THREE.Vector2(p.x, p.y))));
-      const [outer, ...holes] = shapes;
-      outer.holes.push(...holes.map((h) => new THREE.Path(h.getPoints())));
-      const geometry = new THREE.ExtrudeGeometry(outer, { depth: 0.04, bevelEnabled: false });
-      geometry.rotateX(-Math.PI / 2);
-      const planks = floor.material === "timber" ? this.texture("planks") : null;
-      const color = floor.material ? MATERIAL_FILL[floor.material] : "#e6d5bb";
-      const material = std(planks ? "#ffffff" : color, planks ? { map: planks.clone() } : {});
-      if (material.map) material.map.repeat.set(1 / 1.6, 1 / 1.6);
-      const mesh = new THREE.Mesh(geometry, material);
-      mesh.receiveShadow = true;
-      mesh.userData = { roomId: floor.roomId, baseColor: material.color.getHex() };
-      this.floors.push(mesh);
-      this.house.add(mesh);
-    }
-
-    // Site: ground, a paved apron, trees.
-    if (model.outside) {
-      const o = model.outside;
-      const cx = (o.minX + o.maxX) / 2;
-      const cy = (o.minY + o.maxY) / 2;
-      const ground = new THREE.Mesh(new THREE.PlaneGeometry(80, 80), std(state.display.landscape ? GROUND[state.ground] : "#e7e3db"));
-      ground.rotation.x = -Math.PI / 2;
-      ground.position.set(cx, -0.02, -cy);
-      ground.receiveShadow = true;
-      this.house.add(ground);
-      const apron = new THREE.Mesh(new THREE.PlaneGeometry(o.maxX - o.minX + 2.4, o.maxY - o.minY + 2.4), std(SITE_THEME.paving));
-      apron.rotation.x = -Math.PI / 2;
-      apron.position.set(cx, -0.01, -cy);
-      apron.receiveShadow = true;
-      this.house.add(apron);
-    }
-    if (model.site) {
-      const trunk = std("#6b4f36");
-      const tiles = std(SITE_THEME.paving);
-      for (const t of model.site.tiles) {
-        const tile = new THREE.Mesh(new THREE.BoxGeometry(t.size, 0.03, t.size), tiles);
-        tile.position.set(t.x + t.size / 2, 0, -(t.y + t.size / 2));
-        tile.receiveShadow = true;
-        this.house.add(tile);
-      }
-      model.site.trees.forEach((t, i) => {
-        const tree = new THREE.Group();
-        const height = 1.4 + t.r * 1.2;
-        const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.12, height, 6), trunk);
-        stem.position.y = height / 2;
-        const canopy = new THREE.Mesh(new THREE.IcosahedronGeometry(t.r * 1.15, 1), std(t.shade, { flatShading: true }));
-        canopy.position.y = height + t.r * 0.6;
-        canopy.scale.y = 0.85 + (i % 3) * 0.08;
-        for (const m of [stem, canopy]) m.castShadow = m.receiveShadow = true;
-        tree.add(stem, canopy);
-        tree.position.set(t.x, 0, -t.y);
-        this.house.add(tree);
-      });
-    }
-
-    for (const label of model.labels) {
-      const div = document.createElement("div");
-      div.className = "three-label";
-      div.textContent = label.text;
-      const object = new CSS2DObject(div);
-      object.position.set(label.at.x, label.z, -label.at.y);
-      this.house.add(object);
-    }
+    this.floors = buildHouse(this.house, model, { appearance: state.appearance, ground: state.ground, landscape: state.display.landscape, labels: true }, this.textures);
   }
 
-  private boxMesh(
-    box: Box,
-    m: { interior: THREE.Material; top: THREE.Material; exterior: THREE.Material; exteriorTiled: boolean; frame: THREE.Material; glass: THREE.Material; door: THREE.Material; roof: THREE.Material },
-  ): THREE.Mesh {
-    const geometry = new THREE.BoxGeometry(box.length, box.height, box.depth);
-    let material: THREE.Material | THREE.Material[];
-    if (box.kind === "wall" || box.kind === "lintel" || box.kind === "sill") {
-      // Faces: +x, −x, +y, −y, +z, −z. Tops are drawn dark, as on the plan; the outside face takes the exterior finish.
-      const faces: THREE.Material[] = [m.interior, m.interior, m.top, m.interior, m.interior, m.interior];
-      if (box.outward) {
-        const c = Math.cos(box.angle);
-        const s = Math.sin(box.angle);
-        const alongX = box.outward.x * c + box.outward.y * s;
-        const alongZ = box.outward.x * s - box.outward.y * c;
-        const face = Math.abs(alongZ) >= Math.abs(alongX) ? (alongZ > 0 ? 4 : 5) : alongX > 0 ? 0 : 1;
-        faces[face] = m.exterior;
-        if (m.exteriorTiled) worldUVs(geometry, box.length, box.height, box.depth, 1.2);
-      }
-      material = faces;
-    } else if (box.kind === "parapet") material = [m.exterior, m.exterior, m.top, m.exterior, m.exterior, m.exterior];
-    else material = box.kind === "glass" ? m.glass : box.kind === "frame" ? m.frame : box.kind === "door" ? m.door : m.roof;
-    const mesh = new THREE.Mesh(geometry, material);
-    mesh.position.set(box.center.x, box.z0 + box.height / 2, -box.center.y);
-    mesh.rotation.y = box.angle;
-    mesh.castShadow = box.kind !== "glass";
-    mesh.receiveShadow = true;
-    return mesh;
-  }
-
-  private clear(group: THREE.Group) {
-    group.traverse((o) => {
-      if (o instanceof THREE.Mesh) {
-        o.geometry.dispose();
-        const mats = Array.isArray(o.material) ? o.material : [o.material];
-        for (const mat of mats) {
-          // Shared pattern textures are kept; cloned ones (floors) go with their material.
-          const map = (mat as THREE.MeshStandardMaterial).map;
-          if (map && ![...this.textures.values()].includes(map)) map.dispose();
-          mat.dispose();
-        }
-      }
-      if (o instanceof CSS2DObject) o.element.remove();
-    });
-    group.clear();
-  }
-
-  // ── Light ────────────────────────────────────────────────────────────
   private light() {
-    const state = this.state!;
-    const preset = LIGHTS[state.lighting];
-    const overcast = state.sky === "overcast";
-    this.hemi.color.set(preset.sky);
-    this.hemi.groundColor.set(preset.ground);
-    this.hemi.intensity = preset.hemi * (overcast ? 1.25 : 1);
-    this.sun.color.set(preset.sun);
-    this.sun.intensity = preset.sunPower * (overcast ? 0.35 : 1);
-    this.sun.castShadow = state.shadows && !overcast;
-    const background = new THREE.Color(overcast ? "#d9dcdf" : preset.background);
-    if (overcast && state.lighting === "night") background.set("#1a1d24");
-    this.scene.background = background;
-    this.scene.fog = new THREE.Fog(background, 45, 140);
-    this.renderer.toneMappingExposure = state.lighting === "night" ? 0.9 : 1.05;
-
-    const o = this.model?.outside;
-    const c = o ? { x: (o.minX + o.maxX) / 2, y: (o.minY + o.maxY) / 2 } : { x: 0, y: 0 };
-    const size = o ? Math.max(o.maxX - o.minX, o.maxY - o.minY) : 10;
-    const az = THREE.MathUtils.degToRad(preset.azimuth + state.sunAzimuth);
-    const el = THREE.MathUtils.degToRad(preset.elevation);
-    const r = size * 2.5 + 10;
-    // Azimuth from north (+y in plan, −z in three), clockwise.
-    this.sun.position.set(c.x + Math.sin(az) * Math.cos(el) * r, Math.sin(el) * r, -(c.y + Math.cos(az) * Math.cos(el) * r));
-    this.sun.target.position.set(c.x, 0, -c.y);
-    const cam = this.sun.shadow.camera;
-    const half = size * 0.9 + 8;
-    cam.left = cam.bottom = -half;
-    cam.right = cam.top = half;
-    cam.near = 1;
-    cam.far = r * 2.5;
-    cam.updateProjectionMatrix();
-
-    // At night, rooms glow with a warm light each.
-    this.clear(this.nightLights);
-    if (state.lighting === "night" && this.model) {
-      for (const floor of this.model.floors) {
-        if (floor.area < 3) continue;
-        const lamp = new THREE.PointLight("#ffcf8a", 4, 7, 1.6);
-        lamp.position.set(floor.label.x, 2.1, -floor.label.y);
-        this.nightLights.add(lamp);
-      }
-    }
+    applyLighting(this, this.model, this.state!, this.textures);
   }
 
   private highlight() {
@@ -428,13 +184,9 @@ export class HouseViewer {
     if (mode === "aerial") return { position: new THREE.Vector3(c.x + size * 0.15, size * 1.9, c.z + size * 0.55), target: c.clone() };
     if (mode === "interior") {
       const room = this.interiorRoom(roomId);
-      if (room) {
-        const b = room.bounds;
-        const inset = Math.min(0.45, (b.maxX - b.minX) / 4, (b.maxY - b.minY) / 4);
-        return {
-          position: new THREE.Vector3(b.minX + inset, EYE, -(b.minY + inset)),
-          target: new THREE.Vector3((b.minX + b.maxX * 2) / 3, 1.0, -((b.minY + b.maxY * 2) / 3)),
-        };
+      const view = room && this.state ? roomCameraPose(this.state.level, room.roomId, this.camera.aspect || 1.5) : null;
+      if (view) {
+        return { position: new THREE.Vector3(view.eye.x, view.eye.z, -view.eye.y), target: new THREE.Vector3(view.target.x, view.target.z, -view.target.y) };
       }
     }
     if (mode === "walk") {
@@ -585,9 +337,9 @@ export class HouseViewer {
     el.removeEventListener("keydown", this.keyDown);
     el.removeEventListener("keyup", this.keyUp);
     this.controls.dispose();
-    this.clear(this.house);
-    this.clear(this.nightLights);
-    for (const t of this.textures.values()) t?.dispose();
+    clearGroup(this.house, this.textures);
+    clearGroup(this.nightLights, this.textures);
+    this.textures.dispose();
     this.renderer.dispose();
     this.previewRenderer?.dispose();
     el.remove();

@@ -1,10 +1,15 @@
 import { applyCommand } from "../commands/apply";
 import type { PlanCommand } from "../commands/types";
-import { deriveLevelGeometry } from "../geometry/derive";
+import { furnishRoom, islandSpot, kitchenRun, Layout, toFurniture } from "../furniture/furnish";
+import { furnitureIssues } from "../furniture/issues";
+import { furnitureInRoom, roomContext, wallSpots, type Placement, type WallSpot } from "../furniture/layout";
+import { deriveLevelGeometry, openingHostIntervals } from "../geometry/derive";
 import { formatArea, roundToPrecision } from "../geometry/numeric";
+import { asAxisRect } from "../geometry/polygons";
 import { axialParam } from "../geometry/walls";
-import type { Id, Level, Opening, PlanDocument, RoomType } from "../plan/types";
-import { neighbourAcross, roomAtPoint, roomRegion, roomWalls, SIDE_NORMAL, type RoomWall } from "./analysis";
+import { suggestRoomName } from "../plan/rooms";
+import type { Furniture, FurnitureKind, Id, Level, Opening, PlanDocument, Point2, Room, RoomType } from "../plan/types";
+import { gardenWallIds, neighbourAcross, roomAtPoint, roomRegion, roomWalls, SIDE_NORMAL, type RoomWall, type Side } from "./analysis";
 import { ROOM_GOAL_LABEL, suggestedGoals, SUPPORTED_ROOM_GOALS, type RoomGoal } from "./intent";
 import type { PlanCandidate, PlanningRequest, PlanningResult } from "./planner";
 
@@ -59,12 +64,17 @@ export function planRoomChange(request: PlanningRequest): PlanningResult {
   const supported = goals.filter((g) => SUPPORTED_ROOM_GOALS.has(g));
   const unsupported = goals.filter((g) => !SUPPORTED_ROOM_GOALS.has(g));
   const unsupportedNote = unsupported.length
-    ? `${unsupported.map((g) => ROOM_GOAL_LABEL[g]).join(", ")} needs furniture and fittings, which aren't modelled yet.`
+    ? `${unsupported.map((g) => ROOM_GOAL_LABEL[g]).join(", ")} isn't something I can plan yet.`
     : null;
   if (!supported.length) {
     return {
       candidates: [],
-      issues: [{ code: "unsupported-intent", message: `${unsupportedNote} I can make a room larger or smaller, bring in more light, add garden doors or open it up to a neighbour.` }],
+      issues: [
+        {
+          code: "unsupported-intent",
+          message: `${unsupportedNote} I can make a room larger or smaller, bring in more light, add garden doors, open it up to a neighbour, add storage, an island, a dining area or an ensuite.`,
+        },
+      ],
     };
   }
 
@@ -90,7 +100,7 @@ export function planRoomChange(request: PlanningRequest): PlanningResult {
     return { candidates: [], issues: [{ code: "does-not-fit", message }] };
   }
   const candidates: PlanCandidate[] = picked.map((o, seed) => ({
-    document: o.document,
+    document: tidyFurniture(o.document, o.changed, `${idPrefix}-${seed}`),
     summary: o.summary,
     notes: unsupportedNote ? [unsupportedNote] : [],
     seed,
@@ -114,6 +124,14 @@ function optionsFor(goal: RoomGoal, source: PlanDocument, roomId: Id, prefix: st
       return gardenOptions(source, roomId, prefix);
     case "make_open_plan":
       return openPlanOptions(source, roomId, prefix);
+    case "add_storage":
+      return storageOptions(source, roomId, prefix);
+    case "add_kitchen_island":
+      return islandOptions(source, roomId, prefix);
+    case "create_dining_zone":
+      return diningOptions(source, roomId, prefix);
+    case "add_ensuite":
+      return ensuiteOptions(source, roomId, prefix);
     default:
       return `${ROOM_GOAL_LABEL[goal]} isn't available yet.`;
   }
@@ -262,7 +280,10 @@ function gardenOptions(source: PlanDocument, roomId: Id, prefix: string): Option
   const level = source.levels[0];
   const room = level.rooms[roomId];
   if (!level.rearWallId) return "Mark the rear (garden) wall in Structure first, so I know where the garden is.";
-  const rear = roomWalls(level, roomId).find((w) => w.wallId === level.rearWallId);
+  const garden = gardenWallIds(level);
+  const rear = roomWalls(level, roomId)
+    .filter((w) => garden.has(w.wallId))
+    .reduce<RoomWall | undefined>((best, w) => (!best || w.to - w.from > best.to - best.from + 1e-9 ? w : best), undefined);
   if (!rear) return `${room.name} doesn't reach the garden wall. Try a room along the rear of the house.`;
   const axis = deriveLevelGeometry(level).axes.get(rear.wallId)!;
   const inside = { x: -SIDE_NORMAL[rear.side].x, y: -SIDE_NORMAL[rear.side].y };
@@ -329,3 +350,250 @@ function openPlanOptions(source: PlanDocument, roomId: Id, prefix: string): Opti
   }
   return options.length ? options : `${room.name} has no living space beside it that can be opened up.`;
 }
+
+// ── Furniture and fittings ───────────────────────────────────────────────
+
+/**
+ * After walls move, furniture in the rooms that changed may run into a wall
+ * or a door. Those rooms are laid out again; everything else stays put.
+ */
+function tidyFurniture(doc: PlanDocument, roomIds: Id[], prefix: string): PlanDocument {
+  let current = doc;
+  roomIds.forEach((roomId, i) => {
+    const level = current.levels[0];
+    if (!level.rooms[roomId]) return;
+    const items = furnitureInRoom(level, roomId);
+    const issues = furnitureIssues(level);
+    if (!items.some((f) => issues.has(f.id))) return;
+    const result = furnishRoom(level, roomId, `${prefix}-t${i}`);
+    if (!result) return;
+    const applied = applyCommand(current, { type: "replaceFurniture", remove: result.remove, add: result.items });
+    if (applied.ok) current = applied.document;
+  });
+  return current;
+}
+
+const SIDE_OF_NORMAL = (n: Point2): Side => (n.y > 0 ? "north" : n.y < 0 ? "south" : n.x > 0 ? "east" : "west");
+const metres = (v: number) => `${v.toFixed(1)} m`;
+
+function addOption(source: PlanDocument, items: Furniture[]): PlanDocument | null {
+  const result = applyCommand(source, { type: "replaceFurniture", remove: [], add: items });
+  return result.ok ? result.document : null;
+}
+
+/** Wardrobes in bedrooms, shelving elsewhere: the widest that fits against each free wall. */
+function storageOptions(source: PlanDocument, roomId: Id, prefix: string): Option[] | string {
+  const level = source.levels[0];
+  const room = level.rooms[roomId];
+  const sleeping = room.type === "bedroom" || room.type === "primary_bedroom";
+  const kind: FurnitureKind = sleeping ? "wardrobe" : "shelving";
+  const widths = sleeping ? [2.4, 1.8, 1.2, 0.9] : [2, 1.5, 1, 0.6];
+  const ctx = roomContext(level, roomId);
+  if (!ctx) return `There's no floor in ${lower(room.name)} to put storage on.`;
+  // The widest unit on each wall face.
+  const perWall = new Map<string, WallSpot>();
+  for (const width of widths) {
+    for (const spot of wallSpots(ctx, kind, { width })) {
+      const key = `${spot.edge.normal.x},${spot.edge.normal.y},${spot.edge.line}`;
+      const seen = perWall.get(key);
+      const better = !seen || spot.width > seen.width || (spot.width === seen.width && (spot.flush ? 1 : 0) - spot.offCentre * 0.01 > (seen.flush ? 1 : 0) - seen.offCentre * 0.01);
+      if (better) perWall.set(key, spot);
+    }
+  }
+  const options: Option[] = [];
+  let n = 0;
+  for (const [key, spot] of [...perWall].sort((a, b) => b[1].width - a[1].width).slice(0, 4)) {
+    const document = addOption(source, [toFurniture(spot, `${prefix}-s${++n}`)]);
+    if (!document) continue;
+    const side = SIDE_OF_NORMAL(spot.edge.normal);
+    options.push({
+      goal: "add_storage",
+      document,
+      variant: `storage:${kind}:${key}`,
+      title: `${capital(room.name)} with ${sleeping ? "a wardrobe" : "shelving"}`,
+      summary: `A ${metres(spot.width)} ${sleeping ? "wardrobe" : "run of shelving"} on the ${side} wall of ${lower(room.name)}.`,
+      changed: [roomId],
+      score: spot.width + (spot.flush ? 0.3 : 0) - (spot.edge.hasDoor ? 0.5 : 0),
+    });
+  }
+  return options.length ? options : `There's no free stretch of wall in ${lower(room.name)} for storage.`;
+}
+
+const KITCHENS: ReadonlySet<RoomType> = new Set(["kitchen", "kitchen_dining"]);
+
+/** Kitchen units already in the room, or a new run (with a fridge) to go with the island. */
+function kitchenBase(source: PlanDocument, roomId: Id, prefix: string): { document: PlanDocument; run: Placement | null } {
+  const level = source.levels[0];
+  const existing = furnitureInRoom(level, roomId).find((f) => f.kind === "kitchen_run");
+  if (existing) return { document: source, run: existing };
+  const ctx = roomContext(level, roomId);
+  if (!ctx) return { document: source, run: null };
+  const layout = new Layout(ctx);
+  const run = kitchenRun(layout);
+  const document = run ? addOption(source, layout.placed.map((p, i) => toFurniture(p, `${prefix}-k${i + 1}`))) : null;
+  return document ? { document, run } : { document: source, run: null };
+}
+
+function islandOptions(source: PlanDocument, roomId: Id, prefix: string): Option[] | string {
+  const room = source.levels[0].rooms[roomId];
+  if (!KITCHENS.has(room.type)) return `An island goes in a kitchen; ${lower(room.name)} isn't one.`;
+  const base = kitchenBase(source, roomId, prefix);
+  const options: Option[] = [];
+  const sizes: Array<[number, number]> = [
+    [2.4, 1],
+    [1.8, 0.9],
+    [1.2, 0.8],
+  ];
+  sizes.forEach(([width, depth], i) => {
+    const ctx = roomContext(base.document.levels[0], roomId);
+    const spot = ctx && islandSpot(new Layout(ctx), base.run, { width, depth });
+    const document = spot && addOption(base.document, [toFurniture(spot, `${prefix}-i${i + 1}`)]);
+    if (!document) return;
+    options.push({
+      goal: "add_kitchen_island",
+      document,
+      variant: `island:${width}`,
+      title: `${capital(room.name)} with a ${metres(width)} island`,
+      summary: `A ${metres(width)} × ${metres(depth)} island in ${lower(room.name)}, with room to walk round it${base.document === source ? "" : ", and new kitchen units"}.`,
+      changed: [roomId],
+      score: 1 - i * 0.2,
+    });
+  });
+  return options.length ? options : `${room.name} isn't big enough for an island with room to walk round it.`;
+}
+
+const DINING_ROOMS: ReadonlySet<RoomType> = new Set(["kitchen", "kitchen_dining", "dining", "living"]);
+
+function diningOptions(source: PlanDocument, roomId: Id, prefix: string): Option[] | string {
+  const level = source.levels[0];
+  const room = level.rooms[roomId];
+  if (!DINING_ROOMS.has(room.type)) return `A dining area belongs in a kitchen, living or dining room, not ${lower(room.name)}.`;
+  const ctx = roomContext(level, roomId);
+  if (!ctx) return `There's no floor in ${lower(room.name)} for a table.`;
+  const run = furnitureInRoom(level, roomId).find((f) => f.kind === "kitchen_run");
+  const middle = { x: (ctx.bounds.minX + ctx.bounds.maxX) / 2, y: (ctx.bounds.minY + ctx.bounds.maxY) / 2 };
+  const options: Option[] = [];
+  (["dining_set_6", "dining_set_4"] as const).forEach((kind, i) => {
+    const spot = new Layout(roomContext(level, roomId)!).free(kind, [0, 90], (p) => {
+      const away = run ? Math.hypot(p.position.x - run.position.x, p.position.y - run.position.y) * 0.6 : 0;
+      return away - Math.hypot(p.position.x - middle.x, p.position.y - middle.y) * 0.5;
+    });
+    const document = spot && addOption(source, [toFurniture(spot, `${prefix}-d${i + 1}`)]);
+    if (!document) return;
+    const seats = kind === "dining_set_6" ? 6 : 4;
+    options.push({
+      goal: "create_dining_zone",
+      document,
+      variant: `dining:${seats}`,
+      title: `${capital(room.name)} with a table for ${seats}`,
+      summary: `A dining table for ${seats} in ${lower(room.name)}.`,
+      changed: [roomId],
+      score: 1 - i * 0.2,
+    });
+  });
+  return options.length ? options : `There's no clear space in ${lower(room.name)} for a dining table.`;
+}
+
+const SLEEPING: ReadonlySet<RoomType> = new Set(["bedroom", "primary_bedroom"]);
+const ENSUITE_SIZES: Array<[number, number]> = [
+  [2, 1.7],
+  [1.7, 2],
+  [2.4, 1.8],
+];
+const PARTITION = 0.1;
+
+/**
+ * Walls off a corner of a bedroom as an ensuite, with a door from the
+ * bedroom and a shower, toilet and basin. Corners with the bedroom's own
+ * door are left alone, and the bedroom keeps a usable size.
+ */
+function ensuiteOptions(source: PlanDocument, roomId: Id, prefix: string): Option[] | string {
+  const level = source.levels[0];
+  const room = level.rooms[roomId];
+  if (!SLEEPING.has(room.type)) return `An ensuite goes off a bedroom; ${lower(room.name)} isn't one.`;
+  const region = roomRegion(level, roomId);
+  const rect = region && region.clear.length === 1 ? asAxisRect(region.clear[0]) : null;
+  if (!rect) return `I can add an ensuite to rectangular bedrooms; ${lower(room.name)} has a more complex shape.`;
+  const minRemaining = room.type === "primary_bedroom" ? 9 : 7.5;
+  const walls = roomWalls(level, roomId);
+  const axes = deriveLevelGeometry(level).axes;
+  const options: Option[] = [];
+  let n = 0;
+  for (const ns of ["north", "south"] as const) {
+    for (const ew of ["east", "west"] as const) {
+      for (const [a, b] of ENSUITE_SIZES) {
+        const cornerX = ew === "east" ? rect.maxX : rect.minX;
+        const cornerY = ns === "north" ? rect.maxY : rect.minY;
+        const sx = ew === "east" ? -1 : 1;
+        const sy = ns === "north" ? -1 : 1;
+        // Clear sizes of the ensuite, then the partition centrelines.
+        const xv = roundToPrecision(cornerX + sx * (a + PARTITION / 2));
+        const yh = roundToPrecision(cornerY + sy * (b + PARTITION / 2));
+        const across = walls.find((w) => w.side === ns && w.from <= Math.min(xv, cornerX) + 0.01 && w.to >= Math.max(xv, cornerX) - 0.01);
+        const down = walls.find((w) => w.side === ew && w.from <= Math.min(yh, cornerY) + 0.01 && w.to >= Math.max(yh, cornerY) - 0.01);
+        if (!across || !down) continue;
+        // The bedroom's door mustn't end up opening into the ensuite.
+        const spanX = { ...across, from: Math.min(xv, cornerX), to: Math.max(xv, cornerX) };
+        const spanY = { ...down, from: Math.min(yh, cornerY), to: Math.max(yh, cornerY) };
+        if (openingsOn(level, spanX, "door").length || openingsOn(level, spanY, "door").length) continue;
+        const remaining = (rect.maxX - rect.minX) * (rect.maxY - rect.minY) - (a + PARTITION) * (b + PARTITION);
+        if (remaining < minRemaining) continue;
+        const yWall = axes.get(across.wallId)!.line;
+        const xWall = axes.get(down.wallId)!.line;
+        const tag = `${prefix}-e${++n}`;
+        const built = applyAll(source, [
+          { type: "addWall", start: { x: xv, y: yWall }, end: { x: xv, y: yh }, thickness: PARTITION, idPrefix: `${tag}a` },
+          { type: "addWall", start: { x: xv, y: yh }, end: { x: xWall, y: yh }, thickness: PARTITION, idPrefix: `${tag}b` },
+        ]);
+        if (!built.ok) continue;
+        const next = built.document.levels[0];
+        const ensuiteId = roomAtPoint(next, { x: cornerX + sx * (a / 2), y: cornerY + sy * (b / 2) });
+        const bedroomId = roomAtPoint(next, { x: cornerX + sx * (a + 0.5), y: cornerY + sy * (b + 0.5) });
+        if (!ensuiteId || !bedroomId || ensuiteId === bedroomId) continue;
+        const finished = finishEnsuite(built.document, ensuiteId, bedroomId, room, { x: cornerX + sx * (a + 1), y: cornerY + sy * (b + 1) }, tag);
+        if (!finished) continue;
+        options.push({
+          goal: "add_ensuite",
+          document: finished,
+          variant: `ensuite:${ns}${ew}:${a}x${b}`,
+          title: `${capital(room.name)} with an ensuite`,
+          summary: `A ${a.toFixed(1)} × ${b.toFixed(1)} m ensuite in the ${ns}-${ew} corner of ${lower(room.name)}, with a shower, toilet and basin.`,
+          changed: [bedroomId, ensuiteId],
+          score: (a === 2 && b === 1.7 ? 1 : 0.8) + remaining / 100,
+        });
+      }
+    }
+  }
+  return options.length ? options : `${room.name} is too small for an ensuite, or every corner has its door.`;
+}
+
+/** Names the new room, puts a door in from the bedroom, and fits it out. */
+function finishEnsuite(doc: PlanDocument, ensuiteId: Id, bedroomId: Id, original: Room, bedroomPoint: Point2, tag: string): PlanDocument | null {
+  const level = doc.levels[0];
+  const geometry = deriveLevelGeometry(level);
+  // The longer partition, which has more room for a door.
+  const partitions = [...geometry.axes.values()].filter((axis) => axis.wallId.startsWith(`${tag}a`) || axis.wallId.startsWith(`${tag}b`));
+  const host = [...partitions].sort((p, q) => q.length - p.length)[0];
+  if (!host) return null;
+  const interval = openingHostIntervals(geometry, host.wallId).sort((p, q) => q[1] - q[0] - (p[1] - p[0]))[0];
+  if (!interval || interval[1] - interval[0] < 0.9) return null;
+  const width = 0.8;
+  const mid = (interval[0] + interval[1]) / 2;
+  // Swing into the bedroom, so the ensuite keeps its floor for fittings.
+  const centre = { x: host.start.x + host.dir.x * mid, y: host.start.y + host.dir.y * mid };
+  const towardBedroom = { x: bedroomPoint.x - centre.x, y: bedroomPoint.y - centre.y };
+  const swingSide = towardBedroom.x * host.normal.x + towardBedroom.y * host.normal.y > 0 ? "left" : "right";
+  const commands: PlanCommand[] = [
+    { type: "updateRoom", roomId: ensuiteId, changes: { type: "ensuite", name: suggestRoomName(level, ensuiteId, "ensuite") } },
+    { type: "addOpening", opening: { id: `${tag}-door`, wallId: host.wallId, kind: "door", offset: roundToPrecision(mid - width / 2), width, height: 2.1, hinge: "start", swingSide } },
+  ];
+  // If the split gave the bedroom a new record, it keeps its old name and type.
+  if (bedroomId !== original.id) commands.push({ type: "updateRoom", roomId: bedroomId, changes: { name: original.name, type: original.type } });
+  const built = applyAll(doc, commands);
+  if (!built.ok) return null;
+  const fitted = furnishRoom(built.document.levels[0], ensuiteId, `${tag}-fit`);
+  if (!fitted || fitted.missing.length) return null;
+  const result = applyCommand(built.document, { type: "replaceFurniture", remove: fitted.remove, add: fitted.items });
+  return result.ok ? result.document : null;
+}
+

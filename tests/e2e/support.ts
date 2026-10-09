@@ -13,6 +13,7 @@ export interface DocShape {
     walls: Record<string, { id: string; role: string; startVertexId: string; endVertexId: string; thickness: number }>;
     openings: Record<string, { id: string; wallId: string; kind: string; offset: number; width: number }>;
     rooms: Record<string, { id: string; name: string; type: string; targetArea?: number }>;
+    furniture: Record<string, { id: string; kind: string; position: Pt; rotation: number; width: number; depth: number }>;
     envelope: { wallIds: string[] };
     rearWallId: string | null;
   }>;
@@ -124,4 +125,15 @@ export async function openLayers(page: Page) {
   }
   await expect(nav).toBeVisible();
   return nav;
+}
+
+/**
+ * Selects a room from the Layers list, then closes it. Generated concepts
+ * come furnished, so clicking a room's centre can land on its furniture.
+ */
+export async function selectRoomFromList(page: Page, name: string) {
+  const layers = await openLayers(page);
+  await layers.getByRole("button", { name: new RegExp(`^${name.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&")}`) }).click();
+  await page.getByTestId("tool-more").click();
+  await page.getByTestId("toggle-layers").click();
 }

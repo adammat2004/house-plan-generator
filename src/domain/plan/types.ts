@@ -1,6 +1,7 @@
 import type { z } from "zod";
 import type {
   doorSchema,
+  furnitureSchema,
   levelSchema,
   openingSchema,
   planDocumentSchema,
@@ -9,6 +10,8 @@ import type {
   wallSchema,
   windowSchema,
   EXTERNAL_WALL_PREFERENCES,
+  FURNITURE_KINDS,
+  FURNITURE_ROTATIONS,
   FLOOR_MATERIALS,
   ROOM_TYPES,
 } from "./schema";
@@ -27,3 +30,6 @@ export type FloorMaterial = (typeof FLOOR_MATERIALS)[number];
 export type ExternalWallPreference = (typeof EXTERNAL_WALL_PREFERENCES)[number];
 export type Level = z.infer<typeof levelSchema>;
 export type PlanDocument = z.infer<typeof planDocumentSchema>;
+export type Furniture = z.infer<typeof furnitureSchema>;
+export type FurnitureKind = (typeof FURNITURE_KINDS)[number];
+export type FurnitureRotation = (typeof FURNITURE_ROTATIONS)[number];

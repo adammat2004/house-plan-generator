@@ -1,6 +1,6 @@
 import { DEFAULT_HOUSE } from "../plan/defaults";
 import { CURRENT_SCHEMA_VERSION } from "../plan/schema";
-import type { Id, PlanDocument } from "../plan/types";
+import type { Id, PlanDocument, Point2 } from "../plan/types";
 import { applyCommand } from "./apply";
 import { CommandFailure } from "./ops";
 
@@ -12,9 +12,11 @@ export interface NewPlanOptions {
   externalThickness?: number;
   wallHeight?: number;
   idPrefix?: string;
+  /** Outside-face corners of a right-angle outline; overrides width and depth. */
+  outline?: Point2[];
 }
 
-/** Creates a valid document containing a single rectangular house. */
+/** Creates a valid document containing a single house: a width × depth rectangle, or the given outline. */
 export function createPlanDocument(options: NewPlanOptions): PlanDocument {
   const shell: PlanDocument = {
     schemaVersion: CURRENT_SCHEMA_VERSION,
@@ -31,19 +33,23 @@ export function createPlanDocument(options: NewPlanOptions): PlanDocument {
         walls: {},
         openings: {},
         rooms: {},
-        envelope: { kind: "rectangle", wallIds: ["", "", "", ""] },
+        furniture: {},
+        envelope: { kind: "polygon", wallIds: [] },
         rearWallId: null,
       },
     ],
   };
-  const result = applyCommand(shell, {
-    type: "createFootprint",
-    width: options.width ?? DEFAULT_HOUSE.width,
-    depth: options.depth ?? DEFAULT_HOUSE.depth,
+  const common = {
     externalThickness: options.externalThickness ?? DEFAULT_HOUSE.externalThickness,
     wallHeight: options.wallHeight ?? DEFAULT_HOUSE.wallHeight,
     idPrefix: options.idPrefix,
-  });
+  };
+  const result = applyCommand(
+    shell,
+    options.outline
+      ? { type: "createOutline", outline: options.outline, ...common }
+      : { type: "createFootprint", width: options.width ?? DEFAULT_HOUSE.width, depth: options.depth ?? DEFAULT_HOUSE.depth, ...common },
+  );
   if (!result.ok) throw new CommandFailure(result.issues);
   return result.document;
 }

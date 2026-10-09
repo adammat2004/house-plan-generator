@@ -92,9 +92,21 @@ export function roomWalls(level: Level, roomId: Id): RoomWall[] {
   return [...found.values()];
 }
 
-/** Whether the room has a face on the rear (garden) wall. */
+/**
+ * The outline walls on the garden side: every external wall facing the same
+ * way as the rear wall. A rectangle has one; an L or U can have several.
+ */
+export function gardenWallIds(level: Level): ReadonlySet<Id> {
+  if (!level.rearWallId) return new Set();
+  const env = analyzeEnvelope(level);
+  const side = env.ok ? env.info.sideOfWall[level.rearWallId] : undefined;
+  return new Set(env.ok && side ? env.info.wallsFacing[side] : [level.rearWallId]);
+}
+
+/** Whether the room has a face on the rear (garden) side. */
 export function touchesRear(level: Level, roomId: Id): boolean {
-  return !!level.rearWallId && roomWalls(level, roomId).some((w) => w.wallId === level.rearWallId);
+  const garden = gardenWallIds(level);
+  return garden.size > 0 && roomWalls(level, roomId).some((w) => garden.has(w.wallId));
 }
 
 /** The room on the far side of a room's wall at a point along it, if any. */
@@ -121,6 +133,7 @@ export interface RoomConnection {
 export function roomConnections(level: Level, roomId: Id): RoomConnection[] {
   const geometry = deriveLevelGeometry(level);
   const connections: RoomConnection[] = [];
+  const garden = gardenWallIds(level);
   for (const wall of roomWalls(level, roomId)) {
     const axis = geometry.axes.get(wall.wallId);
     if (!axis) continue;
@@ -132,7 +145,7 @@ export function roomConnections(level: Level, roomId: Id): RoomConnection[] {
       const [lo, hi] = [Math.min(a, b), Math.max(a, b)];
       if (Math.min(hi, wall.to) - Math.max(lo, wall.from) < MIN_OVERLAP) continue;
       let target: ConnectionTarget;
-      if (wall.external) target = wall.wallId === level.rearWallId ? { kind: "garden" } : { kind: "outside" };
+      if (wall.external) target = garden.has(wall.wallId) ? { kind: "garden" } : { kind: "outside" };
       else {
         const other = neighbourAcross(level, wall, (lo + hi) / 2);
         if (!other) continue;
@@ -225,7 +238,8 @@ export function assessPlan(level: Level): PlanAssessment {
   const has = (type: RoomType) => rooms.some((r) => r.type === type);
   const glazing = Object.values(level.openings).reduce((acc, o) => acc + (o.kind === "window" ? o.width * o.height : 0), 0);
   const glazingRatio = totalArea > 0 ? glazing / totalArea : 0;
-  const rearDoor = Object.values(level.openings).some((o) => o.kind === "door" && o.wallId === level.rearWallId);
+  const garden = gardenWallIds(level);
+  const rearDoor = Object.values(level.openings).some((o) => o.kind === "door" && garden.has(o.wallId));
   const env = analyzeEnvelope(level);
 
   const features: PlanFeature[] = [];

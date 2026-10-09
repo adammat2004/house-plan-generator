@@ -3,11 +3,11 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { IconButton, Menu, MenuItem } from "@/components/ui/controls";
-import { ChevronDownIcon, CloudIcon, DownloadIcon, HouseMark, RedoIcon, UndoIcon, UsersIcon } from "@/components/ui/icons";
+import { ArrowRightIcon, ChevronDownIcon, CloudIcon, DownloadIcon, HouseMark, RedoIcon, UndoIcon, UsersIcon } from "@/components/ui/icons";
 import { editor, useDocumentState, useProjectState, useSessionState } from "../../state/editor";
 import { useSaveStatus } from "../../state/saveStatus";
 import type { Workspace } from "../../state/stores";
-import { selectWorkspace } from "./tools";
+import { nextStep, selectWorkspace } from "./tools";
 
 export interface TopBarActions {
   onNew: () => void;
@@ -71,6 +71,7 @@ export function TopBar(actions: TopBarActions) {
             </>
           )}
         </Menu>
+        <NextStep />
       </div>
     </header>
   );
@@ -125,10 +126,22 @@ function ProjectName() {
 
 const WORKSPACES: ReadonlyArray<{ id: Workspace; label: string; key: string; testId: string }> = [
   { id: "structure", label: "Structure", key: "1", testId: "workspace-structure" },
-  { id: "brief", label: "Brief", key: "2", testId: "workspace-brief" },
-  { id: "design", label: "Designs", key: "3", testId: "workspace-design" },
+  { id: "brief", label: "Rooms", key: "2", testId: "workspace-brief" },
+  { id: "design", label: "Design", key: "3", testId: "workspace-design" },
   { id: "present", label: "3D", key: "4", testId: "workspace-3d" },
 ];
+
+/** The next step: Structure → Rooms → Design (generating layouts if there are none) → 3D. */
+function NextStep() {
+  const workspace = useSessionState((s) => s.workspace);
+  const running = useSessionState((s) => s.designer.status === "running");
+  if (workspace === "present") return null;
+  return (
+    <button type="button" className="btn btn-primary next-step" disabled={running} onClick={() => void nextStep()} data-testid="next-step">
+      {running ? "Generating…" : "Next"} <ArrowRightIcon width={17} height={17} />
+    </button>
+  );
+}
 
 export function WorkspaceSwitcher() {
   const workspace = useSessionState((s) => s.workspace);
@@ -148,6 +161,9 @@ export function WorkspaceSwitcher() {
             data-tooltip-side="bottom"
             onClick={() => selectWorkspace(id)}
           >
+            <span className="step-number" aria-hidden>
+              {key}
+            </span>
             {label}
           </button>
         );

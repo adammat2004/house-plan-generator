@@ -7,23 +7,20 @@ import {
   ArrowRightIcon,
   CheckIcon,
   ChevronDownIcon,
+  ChevronRightIcon,
   CloseIcon,
-  DimensionsIcon,
-  DrawIcon,
   ExtensionIcon,
-  FitIcon,
   HelpIcon,
   HouseMark,
-  ImageIcon,
-  MoreIcon,
   OutbuildingIcon,
-  RoomIcon,
-  SelectIcon,
   UploadIcon,
-  WallIcon,
 } from "@/components/ui/icons";
 import { createPlanDocument } from "@/domain/commands";
 import { analyzeEnvelope } from "@/domain/geometry/envelope";
+import { BRIEF_PRESETS, ROOM_PICK_SPECS } from "@/domain/brief/rooms";
+import { DEFAULT_BRIEF, withPicks, type HouseShape } from "@/domain/brief/schema";
+import type { PlotLimits } from "@/domain/design/footprint";
+import { planLayouts } from "@/domain/design/stripPlanner";
 import { DEFAULT_HOUSE } from "@/domain/plan/defaults";
 import type { PlanDocument } from "@/domain/plan/types";
 import {
@@ -34,35 +31,59 @@ import {
   type ProjectLocation,
   type ProjectType,
 } from "@/domain/project/schema";
-import { HOUSE_FIELDS, parseHouseValues, type HouseFieldKey } from "@/editor/components/CreateHouseDialog";
+import { HOUSE_FIELDS, parseHouseValues, shapeDefaults, WingFields, type HouseFieldKey, type WingText } from "@/editor/components/CreateHouseDialog";
+import { ShapePicker } from "@/editor/components/ShapePicker";
+import { HouseShapeChips } from "@/editor/components/designer/BriefFields";
+import { describeOutline } from "@/domain/geometry/outlineDescription";
+import { defaultShapeParams, presetOutline, SHAPE_DEFAULT_SIZE, type ShapePreset } from "@/domain/geometry/outlinePresets";
 import { PlanThumbnail } from "@/editor/components/designer/PlanThumbnail";
 import { readProjectFile } from "@/persistence/jsonFile";
-import { createBlankProject, createProjectFromDimensions, createProjectFromImport, editorHref } from "../library";
-import { SectionHeader, TemplateRow } from "./pages";
+import { createBlankProject, createProjectFromDimensions, createProjectFromImport, createRoomsProject, editorHref } from "../library";
 import { MassingPreview } from "./illustrations";
 
-export type StartMethod = "scratch" | "dimensions" | "import";
+export type StartMethod = "rooms" | "scratch" | "dimensions" | "import";
 type PreviewView = "2d" | "split" | "3d";
 
-const METHODS: ReadonlyArray<{ id: StartMethod; title: string; text: string; Icon: typeof DrawIcon }> = [
-  { id: "scratch", title: "Draw from scratch", text: "Start with a blank outline and draw your floor plan.", Icon: DrawIcon },
-  { id: "dimensions", title: "Enter dimensions", text: "Create a plan using your measurements.", Icon: DimensionsIcon },
-  { id: "import", title: "Import floor plan", text: "Open a floor plan project file saved from HomeDesign.", Icon: ImageIcon },
+const METHODS: ReadonlyArray<{ id: StartMethod; title: string; text: string }> = [
+  { id: "rooms", title: "Pick your rooms", text: "Choose the rooms you want and we\u2019ll design layouts around them." },
+  { id: "scratch", title: "Draw from scratch", text: "Start with a blank outline and draw the walls yourself." },
+  { id: "dimensions", title: "Enter dimensions", text: "Type in the outside size of the house you have." },
+  { id: "import", title: "Import a plan", text: "Open a project file saved from HomeDesign." },
 ];
 
-const TYPES: ReadonlyArray<{ id: ProjectType; title: string; text: string; Icon: typeof DrawIcon }> = [
+const TYPES: ReadonlyArray<{ id: ProjectType; title: string; text: string; Icon: typeof HouseMark }> = [
   { id: "house", title: "House", text: "A whole home", Icon: HouseMark },
   { id: "extension", title: "Extension", text: "Add to existing home", Icon: ExtensionIcon },
   { id: "other", title: "Other", text: "Garage, studio, etc.", Icon: OutbuildingIcon },
 ];
 
+const SUBMIT_LABEL: Record<StartMethod, string> = {
+  rooms: "Choose your rooms",
+  scratch: "Start drawing",
+  dimensions: "Create the outline",
+  import: "Open the plan",
+};
+
 const PREVIEW_CHIP: Record<StartMethod, string> = {
+  rooms: "",
   scratch: "Start from a blank outline",
   dimensions: "Your house outline",
   import: "Your imported plan",
 };
 
-const isMethod = (v: string | null): v is StartMethod => v === "scratch" || v === "dimensions" || v === "import";
+const isMethod = (v: string | null): v is StartMethod => v === "rooms" || v === "scratch" || v === "dimensions" || v === "import";
+
+const PLOT_LIMITS = { min: 5, max: 60 } as const;
+
+/** The rooms a "Pick your rooms" project starts with; changed in the next step. */
+const STARTING_ROOMS = withPicks(DEFAULT_BRIEF, BRIEF_PRESETS.find((p) => p.id === "family-3")!.picks);
+
+/** A plot limit typed in metres, or undefined when left blank. */
+function parsePlot(text: string): number | undefined | "invalid" {
+  if (!text.trim()) return undefined;
+  const v = Number(text.trim());
+  return Number.isFinite(v) && v >= PLOT_LIMITS.min && v <= PLOT_LIMITS.max ? v : "invalid";
+}
 
 /** The "Create a new project" page. The starting method can be preselected with ?method=. */
 export function NewProjectPage() {
@@ -94,7 +115,12 @@ function NewProjectForm({ initialMethod, onCreated }: { initialMethod: StartMeth
     internalThickness: String(DEFAULT_HOUSE.internalThickness),
     wallHeight: String(DEFAULT_HOUSE.wallHeight),
   });
+  const [shape, setShape] = useState<ShapePreset>("rectangle");
+  // New projects sized from the rooms let the planner choose the shape.
+  const [roomsShape, setRoomsShape] = useState<HouseShape>("any");
+  const [wings, setWings] = useState<WingText>({ front: "", wing: "" });
   const [imported, setImported] = useState<ImportState>({ status: "empty" });
+  const [plotText, setPlotText] = useState({ width: "", depth: "" });
   const [view, setView] = useState<PreviewView>("split");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -103,7 +129,41 @@ function NewProjectForm({ initialMethod, onCreated }: { initialMethod: StartMeth
   // Next keeps this page mounted (hidden) after opening the editor; don't come back to a busy form.
   useLayoutEffect(() => () => setBusy(false), []);
 
-  const parsedDims = useMemo(() => parseHouseValues(name, dims), [name, dims]);
+  const parsedDims = useMemo(() => parseHouseValues(name, dims, shape, wings), [name, dims, shape, wings]);
+  // Drawing from scratch starts from the chosen shape at its typical size.
+  const scratchOutline = useMemo(() => {
+    if (shape === "rectangle") return undefined;
+    const { width, depth } = SHAPE_DEFAULT_SIZE[shape];
+    return presetOutline(shape, defaultShapeParams(shape, width, depth));
+  }, [shape]);
+  const chooseShape = (next: ShapePreset) => {
+    setShape(next);
+    const d = shapeDefaults(next);
+    setDims((v) => ({ ...v, width: d.width, depth: d.depth }));
+    setWings({ front: d.front, wing: d.wing });
+  };
+  const plot = useMemo((): { ok: true; value?: PlotLimits } | { ok: false; error: string } => {
+    const maxWidth = parsePlot(plotText.width);
+    const maxDepth = parsePlot(plotText.depth);
+    if (maxWidth === "invalid" || maxDepth === "invalid") return { ok: false, error: `Plot sizes must be between ${PLOT_LIMITS.min} and ${PLOT_LIMITS.max} m.` };
+    return { ok: true, value: maxWidth || maxDepth ? { ...(maxWidth ? { maxWidth } : {}), ...(maxDepth ? { maxDepth } : {}) } : undefined };
+  }, [plotText]);
+
+  // Picking rooms: a first layout for them, recomputed as the rooms change.
+  const roomsPreview = useMemo((): { plan: PlanDocument; error: null } | { plan: null; error: string } => {
+    if (method !== "rooms") return { plan: null, error: "" };
+    if (!plot.ok) return { plan: null, error: plot.error };
+    const shell = createPlanDocument({ id: "preview" });
+    const brief = { ...STARTING_ROOMS, houseShape: roomsShape };
+    const result = planLayouts({
+      intent: { action: "generate_layouts", brief, count: 1, footprint: "auto", ...(plot.value ? { plot: plot.value } : {}) },
+      source: shell,
+      brief,
+      idPrefix: "preview",
+    });
+    const first = result.candidates[0];
+    return first ? { plan: first.document, error: null } : { plan: null, error: result.issues[0]?.message ?? "These rooms don't fit a house yet." };
+  }, [method, plot, roomsShape]);
 
   // What the project will start from, for the preview.
   const preview = useMemo((): { plan: PlanDocument; wallHeight: number } | null => {
@@ -113,21 +173,24 @@ function NewProjectForm({ initialMethod, onCreated }: { initialMethod: StartMeth
       const plan = (p.plans.find((v) => v.id === p.activePlanId) ?? p.plans[0]).document;
       return { plan, wallHeight: plan.levels[0].defaultWallHeight };
     }
+    if (method === "rooms") return roomsPreview.plan ? { plan: roomsPreview.plan, wallHeight: DEFAULT_HOUSE.wallHeight } : null;
     if (method === "dimensions" && !parsedDims.ok) return null;
     try {
       const values = method === "dimensions" && parsedDims.ok ? parsedDims.values : DEFAULT_HOUSE;
+      const outline = method === "dimensions" && parsedDims.ok ? parsedDims.values.outline : scratchOutline;
       const plan = createPlanDocument({
         id: "preview",
         width: values.width,
         depth: values.depth,
         externalThickness: values.externalThickness,
         wallHeight: values.wallHeight,
+        ...(outline ? { outline } : {}),
       });
       return { plan, wallHeight: values.wallHeight };
     } catch {
       return null;
     }
-  }, [method, imported, parsedDims]);
+  }, [method, imported, parsedDims, roomsPreview, scratchOutline]);
 
   const readFile = async (file: File) => {
     setError(null);
@@ -147,7 +210,12 @@ function NewProjectForm({ initialMethod, onCreated }: { initialMethod: StartMeth
     const projectName = name.trim();
     if (!projectName) return setError("Give the project a name.");
     let create: () => Promise<string>;
-    if (method === "dimensions") {
+    if (method === "rooms") {
+      if (!plot.ok) return setError(plot.error);
+      if (roomsPreview.error) return setError(roomsPreview.error);
+      const plotValue = plot.value;
+      create = () => createRoomsProject({ name: projectName, details, houseShape: roomsShape, ...(plotValue ? { plot: plotValue } : {}) });
+    } else if (method === "dimensions") {
       if (!parsedDims.ok) return setError(parsedDims.error);
       const values = parsedDims.values;
       create = () => createProjectFromDimensions(values, details);
@@ -156,12 +224,12 @@ function NewProjectForm({ initialMethod, onCreated }: { initialMethod: StartMeth
       const project = imported.project;
       create = () => createProjectFromImport(project, projectName, details);
     } else {
-      create = () => createBlankProject(projectName, details);
+      create = () => createBlankProject(projectName, details, scratchOutline);
     }
     setBusy(true);
     try {
       const id = await create();
-      router.push(editorHref(id, method === "scratch" ? "draw" : undefined));
+      router.push(editorHref(id, method === "scratch" ? "draw" : method === "rooms" ? "rooms" : undefined));
       onCreated();
     } catch (e) {
       setBusy(false);
@@ -178,176 +246,362 @@ function NewProjectForm({ initialMethod, onCreated }: { initialMethod: StartMeth
           <span aria-current="page">New project</span>
         </nav>
         <Link href="/" className="new-close" aria-label="Close and go back to projects">
-          <CloseIcon width={22} height={22} />
+          <CloseIcon width={20} height={20} />
         </Link>
       </div>
-      <h1 className="new-title">Create a new project</h1>
-      <p className="new-lead">Choose how you want to start and set a few details to get going.</p>
 
-      <div className="method-grid" role="radiogroup" aria-label="How to start">
-        {METHODS.map(({ id, title, text, Icon }) => (
-          <button
-            key={id}
-            type="button"
-            role="radio"
-            aria-checked={method === id}
-            className={`method-card${method === id ? " is-selected" : ""}`}
-            data-testid={`method-${id}`}
-            onClick={() => {
-              setMethod(id);
-              setError(null);
-            }}
-          >
-            <span className="start-icon" aria-hidden>
-              <Icon width={40} height={40} />
-            </span>
-            <span className="start-text">
-              <span className="start-title">{title}</span>
-              <span className="start-desc">{text}</span>
-            </span>
-            <span className="choice-mark" aria-hidden>
-              {method === id && <CheckIcon width={14} height={14} />}
-            </span>
-          </button>
-        ))}
-      </div>
-
-      <div className="new-body">
+      <div className="new-layout">
         <form
-          className="home-card details-card"
-          aria-labelledby={`${ids}-details`}
+          className="new-panel"
+          aria-labelledby={`${ids}-title`}
           data-testid="new-project-form"
           onSubmit={(e) => {
             e.preventDefault();
             void submit();
           }}
         >
-          <h2 id={`${ids}-details`}>Project details</h2>
-          <div className="field">
-            <label htmlFor={`${ids}-name`}>Project name</label>
-            <input
-              id={`${ids}-name`}
-              value={name}
-              maxLength={200}
-              data-testid="new-project-name"
-              onChange={(e) => {
-                nameTouched.current = true;
-                setName(e.target.value);
-              }}
-            />
-          </div>
-          <div className="field-pair">
-            <SelectBox id={`${ids}-units`} label="Units" value="m" onChange={() => {}}>
-              <option value="m">Metres (m)</option>
-              <option value="ft" disabled>
-                Feet and inches (coming soon)
-              </option>
-            </SelectBox>
-            <SelectBox id={`${ids}-floors`} label="Number of floors" value="1" onChange={() => {}}>
-              <option value="1">1</option>
-              <option value="2" disabled>
-                2 or more (coming soon)
-              </option>
-            </SelectBox>
-          </div>
-          <SelectBox
-            id={`${ids}-location`}
-            label={
-              <>
-                Location / building standards <span className="optional">(optional)</span>
-                <span
-                  className="field-help"
-                  tabIndex={0}
-                  role="img"
-                  aria-label="Saved with the project. Plans aren't checked against building regulations yet."
-                  data-tooltip="Saved with the project. Plans aren't checked against building regulations yet."
-                  data-tooltip-side="top"
-                >
-                  <HelpIcon width={15} height={15} />
-                </span>
-              </>
-            }
-            value={location}
-            onChange={(v) => setLocation(v as ProjectLocation | "")}
-            testId="new-project-location"
-          >
-            <option value="">Not specified</option>
-            {PROJECT_LOCATIONS.map((l) => (
-              <option key={l} value={l}>
-                {PROJECT_LOCATION_LABEL[l]}
-              </option>
-            ))}
-          </SelectBox>
+          <header className="new-head">
+            <p className="new-step">Step 1 of 4</p>
+            <h1 id={`${ids}-title`} className="new-title">
+              Start a new project
+            </h1>
+            <p className="new-lead">Choose how you&rsquo;d like to begin. Everything can be changed later.</p>
+          </header>
 
-          {method === "dimensions" && (
-            <fieldset className="dims-fieldset">
-              <legend>Outside dimensions</legend>
-              <div className="dims-grid">
-                {HOUSE_FIELDS.map((f) => (
-                  <div className="field" key={f.key}>
-                    <label htmlFor={`${ids}-${f.key}`}>{f.label}</label>
-                    <div className="input-with-unit">
-                      <input
-                        id={`${ids}-${f.key}`}
-                        inputMode="decimal"
-                        data-testid={`new-${f.key}`}
-                        value={dims[f.key]}
-                        onChange={(e) => setDims({ ...dims, [f.key]: e.target.value })}
-                      />
-                      <span className="unit">{f.unit}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </fieldset>
-          )}
-
-          {method === "import" && <ImportDrop state={imported} onFile={(f) => void readFile(f)} />}
-
-          <fieldset className="type-fieldset">
-            <legend>
-              Project type <span className="optional">(optional)</span>
-            </legend>
-            <div className="type-grid">
-              {TYPES.map(({ id, title, text, Icon }) => (
-                <button
-                  key={id}
-                  type="button"
-                  role="checkbox"
-                  aria-checked={type === id}
-                  className={`type-card${type === id ? " is-selected" : ""}`}
-                  onClick={() => setType(type === id ? null : id)}
-                >
-                  <Icon width={24} height={24} />
-                  <span className="type-title">{title}</span>
-                  <span className="type-desc">{text}</span>
-                  <span className="choice-mark" aria-hidden>
-                    {type === id && <CheckIcon width={12} height={12} />}
+          <div className="method-list" role="radiogroup" aria-label="How to start">
+            {METHODS.map(({ id, title, text }) => (
+              <button
+                key={id}
+                type="button"
+                role="radio"
+                aria-checked={method === id}
+                className={`method-option${method === id ? " is-selected" : ""}`}
+                data-testid={`method-${id}`}
+                onClick={() => {
+                  setMethod(id);
+                  setError(null);
+                }}
+              >
+                <MethodArt method={id} />
+                <span className="method-text">
+                  <span className="method-title">
+                    {title}
+                    {id === "rooms" && <span className="method-badge">Recommended</span>}
                   </span>
-                </button>
-              ))}
-            </div>
-          </fieldset>
+                  <span className="method-desc">{text}</span>
+                </span>
+                <span className="choice-mark" aria-hidden>
+                  {method === id && <CheckIcon width={13} height={13} />}
+                </span>
+              </button>
+            ))}
+          </div>
 
-          {error && (
-            <p className="field-error" role="alert">
-              {error}
-            </p>
-          )}
-          <button type="submit" className="home-btn home-btn-primary home-btn-lg home-btn-block" disabled={busy} data-testid="new-project-submit">
-            {busy ? "Creating project…" : "Start designing"}
-            {!busy && <ArrowRightIcon width={18} height={18} />}
-          </button>
+          <div className="new-fields">
+            <div className="field">
+              <label htmlFor={`${ids}-name`}>Project name</label>
+              <input
+                id={`${ids}-name`}
+                value={name}
+                maxLength={200}
+                data-testid="new-project-name"
+                onChange={(e) => {
+                  nameTouched.current = true;
+                  setName(e.target.value);
+                }}
+              />
+            </div>
+
+            {(method === "scratch" || method === "dimensions") && (
+              <fieldset className="dims-fieldset" data-testid="new-shape">
+                <legend>House shape</legend>
+                <ShapePicker value={shape} onChange={chooseShape} />
+                {method === "scratch" && shape !== "rectangle" && <p className="field-hint">Starts at a typical size; drag its walls or enter dimensions to change it.</p>}
+              </fieldset>
+            )}
+
+            {method === "dimensions" && (
+              <fieldset className="dims-fieldset">
+                <legend>Outside dimensions</legend>
+                <div className="dims-grid">
+                  {HOUSE_FIELDS.filter((f) => f.key === "width" || f.key === "depth").map((f) => (
+                    <NumberField key={f.key} id={`${ids}-${f.key}`} label={f.label} unit={f.unit} testId={`new-${f.key}`} value={dims[f.key]} onChange={(v) => setDims({ ...dims, [f.key]: v })} />
+                  ))}
+                  <WingFields shape={shape} idPrefix={ids} value={wings} onChange={setWings} testPrefix="new" />
+                </div>
+                <details className="new-more new-more-inline">
+                  <summary>Wall thickness and height</summary>
+                  <div className="dims-grid dims-grid-3">
+                    {HOUSE_FIELDS.filter((f) => f.key !== "width" && f.key !== "depth").map((f) => (
+                      <NumberField key={f.key} id={`${ids}-${f.key}`} label={f.label} unit={f.unit} testId={`new-${f.key}`} value={dims[f.key]} onChange={(v) => setDims({ ...dims, [f.key]: v })} />
+                    ))}
+                  </div>
+                </details>
+              </fieldset>
+            )}
+
+            {method === "import" && <ImportDrop state={imported} onFile={(f) => void readFile(f)} />}
+
+            {method === "rooms" && (
+              <fieldset className="dims-fieldset" data-testid="rooms-shape">
+                <legend>House shape</legend>
+                <HouseShapeChips value={roomsShape} onChange={setRoomsShape} testPrefix="rooms" />
+              </fieldset>
+            )}
+
+            {method === "rooms" && (
+              <fieldset className="dims-fieldset" data-testid="rooms-fields">
+                <legend>
+                  Plot size <span className="optional">(optional)</span>
+                </legend>
+                <div className="dims-grid">
+                  {(["width", "depth"] as const).map((key) => (
+                    <NumberField
+                      key={key}
+                      id={`${ids}-plot-${key}`}
+                      label={key === "width" ? "Max width" : "Max depth"}
+                      unit="m"
+                      placeholder="Any"
+                      testId={`rooms-plot-${key}`}
+                      value={plotText[key]}
+                      onChange={(v) => setPlotText({ ...plotText, [key]: v })}
+                    />
+                  ))}
+                </div>
+                <p className="field-hint">The largest house your site allows. Leave blank to size it from the rooms.</p>
+              </fieldset>
+            )}
+
+            <details className="new-more" data-testid="new-more">
+              <summary>
+                <span>More details</span>
+                <span className="new-more-hint">{moreSummary(location, type)}</span>
+                <ChevronDownIcon width={16} height={16} aria-hidden />
+              </summary>
+              <div className="new-more-body">
+                <SelectBox
+                  id={`${ids}-location`}
+                  label={
+                    <>
+                      Location / building standards
+                      <span
+                        className="field-help"
+                        tabIndex={0}
+                        role="img"
+                        aria-label="Saved with the project. Plans aren't checked against building regulations yet."
+                        data-tooltip="Saved with the project. Plans aren't checked against building regulations yet."
+                        data-tooltip-side="top"
+                      >
+                        <HelpIcon width={15} height={15} />
+                      </span>
+                    </>
+                  }
+                  value={location}
+                  onChange={(v) => setLocation(v as ProjectLocation | "")}
+                  testId="new-project-location"
+                >
+                  <option value="">Not specified</option>
+                  {PROJECT_LOCATIONS.map((l) => (
+                    <option key={l} value={l}>
+                      {PROJECT_LOCATION_LABEL[l]}
+                    </option>
+                  ))}
+                </SelectBox>
+                <fieldset className="type-fieldset">
+                  <legend>Project type</legend>
+                  <div className="type-chips">
+                    {TYPES.map(({ id, title, text, Icon }) => (
+                      <button
+                        key={id}
+                        type="button"
+                        role="checkbox"
+                        aria-checked={type === id}
+                        title={text}
+                        className={`type-chip${type === id ? " is-selected" : ""}`}
+                        onClick={() => setType(type === id ? null : id)}
+                      >
+                        <Icon width={17} height={17} />
+                        {title}
+                      </button>
+                    ))}
+                  </div>
+                </fieldset>
+                <div className="field-pair">
+                  <SelectBox id={`${ids}-units`} label="Units" value="m" onChange={() => {}}>
+                    <option value="m">Metres (m)</option>
+                    <option value="ft" disabled>
+                      Feet and inches (coming soon)
+                    </option>
+                  </SelectBox>
+                  <SelectBox id={`${ids}-floors`} label="Floors" value="1" onChange={() => {}}>
+                    <option value="1">1</option>
+                    <option value="2" disabled>
+                      2 or more (coming soon)
+                    </option>
+                  </SelectBox>
+                </div>
+              </div>
+            </details>
+          </div>
+
+          <div className="new-actions">
+            {error && (
+              <p className="field-error" role="alert">
+                {error}
+              </p>
+            )}
+            <button type="submit" className="home-btn home-btn-primary home-btn-lg home-btn-block" disabled={busy} data-testid="new-project-submit">
+              {busy ? "Creating project…" : SUBMIT_LABEL[method]}
+              {!busy && <ArrowRightIcon width={18} height={18} />}
+            </button>
+            <Link href="/templates" className="new-alt">
+              Or start from a template
+              <ChevronRightIcon width={15} height={15} />
+            </Link>
+          </div>
         </form>
 
-        <ProjectPreview method={method} preview={preview} view={view} onView={setView} importState={imported} dimsError={parsedDims.ok ? null : parsedDims.error} />
+        {method === "rooms" ? (
+          <RoomsIntro plot={plot.ok ? plot.value : undefined} problem={roomsPreview.error} />
+        ) : (
+          <ProjectPreview
+            method={method}
+            preview={preview}
+            view={view}
+            onView={setView}
+            importState={imported}
+            dimsError={parsedDims.ok ? null : parsedDims.error}
+          />
+        )}
       </div>
-
-      <section className="home-section">
-        <SectionHeader title="Example projects to get inspired" href="/templates" linkLabel="View all templates" />
-        <TemplateRow limit={4} />
-      </section>
     </div>
+  );
+}
+
+/** "Ireland · Extension" — what the closed More details holds. */
+function moreSummary(location: ProjectLocation | "", type: ProjectType | null): string {
+  const parts = [location ? PROJECT_LOCATION_LABEL[location] : null, type ? TYPES.find((t) => t.id === type)!.title : null].filter(Boolean);
+  return parts.length ? parts.join(" · ") : "Location, project type";
+}
+
+function NumberField({
+  id,
+  label,
+  unit,
+  value,
+  onChange,
+  testId,
+  placeholder,
+}: {
+  id: string;
+  label: string;
+  unit: string;
+  value: string;
+  onChange: (value: string) => void;
+  testId: string;
+  placeholder?: string;
+}) {
+  return (
+    <div className="field">
+      <label htmlFor={id}>{label}</label>
+      <div className="input-with-unit">
+        <input id={id} inputMode="decimal" placeholder={placeholder} data-testid={testId} value={value} onChange={(e) => onChange(e.target.value)} />
+        <span className="unit">{unit}</span>
+      </div>
+    </div>
+  );
+}
+
+/** A small picture of each way to start. */
+function MethodArt({ method }: { method: StartMethod }) {
+  if (method === "rooms") {
+    return (
+      <span className="method-art method-art-rooms" aria-hidden>
+        {(["master_bedroom", "open_plan", "family_bathroom", "office"] as const).map((id) => (
+          // eslint-disable-next-line @next/next/no-img-element -- small static illustrations
+          <img key={id} src={`/rooms/${id}.jpg`} alt="" width={40} height={32} />
+        ))}
+      </span>
+    );
+  }
+  return (
+    <span className="method-art" aria-hidden>
+      <svg viewBox="0 0 80 64" width="80" height="64">
+        {method === "scratch" && (
+          <>
+            <path d="M18 48V16h30v14" fill="none" stroke="#1e2420" strokeWidth="3" strokeLinejoin="miter" />
+            <path d="M48 30v18H18" fill="none" stroke="#2f6f5e" strokeWidth="2" strokeDasharray="3 3" />
+            <circle cx="48" cy="30" r="3.2" fill="#2f6f5e" />
+            <path d="m54 22 9-9 4 4-9 9-5 1z" fill="#fff" stroke="#1e2420" strokeWidth="1.6" strokeLinejoin="round" />
+          </>
+        )}
+        {method === "dimensions" && (
+          <>
+            <rect x="20" y="22" width="40" height="28" fill="#f3ead8" stroke="#1e2420" strokeWidth="3" />
+            <path d="M20 13h40M20 9v8M60 9v8" fill="none" stroke="#2f6f5e" strokeWidth="1.6" />
+            <path d="M68 22v28M64 22h8M64 50h8" fill="none" stroke="#2f6f5e" strokeWidth="1.6" />
+            <path d="M40 22v28M20 36h20" fill="none" stroke="#1e2420" strokeWidth="1.4" />
+          </>
+        )}
+        {method === "import" && (
+          <>
+            <path d="M24 10h22l10 10v34H24z" fill="#fff" stroke="#1e2420" strokeWidth="1.8" strokeLinejoin="round" />
+            <path d="M46 10v10h10" fill="none" stroke="#1e2420" strokeWidth="1.8" strokeLinejoin="round" />
+            <path d="M30 28h20v18H30zM40 28v9h10" fill="#f3ead8" stroke="#1e2420" strokeWidth="1.5" />
+            <circle cx="58" cy="50" r="9" fill="#2f6f5e" />
+            <path d="M58 54.5v-9M54 49l4-4 4 4" fill="none" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+          </>
+        )}
+      </svg>
+    </span>
+  );
+}
+
+const INTRO_ROOMS = ["master_bedroom", "open_plan", "double_bedroom", "family_bathroom", "office", "kitchen_dining"] as const;
+
+const INTRO_STEPS: ReadonlyArray<{ title: string; text: string }> = [
+  { title: "Pick your rooms", text: "Bedrooms, bathrooms and living spaces, with a live 3D view as you go." },
+  { title: "Compare layouts", text: "We size the house to fit and lay out several plans to choose from." },
+  { title: "Explore in 3D", text: "Walk through your favourite, then turn rooms into realistic photos." },
+];
+
+/** "Pick your rooms": what comes next, rather than a layout for rooms not chosen yet. */
+function RoomsIntro({ plot, problem }: { plot?: PlotLimits; problem: string | null }) {
+  return (
+    <section className="new-preview rooms-intro" aria-label="What happens next" data-testid="new-project-preview">
+      <div className="intro-rooms" aria-hidden>
+        {INTRO_ROOMS.map((id) => (
+          <figure key={id} className="intro-room">
+            {/* eslint-disable-next-line @next/next/no-img-element -- small static illustrations */}
+            <img src={`/rooms/${id}.jpg`} alt="" width={300} height={250} />
+            <figcaption>{ROOM_PICK_SPECS[id].label}</figcaption>
+          </figure>
+        ))}
+      </div>
+      <div className="intro-card">
+        <h2>What happens next</h2>
+        <ol className="intro-steps">
+          {INTRO_STEPS.map((step, i) => (
+            <li key={step.title}>
+              <span className="intro-number">{i + 1}</span>
+              <span>
+                <strong>{step.title}</strong>
+                <span>{step.text}</span>
+              </span>
+            </li>
+          ))}
+        </ol>
+        {problem ? (
+          <p className="intro-note is-problem" role="status">
+            {problem}
+          </p>
+        ) : plot ? (
+          <p className="intro-note">
+            Houses will fit within {plot.maxWidth ? `${plot.maxWidth} m wide` : "any width"} × {plot.maxDepth ? `${plot.maxDepth} m deep` : "any depth"}.
+          </p>
+        ) : null}
+      </div>
+    </section>
   );
 }
 
@@ -464,7 +718,7 @@ function ProjectPreview({
 }) {
   const level = preview?.plan.levels[0];
   const env = level ? analyzeEnvelope(level) : null;
-  const size = env?.ok ? { width: env.info.width, depth: env.info.depth } : null;
+  const size = env?.ok ? { width: env.info.width, depth: env.info.depth, area: env.info.grossArea, outline: env.info.isRectangle ? null : env.info.outsideRing, shape: env.info.isRectangle ? null : describeOutline(env.info).words } : null;
   const placeholder =
     method === "import"
       ? importState.status === "error"
@@ -472,37 +726,34 @@ function ProjectPreview({
         : "Choose a project file to preview it here."
       : (dimsError ?? "Enter the outside dimensions to preview the outline.");
   return (
-    <section className={`preview-card view-${view}`} aria-label="Preview" data-testid="new-project-preview">
+    <section className={`new-preview preview-card view-${view}`} aria-label="Preview" data-testid="new-project-preview">
       <div className="preview-head">
         <span className="preview-chip">{PREVIEW_CHIP[method]}</span>
-        <span className="preview-note">Draw and edit in 2D · the 3D view is coming soon</span>
+        <span className="preview-note">Draw and edit in 2D, and see it in 3D in the editor</span>
       </div>
       {level && size ? (
         <div className="preview-panes">
           {view !== "3d" && (
             <div className="preview-pane preview-plan plan-paper">
-              <div className="preview-rail" aria-hidden>
-                <SelectIcon />
-                <WallIcon />
-                <RoomIcon />
-                <FitIcon />
-                <MoreIcon />
-              </div>
               <PlanThumbnail level={level} palette="warm" className="preview-drawing" pad={1.2} detail />
               <span className="preview-size">
-                {size.width.toFixed(2)} × {size.depth.toFixed(2)} m outside · {(size.width * size.depth).toFixed(0)} m²
+                {size.shape && `${size.shape[0].toUpperCase()}${size.shape.slice(1)} · `}
+                {size.width.toFixed(2)} × {size.depth.toFixed(2)} m outside · {size.area.toFixed(0)} m²
               </span>
             </div>
           )}
           {view !== "2d" && (
             <div className="preview-pane preview-massing">
-              <MassingPreview width={size.width} depth={size.depth} wallHeight={preview?.wallHeight ?? DEFAULT_HOUSE.wallHeight} />
+              <MassingPreview width={size.width} depth={size.depth} outline={size.outline} wallHeight={preview?.wallHeight ?? DEFAULT_HOUSE.wallHeight} />
               <span className="preview-size">Massing preview</span>
             </div>
           )}
         </div>
       ) : (
-        <div className="preview-empty">{placeholder}</div>
+        <div className="preview-empty">
+          {method === "import" && <UploadIcon aria-hidden />}
+          {placeholder}
+        </div>
       )}
       <div className="view-switch" role="radiogroup" aria-label="Preview view">
         {VIEWS.map((v) => (
