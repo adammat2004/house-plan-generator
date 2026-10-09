@@ -43,7 +43,7 @@ export const WORKSPACE_TOOLS: Record<Workspace, ReadonlyArray<ToolId>> = {
 };
 
 export const WORKSPACE_HINT: Partial<Record<Workspace, string>> = {
-  design: "Click a room or a piece of furniture to work on it. Drag furniture to move it; it settles against walls.",
+  design: "Click a room or a piece of furniture to work on it. Drag furniture, inside walls, doors and windows to move them.",
   brief: "Your plan is shown for reference. Drag to pan.",
   present: "Click a room to look at it in 3D.",
 };

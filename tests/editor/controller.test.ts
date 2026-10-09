@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import { analyzeEnvelope } from "@/domain/geometry/envelope";
 import type { Point2 } from "@/domain/plan/types";
 import { createToolController } from "@/editor/tools/controller";
-import { createEditorActions, createEditorStores } from "@/editor/state/stores";
+import { buildPlanScene } from "@/editor/rendering/scene/planScene";
+import { createEditorActions, createEditorStores, displayedDocument } from "@/editor/state/stores";
 import { fitRect, worldToScreen } from "@/editor/viewport/viewport";
 import { AXIS, level, newHouse } from "../helpers";
 
@@ -238,5 +239,97 @@ describe("drawing an outline", () => {
     clickAt(ctx, { x: 1, y: 1 });
     expect(controller.cancel()).toBe(true);
     expect(stores.session.getState().outlineDraft).toBeNull();
+  });
+});
+
+describe("dragging walls, doors and windows in Design", () => {
+  /** The test house split by an internal wall at x = 3, with a door in it, in Design. */
+  function designing() {
+    const ctx = setup();
+    ctx.actions.dispatch({ type: "addWall", wallId: "v", start: { x: 3, y: AXIS.south }, end: { x: 3, y: AXIS.north }, thickness: 0.1, idPrefix: "v" });
+    ctx.actions.dispatch({
+      type: "addOpening",
+      opening: { id: "d1", wallId: "v", kind: "door", offset: 2, width: 0.9, height: 2.1, hinge: "start", swingSide: "left" },
+    });
+    ctx.actions.setWorkspace("design");
+    ctx.actions.setTool("select");
+    return ctx;
+  }
+  const wallX = (ctx: ReturnType<typeof setup>) => level(ctx.doc()).vertices[level(ctx.doc()).walls.v.startVertexId].x;
+  const roomOn = (ctx: ReturnType<typeof setup>, west: boolean) => Object.values(level(ctx.doc()).rooms).find((r) => (west ? r.seed.x < 3 : r.seed.x > 3))!;
+
+  it("drags an internal wall as one undoable step, and Escape cancels", () => {
+    const ctx = designing();
+    const before = ctx.stores.documents.getState().history.past.length;
+    ctx.drag({ x: 3.02, y: 7 }, { x: 3.52, y: 7 });
+    expect(wallX(ctx)).toBeCloseTo(3.5, 9);
+    expect(ctx.stores.documents.getState().history.past.length).toBe(before + 1);
+    // The room on the side grabbed stays selected.
+    expect(ctx.stores.session.getState().selection?.kind).toBe("room");
+    ctx.actions.undo();
+    expect(wallX(ctx)).toBe(3);
+
+    const original = ctx.doc();
+    ctx.drag({ x: 3, y: 7 }, { x: 4, y: 7 }, "cancel");
+    expect(ctx.doc()).toBe(original);
+    expect(ctx.stores.documents.getState().preview).toBeNull();
+  });
+
+  it("shows both rooms' areas changing while the wall is dragged", () => {
+    const ctx = designing();
+    const areas = () =>
+      buildPlanScene(level(displayedDocument(ctx.stores.documents.getState())))
+        .rooms.map((r) => r.areaLabel)
+        .sort();
+    const before = areas();
+    const at = (x: number) => ({ screen: worldToScreen(ctx.stores.session.getState().viewport, { x, y: 7 }), button: 0, shiftKey: false, altKey: false });
+    ctx.controller.pointerMove(at(3.02));
+    ctx.controller.pointerDown(at(3.02));
+    ctx.controller.pointerMove(at(3.3));
+    ctx.controller.pointerMove(at(3.52));
+    const during = areas();
+    expect(during[0]).not.toBe(before[0]);
+    expect(during[1]).not.toBe(before[1]);
+    ctx.controller.pointerUp();
+    expect(areas()).toEqual(during);
+  });
+
+  it("selects the room on the side clicked when a wall is clicked without dragging", () => {
+    const ctx = designing();
+    ctx.drag({ x: 2.98, y: 7 }, { x: 2.98, y: 7 });
+    expect(ctx.stores.session.getState().selection).toEqual({ kind: "room", id: roomOn(ctx, true).id });
+    ctx.drag({ x: 3.02, y: 7 }, { x: 3.02, y: 7 });
+    expect(ctx.stores.session.getState().selection).toEqual({ kind: "room", id: roomOn(ctx, false).id });
+    expect(wallX(ctx)).toBe(3);
+  });
+
+  it("drags a door along its wall", () => {
+    const ctx = designing();
+    ctx.drag({ x: 3, y: AXIS.south + 2.45 }, { x: 3, y: AXIS.south + 3.45 });
+    expect(level(ctx.doc()).openings.d1.offset).toBeCloseTo(3, 1);
+    expect(wallX(ctx)).toBe(3);
+  });
+
+  it("leaves outside walls to Structure", () => {
+    const ctx = designing();
+    const original = ctx.doc();
+    ctx.drag({ x: AXIS.west, y: 7 }, { x: AXIS.west - 1, y: 7 });
+    expect(ctx.doc()).toBe(original);
+    expect(ctx.stores.documents.getState().preview).toBeNull();
+  });
+
+  it("refuses to move a wall of a pinned room, and says why", () => {
+    const ctx = designing();
+    const west = roomOn(ctx, true);
+    ctx.actions.dispatch({ type: "updateRoom", roomId: west.id, changes: { locked: true } });
+    const original = ctx.doc();
+    let issue: string | null = null;
+    const unsubscribe = ctx.stores.documents.subscribe((s) => {
+      if (s.preview?.issue) issue = s.preview.issue.message;
+    });
+    ctx.drag({ x: 3.02, y: 7 }, { x: 3.52, y: 7 });
+    unsubscribe();
+    expect(ctx.doc()).toBe(original);
+    expect(issue).toBe(`${west.name} is pinned. Unpin it to change it.`);
   });
 });

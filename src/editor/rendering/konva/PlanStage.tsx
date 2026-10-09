@@ -399,7 +399,18 @@ function SelectionOverlay({ level, scene, selection, hover, issueIds }: { level:
     return room ? <Poly rings={ringsOf(room.clear)} stroke={color} strokeWidth={width} fill={fill} /> : null;
   };
   const issues = issueIds
-    .map((id) => (level.walls[id] ? { kind: "wall" as const, id } : level.openings[id] ? { kind: "opening" as const, id } : level.furniture[id] ? { kind: "furniture" as const, id } : null))
+    .map((id) =>
+      level.walls[id]
+        ? { kind: "wall" as const, id }
+        : level.openings[id]
+          ? { kind: "opening" as const, id }
+          : level.furniture[id]
+            ? { kind: "furniture" as const, id }
+            : // A pinned room that refused an edit.
+              level.rooms[id]
+              ? { kind: "room" as const, id }
+              : null,
+    )
     .filter(Boolean) as Selection[];
   return (
     <>

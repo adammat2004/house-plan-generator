@@ -10,23 +10,47 @@ import type { Selection } from "../state/stores";
  * never act as the source of truth. Openings win over walls, walls over rooms.
  */
 export function hitTest(level: Level, geometry: LevelGeometry, p: Point2, tolerance: number): Selection {
-  let bestOpening: { id: Id; d: number } | null = null;
-  for (const opening of Object.values(level.openings)) {
-    const axis = geometry.axes.get(opening.wallId);
-    if (!axis) continue;
-    const s = axialParam(axis, p);
-    const perp = Math.abs(dot(sub(p, axis.start), axis.normal));
-    if (s < opening.offset - tolerance || s > opening.offset + opening.width + tolerance) continue;
-    if (perp > axis.wall.thickness / 2 + tolerance) continue;
-    if (!bestOpening || perp < bestOpening.d) bestOpening = { id: opening.id, d: perp };
-  }
-  if (bestOpening) return { kind: "opening", id: bestOpening.id };
+  const openingId = hitOpening(level, geometry, p, tolerance);
+  if (openingId) return { kind: "opening", id: openingId };
 
   const wallId = hitWall(geometry, p, tolerance);
   if (wallId) return { kind: "wall", id: wallId };
 
   const roomId = roomAt(level, geometry, p);
   return roomId ? { kind: "room", id: roomId } : null;
+}
+
+/**
+ * What Select picks in Designs: furniture, then an internal wall, then a
+ * door or window, then the room. A door or window wins over its own wall
+ * where it actually is, so it can still be dragged; outline walls stay
+ * with Structure.
+ */
+export function hitDesign(level: Level, geometry: LevelGeometry, p: Point2, tolerance: number, furnitureId: Id | null): Selection {
+  if (furnitureId) return { kind: "furniture", id: furnitureId };
+  const inOpening = hitOpening(level, geometry, p, tolerance, 0);
+  if (inOpening) return { kind: "opening", id: inOpening };
+  const wallId = hitWall(geometry, p, tolerance, (id) => level.walls[id]?.role === "internal");
+  if (wallId) return { kind: "wall", id: wallId };
+  const openingId = hitOpening(level, geometry, p, tolerance);
+  if (openingId) return { kind: "opening", id: openingId };
+  const roomId = roomAt(level, geometry, p);
+  return roomId ? { kind: "room", id: roomId } : null;
+}
+
+/** The door or window nearest p across its wall; `along` is the slack allowed past its ends. */
+export function hitOpening(level: Level, geometry: LevelGeometry, p: Point2, tolerance: number, along = tolerance): Id | null {
+  let best: { id: Id; d: number } | null = null;
+  for (const opening of Object.values(level.openings)) {
+    const axis = geometry.axes.get(opening.wallId);
+    if (!axis) continue;
+    const s = axialParam(axis, p);
+    const perp = Math.abs(dot(sub(p, axis.start), axis.normal));
+    if (s < opening.offset - along || s > opening.offset + opening.width + along) continue;
+    if (perp > axis.wall.thickness / 2 + tolerance) continue;
+    if (!best || perp < best.d) best = { id: opening.id, d: perp };
+  }
+  return best?.id ?? null;
 }
 
 export function hitWall(geometry: LevelGeometry, p: Point2, tolerance: number, filter?: (id: Id) => boolean): Id | null {

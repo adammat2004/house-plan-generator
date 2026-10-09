@@ -9,7 +9,7 @@ import type { Id, Opening, Point2 } from "@/domain/plan/types";
 import type { EditorActions, EditorStores, Selection, SnapIndicator } from "../state/stores";
 import { newIdPrefix } from "../state/ids";
 import { fitRect, panBy, pixelsToMetres, screenToWorld, zoomAt } from "../viewport/viewport";
-import { hitOpeningEdge, hitTest, hitWall, hitWallEnd, roomAt } from "./hitTest";
+import { hitDesign, hitOpeningEdge, hitTest, hitWall, hitWallEnd, roomAt } from "./hitTest";
 import { FURNITURE_CATALOG } from "@/domain/furniture/catalog";
 import { hitFurniture, poseIsClear, snapFurniture, type FurniturePose } from "./furnitureSnap";
 import { snapPoint } from "./snapping";
@@ -127,11 +127,18 @@ export function createToolController(stores: EditorStores, actions: EditorAction
   function selectDown(input: PointerInput) {
     const { level, geometry, session: s, radius } = context();
     const world = toWorld(input.screen);
+    if (s.workspace === "design") {
+      // Rooms and furniture as whole objects; inside walls, doors and windows can be dragged, the outline can't.
+      const target = hitDesign(level, geometry, world, radius, hitFurniture(level, world, radius * 0.5));
+      // Clicking a wall selects the room on that side; dragging it moves the wall.
+      const roomId = target?.kind === "wall" ? roomAt(level, geometry, world) : null;
+      actions.select(target?.kind === "wall" ? (roomId ? { kind: "room", id: roomId } : null) : target);
+      gesture = { kind: "pending", downScreen: input.screen, downWorld: world, target, end: null };
+      return;
+    }
     if (s.workspace !== "structure") {
-      // Design works with rooms and furniture as whole objects; structure isn't editable here.
-      const furnitureId = s.workspace === "design" ? hitFurniture(level, world, radius * 0.5) : null;
-      const roomId = furnitureId ? null : roomAt(level, geometry, world);
-      const target: Selection = furnitureId ? { kind: "furniture", id: furnitureId } : roomId ? { kind: "room", id: roomId } : null;
+      const roomId = roomAt(level, geometry, world);
+      const target: Selection = roomId ? { kind: "room", id: roomId } : null;
       actions.select(target);
       gesture = { kind: "pending", downScreen: input.screen, downWorld: world, target, end: null };
       return;
@@ -644,11 +651,11 @@ export function createToolController(stores: EditorStores, actions: EditorAction
       if (session.getState().workspace === "brief") return;
       if (tool === "select" || tool === "room") {
         const { level, geometry, radius, session: s } = context();
+        const designing = tool === "select" && s.workspace === "design";
         const roomsOnly = tool === "room" || s.workspace !== "structure";
-        const furnitureId = tool === "select" && s.workspace === "design" ? hitFurniture(level, world, radius * 0.5) : null;
-        const roomId = roomsOnly && !furnitureId ? roomAt(level, geometry, world) : null;
-        const hit: Selection = furnitureId
-          ? { kind: "furniture", id: furnitureId }
+        const roomId = roomsOnly && !designing ? roomAt(level, geometry, world) : null;
+        const hit: Selection = designing
+          ? hitDesign(level, geometry, world, radius, hitFurniture(level, world, radius * 0.5))
           : roomsOnly
             ? roomId
               ? { kind: "room", id: roomId }
