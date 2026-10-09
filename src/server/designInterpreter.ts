@@ -17,6 +17,18 @@ export type InterpretResult =
   | { ok: true; reply: AiReply; model: string }
   | { ok: false; status: number; message: string };
 
+/** The part of the SDK interpret() uses; tests pass a stand-in. */
+export type ClaudeClient = { beta: { messages: Pick<Anthropic["beta"]["messages"], "parse"> } };
+
+/**
+ * Each attempt may take 20 s and a failed one is tried once more, but the
+ * whole call stops at 28 s, inside the route's 30 s maxDuration. The editor
+ * gives up at 25 s and lets the built-in reader answer.
+ */
+const ATTEMPT_MS = 20_000;
+const DEADLINE_MS = 28_000;
+const TOO_SLOW = "Claude took too long to answer.";
+
 const goals = ROOM_GOALS.map((g) => `- ${g}: ${ROOM_GOAL_LABEL[g]}${SUPPORTED_ROOM_GOALS.has(g) ? "" : " (recorded, but the planner can't do this yet)"}`).join("\n");
 const preferences = PREFERENCE_IDS.map((p) => `- ${p}: ${PREFERENCE_LABEL[p]}`).join("\n");
 
@@ -46,7 +58,7 @@ How to decide:
 
 reply: one or two short, friendly sentences saying what you understood and what will happen next. Plain language, no lists, no markdown. Don't promise anything the changes above don't do.`;
 
-let client: Anthropic | null = null;
+let shared: Anthropic | null = null;
 
 export function interpreterAvailable(): boolean {
   return !!process.env.ANTHROPIC_API_KEY;
@@ -69,11 +81,11 @@ function userTurn(request: AiRequest): string {
   return `Mode: ${request.mode}\n\nPlan summary (JSON):\n${JSON.stringify(summary)}\n\nThe user wrote:\n<user_text>\n${request.text}\n</user_text>`;
 }
 
-export async function interpret(request: AiRequest): Promise<InterpretResult> {
-  if (!interpreterAvailable()) return { ok: false, status: 503, message: "The AI layer isn't set up: add ANTHROPIC_API_KEY to .env.local." };
-  client ??= new Anthropic({ timeout: 60_000, maxRetries: 2 });
+export async function interpret(request: AiRequest, client?: ClaudeClient): Promise<InterpretResult> {
+  if (!client && !interpreterAvailable()) return { ok: false, status: 503, message: "The AI layer isn't set up: add ANTHROPIC_API_KEY to .env.local." };
+  const claude = client ?? (shared ??= new Anthropic({ timeout: ATTEMPT_MS, maxRetries: 1 }));
   try {
-    const response = await client.beta.messages.parse({
+    const response = await claude.beta.messages.parse({
       model: MODEL,
       max_tokens: 16000,
       // A refused request is re-run server-side on the model Anthropic recommends for that case.
@@ -85,7 +97,7 @@ export async function interpret(request: AiRequest): Promise<InterpretResult> {
       cache_control: { type: "ephemeral" },
       system: SYSTEM,
       messages: [{ role: "user", content: userTurn(request) }],
-    });
+    }, { signal: AbortSignal.timeout(DEADLINE_MS) });
     if (response.stop_reason === "refusal") {
       return { ok: false, status: 422, message: "That request was declined. Try rephrasing it as a change to a room or to the brief." };
     }
@@ -94,6 +106,8 @@ export async function interpret(request: AiRequest): Promise<InterpretResult> {
     }
     return { ok: true, reply: response.parsed_output, model: response.model };
   } catch (error) {
+    // Before APIError, which both extend. An abort is the deadline above.
+    if (error instanceof Anthropic.APIConnectionTimeoutError || error instanceof Anthropic.APIUserAbortError) return { ok: false, status: 504, message: TOO_SLOW };
     if (error instanceof Anthropic.AuthenticationError) return { ok: false, status: 503, message: "The API key was rejected. Check ANTHROPIC_API_KEY in .env.local." };
     if (error instanceof Anthropic.PermissionDeniedError) return { ok: false, status: 503, message: "This API key can't use that model." };
     if (error instanceof Anthropic.RateLimitError) return { ok: false, status: 429, message: "The AI is busy (rate limited). Try again in a minute." };

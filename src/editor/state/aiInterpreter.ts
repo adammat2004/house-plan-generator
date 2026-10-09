@@ -13,7 +13,10 @@ export interface AiInterpreter {
   read(request: AiRequest): Promise<AiResult>;
 }
 
-export function httpInterpreter(endpoint = "/api/design/interpret"): AiInterpreter {
+/** How long a request waits for Claude: longer than the server's own 20 s attempt, so its answer usually arrives first. */
+export const AI_TIMEOUT_MS = 25_000;
+
+export function httpInterpreter(endpoint = "/api/design/interpret", timeoutMs = AI_TIMEOUT_MS): AiInterpreter {
   return {
     async available() {
       try {
@@ -28,8 +31,11 @@ export function httpInterpreter(endpoint = "/api/design/interpret"): AiInterpret
     async read(request) {
       let response: Response;
       try {
-        response = await fetch(endpoint, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(request) });
-      } catch {
+        response = await fetch(endpoint, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(request), signal: AbortSignal.timeout(timeoutMs) });
+      } catch (error) {
+        // Too slow isn't "offline": this request falls back to the rules, and the next one tries Claude again.
+        const name = error instanceof Error ? error.name : "";
+        if (name === "TimeoutError" || name === "AbortError") return { ok: false, offline: false, message: "Claude took too long to answer." };
         return { ok: false, offline: true, message: "The AI couldn't be reached." };
       }
       const body = await response.json().catch(() => null);

@@ -9,6 +9,9 @@ import { renderPrompt, type RenderRequest } from "@/domain/design/renderRequest"
 
 export const IMAGE_MODEL = process.env.GEMINI_IMAGE_MODEL || "gemini-3.1-flash-image";
 
+/** A photo takes about 10 s; the call stops at 50 s, inside the route's 60 s maxDuration. */
+const TIMEOUT_MS = 50_000;
+
 export type RenderResult = { ok: true; image: string; mimeType: string; model: string } | { ok: false; status: number; message: string };
 
 /** The one call made to the image model; replaceable in tests. */
@@ -27,7 +30,7 @@ function geminiClient(apiKey: string): ImageClient {
       const response = await ai.models.generateContent({
         model,
         contents: [{ role: "user", parts: [{ text: prompt }, { inlineData: { mimeType: "image/jpeg", data: imageBase64 } }] }],
-        config: { responseModalities: [Modality.IMAGE], imageConfig: { aspectRatio: "4:3" } },
+        config: { responseModalities: [Modality.IMAGE], imageConfig: { aspectRatio: "4:3" }, abortSignal: AbortSignal.timeout(TIMEOUT_MS) },
       });
       const blocked = response.promptFeedback?.blockReason;
       if (blocked) return { blocked: String(blocked) };
@@ -56,6 +59,10 @@ export async function renderPhoto(request: RenderRequest, client?: ImageClient):
       if (error.status === 400) return { ok: false, status: 502, message: `The image request was rejected: ${error.message}` };
       return { ok: false, status: 502, message: `The image service had a problem (${error.status}).` };
     }
-    throw error;
+    // The SDK aborts its own request when the timeout above fires, so either name can arrive.
+    const name = error instanceof Error ? error.name : "";
+    if (name === "TimeoutError" || name === "AbortError") return { ok: false, status: 504, message: "The image model took too long. Try again." };
+    console.error("Photo render failed:", error);
+    return { ok: false, status: 502, message: "The image service couldn't be reached. Try again in a minute." };
   }
 }

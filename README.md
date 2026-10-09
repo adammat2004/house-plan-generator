@@ -28,7 +28,7 @@ For photo renders of rooms, also add a Google AI Studio key (each photo is a pai
 GEMINI_API_KEY=...
 ```
 
-Both keys stay on the server (`/api/design/interpret`, `/api/design/render`). Visitors are limited to 30 AI requests and 20 photos per 10 minutes. Browser tests run with both keys blanked, so they never make paid calls.
+Both keys stay on the server (`/api/design/interpret`, `/api/design/render`). Visitors are limited to 30 AI requests and 20 photos per 10 minutes. If Claude hasn't answered within 25 seconds, the built-in reader answers instead; a photo gives up after 50 seconds. Browser tests run with both keys blanked, so they never make paid calls.
 
 | Script              | Purpose                                                    |
 | ------------------- | ---------------------------------------------------------- |
@@ -38,8 +38,26 @@ Both keys stay on the server (`/api/design/interpret`, `/api/design/render`). Vi
 | `npm run build`     | Production build                                           |
 | `npm run test:e2e`  | Builds, then runs Playwright browser workflows             |
 | `npm run check`     | All of the above                                           |
+| `npm run eval`      | Opt-in: scores Claude's reading of about 30 example requests |
 
 Playwright uses port 3110 by default (`E2E_PORT` overrides it). Run `npx playwright install chromium` once before the first run. The visual spec writes screenshots to `test-results/visual/`.
+
+The eval makes a paid call per example, so it only runs with the key set in the shell (`ANTHROPIC_API_KEY=sk-ant-... npm run eval`) and skips itself otherwise. It prints the pass rate and every example that didn't match.
+
+## Deploying
+
+The app has no accounts, so anyone who can reach a deployed copy can spend from its API keys. Before a public deploy:
+
+- **Set a spend limit with each provider.** This is the real ceiling; everything the app does is per server instance.
+  - Anthropic: a spend limit on the workspace the key belongs to.
+  - Google: a budget on the Cloud project behind the Gemini key. Budgets alert rather than stop spending, so also lower the image model's requests-per-day quota.
+- **Set `TRUSTED_PROXY_HOPS`** to the number of proxies in front of the app. Each proxy adds the address it was reached from to the end of `x-forwarded-for`, and a visitor can write anything before that, so the per-visitor limits count from the right.
+  - `1` (the default): one load balancer or platform edge, as on most hosts.
+  - `2` or more: for example a CDN in front of the host's own proxy.
+  - `0`: a proxy that sets `x-real-ip` instead, such as nginx with `proxy_set_header X-Real-IP $remote_addr`.
+  - Without a proxy the app can't tell visitors apart reliably, so put one in front.
+- **Optionally cap each day.** `CLAUDE_DAILY_LIMIT` and `GEMINI_DAILY_LIMIT` cap the AI requests and photos answered per day (UTC). Only successful calls count. Each instance keeps its own count, so on a host that runs several, the caps slow spending down but don't bound it.
+- **Allow long requests.** The routes declare `maxDuration`: 30 seconds for Claude, 60 for photos. Hosts with a shorter limit end them early.
 
 ## Using the editor
 
@@ -184,7 +202,8 @@ src/
   server/                   Server-only code: the Claude request reader, Gemini photo renders, rate limits
 tests/
   geometry/ commands/ editor/ persistence/ design/   Vitest
-  furniture/                                 Vitest
+  furniture/ server/                         Vitest
+  eval/                                      Opt-in Claude eval (npm run eval)
   e2e/                                       Playwright
 docs/adr/0001-plan-document-and-geometry.md  Units, references, topology, derived data
 docs/adr/0002-project-variants-and-design-intent.md  Rooms, brief, variants, intent → planner
