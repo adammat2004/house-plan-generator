@@ -33,7 +33,7 @@ export function wingArrangementOf(id: string): WingArrangement | null {
 const MAX_BUILDS = 24;
 
 /** The source's outline as a fresh shell, with its garden side. */
-function shellFrom(source: PlanDocument, env: EnvelopeInfo, prefix: string): PlanDocument | null {
+export function shellFrom(source: PlanDocument, env: EnvelopeInfo, prefix: string): PlanDocument | null {
   const level = source.levels[0];
   const shell = createPlanDocument({
     id: `${prefix}-plan`,

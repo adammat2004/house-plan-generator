@@ -47,7 +47,7 @@ export interface SenseMetrics {
   cornerDoors: number;
   /** A door from a living space (living, kitchen, dining) to the garden. */
   gardenDoorFromLiving: boolean;
-  /** Rooms whose floor isn't a rectangle. */
+  /** Rooms other than the hall whose floor isn't a rectangle. */
   irregularRooms: number;
   /** The utility opens off the kitchen (true when there's no utility). */
   utilityByKitchen: boolean;
@@ -157,8 +157,9 @@ export function assessSense(level: Level): PlanSense {
     const rule = ROOM_RULES[r.type];
     const short = Math.min(r.width, r.depth);
     const long = Math.max(r.width, r.depth);
-    if (r.area < r.width * r.depth * RECTANGULAR) irregular++;
     if (r.type === "hall" || !short) continue;
+    // A hall bends round corners; any other room should be a rectangle.
+    if (r.area < r.width * r.depth * RECTANGULAR) irregular++;
     const problems: string[] = [];
     if (short < rule.minWidth - 0.005) problems.push(`only ${short.toFixed(1)} m wide`);
     if (long / short > rule.maxProportion + 0.005) problems.push(`${short.toFixed(1)} × ${long.toFixed(1)} m, too long and narrow`);
@@ -217,3 +218,6 @@ function article(name: string): string {
 function list(names: string[]): string {
   return names.length <= 1 ? (names[0] ?? "") : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
 }
+
+/** Orders plans best first: fewest things wrong, then the highest score. */
+export const bySense = (a: PlanSense, b: PlanSense) => a.findings.length - b.findings.length || b.score - a.score;

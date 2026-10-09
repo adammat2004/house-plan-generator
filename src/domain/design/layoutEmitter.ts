@@ -281,15 +281,23 @@ export function emitLayout(shell: PlanDocument, plan: LayoutPlan, opts: EmitOpti
     const narrow = room.type === "bathroom" || room.type === "wc" || room.type === "storage" || room.type === "ensuite";
     const width = narrow ? Math.min(opts.doorWidth, 0.8) : opts.doorWidth;
     if (!place("door", shared, width, room.kind === "ensuite" ? 0.4 : 0.3, "standard", wayIn)) return { ok: false, reason: `there's no room for a door into ${room.name.toLowerCase()}.` };
+    for (const link of room.links ?? []) {
+      const other = plan.rooms.findIndex((x) => x.key === link);
+      const run = other >= 0 ? longest(runsBetween(r, other)) : undefined;
+      if (run) place("door", run, opts.doorWidth, 0.3, "standard", wayIn);
+    }
     const outs = [...(outside.get(r) ?? [])].sort((p, q) => q.hi - q.lo - (p.hi - p.lo));
+    let doorOut: Run | undefined;
     if (room.gardenDoor) {
       const toGarden = outs.find((o) => o.facing === rear && o.hi - o.lo >= GARDEN_DOOR + 0.6);
-      if (toGarden) place("door", toGarden, GARDEN_DOOR, 0.6);
+      if (toGarden && place("door", toGarden, GARDEN_DOOR, 0.6)) doorOut = toGarden;
     }
     if (room.window === "none" || !outs.length) continue;
-    place("window", outs[0], WINDOW_WIDTH[room.window] * light, 0.6, room.window);
+    // A wall taken by garden doors comes last for windows.
+    const lit = doorOut ? [...outs.filter((o) => o !== doorOut), doorOut] : outs;
+    place("window", lit[0], WINDOW_WIDTH[room.window] * light, 0.6, room.window);
     if (room.window === "large" || opts.naturalLight) {
-      for (const o of outs.slice(1)) if (o.hi - o.lo >= 1.4) place("window", o, WINDOW_WIDTH[room.window] * light, 0.8, room.window);
+      for (const o of lit.slice(1)) if (o.hi - o.lo >= 1.4) place("window", o, WINDOW_WIDTH[room.window] * light, 0.8, room.window);
     }
   }
 

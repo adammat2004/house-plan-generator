@@ -24,8 +24,6 @@ export interface ProjectTemplate {
   /** Outside faces of a footprint that isn't a rectangle. */
   outline?: Point2[];
   brief: HouseBrief;
-  /** Which planner arrangement to use (its candidate index). */
-  arrangement: number;
   /** The exterior drawn on the template card. */
   style: TemplateStyle;
 }
@@ -38,7 +36,6 @@ export const PROJECT_TEMPLATES: readonly ProjectTemplate[] = [
     width: 13,
     depth: 10,
     brief: { bedrooms: 3, bathrooms: 2, requiredSpaces: ["kitchen", "living", "dining", "utility"], preferences: ["open_plan"], additionalInstructions: "" },
-    arrangement: 0,
     style: "bungalow",
   },
   {
@@ -54,17 +51,15 @@ export const PROJECT_TEMPLATES: readonly ProjectTemplate[] = [
       preferences: ["separate_living_room"],
       additionalInstructions: "",
     },
-    arrangement: 1,
     style: "detached",
   },
   {
     id: "semi-3",
     name: "3 Bed Semi-Detached",
-    description: "Narrow, deep plan with living spaces to the garden and bedrooms to the street.",
+    description: "Narrow, deep plan with an open-plan kitchen and living space opening to the garden.",
     width: 8.5,
     depth: 13,
     brief: { bedrooms: 3, bathrooms: 1, requiredSpaces: ["kitchen", "living", "dining"], preferences: ["open_plan"], additionalInstructions: "" },
-    arrangement: 0,
     style: "semi",
   },
   {
@@ -74,7 +69,6 @@ export const PROJECT_TEMPLATES: readonly ProjectTemplate[] = [
     width: 8,
     depth: 6.5,
     brief: { bedrooms: 1, bathrooms: 1, requiredSpaces: ["kitchen", "living"], preferences: ["open_plan"], additionalInstructions: "" },
-    arrangement: 0,
     style: "annexe",
   },
   {
@@ -85,7 +79,6 @@ export const PROJECT_TEMPLATES: readonly ProjectTemplate[] = [
     depth: 13,
     outline: presetOutline("L", { width: 15, depth: 13, front: 6, wing: 6 }),
     brief: { bedrooms: 3, bathrooms: 2, requiredSpaces: ["kitchen", "living", "dining", "utility"], preferences: ["open_plan"], additionalInstructions: "" },
-    arrangement: 0,
     style: "bungalow",
   },
 ];
@@ -104,12 +97,13 @@ export function buildTemplatePlan(template: ProjectTemplate, idPrefix: string): 
     ...(template.outline ? { outline: template.outline } : {}),
   });
   const result = planLayouts({
-    intent: { action: "generate_layouts", brief: template.brief, count: template.arrangement + 1 },
+    intent: { action: "generate_layouts", brief: template.brief, count: 1 },
     source,
     brief: template.brief,
     idPrefix,
   });
-  const candidate = result.candidates[template.arrangement] ?? result.candidates[0];
+  // The layout that makes the most sense: the planner puts it first.
+  const candidate = result.candidates[0];
   return candidate ? { ...candidate.document, name: template.name } : null;
 }
 

@@ -17,7 +17,9 @@ import { floorFor, programFromBrief, type Program, type Relaxation, type SpaceSp
 import { ENSUITE_TARGET } from "./roomRules";
 import { planRoomChange } from "./roomPlanner";
 import { footprintsFor, minimumFootprint, type Footprint, type FootprintShape } from "./footprint";
-import { planAutoShapes, planWingLayouts, WING_TITLE, wingArrangementOf } from "./wingPlanner";
+import { assessSense } from "./sense";
+import { planAutoShapes, planWingLayouts, shellFrom, WING_TITLE, wingArrangementOf } from "./wingPlanner";
+import { autoZoneCandidates, furnishZones, isZoneLayout, pickVaried, ZONE_TITLE, zoneCandidates, zoneFamily } from "./zoneLayouts";
 import { ARRANGEMENTS, hallWidthFor, minBandDepth, zoneProgram, type Arrangement } from "./zoning";
 
 /**
@@ -36,10 +38,29 @@ import { ARRANGEMENTS, hallWidthFor, minBandDepth, zoneProgram, type Arrangement
 /** Card titles for each arrangement, keyed by id. */
 export const ARRANGEMENT_TITLE: Record<string, string> = Object.fromEntries(ARRANGEMENTS.map((a) => [a.id, a.title]));
 
-/** The card title for a layout's arrangement id, from either planner. */
+/** The card title for a layout's arrangement id, from any planner. */
 export function arrangementTitle(id: string): string | null {
+  if (isZoneLayout(id)) return ZONE_TITLE;
   const wing = wingArrangementOf(id);
   return ARRANGEMENT_TITLE[id] ?? (wing ? WING_TITLE[wing] : null);
+}
+
+/**
+ * Zone and strip candidates together: with `similarTo`, the ones like it
+ * first, in the order they were planned; then the plans that make the most
+ * sense, spread across layout families. Seeds number the result.
+ */
+function merge(candidates: PlanCandidate[], count: number, similarTo?: string): PlanCandidate[] {
+  const base = similarTo?.split("@")[0];
+  const like = (c: PlanCandidate) => (isZoneLayout(base) ? isZoneLayout(c.arrangement) && zoneFamily(c.arrangement!) === zoneFamily(base!) : !isZoneLayout(c.arrangement));
+  const first = base ? candidates.filter(like).slice(0, count) : [];
+  const judged = candidates.filter((c) => !first.includes(c)).map((c) => ({ ...c, sense: assessSense(c.document.levels[0]) }));
+  const rest = pickVaried(judged, count - first.length).map((c): PlanCandidate => {
+    const copy: PlanCandidate & { sense?: unknown } = { ...c };
+    delete copy.sense;
+    return copy;
+  });
+  return furnishZones([...first, ...rest]).map((c, seed) => ({ ...c, seed }));
 }
 
 /**
@@ -97,6 +118,9 @@ function planWholeLayouts(request: PlanningRequest): PlanningResult {
   const arrangements = intent.similarTo ? similarOrder(intent.similarTo, fresh) : fresh;
   const candidates: PlanCandidate[] = [];
   let lastProblem = "The footprint is too small for this brief.";
+  // Zone layouts, in a fresh shell of the user's rectangle; the strip layouts below compete with them.
+  const zoneShell = sourceEnv.ok ? shellFrom(request.source, sourceEnv.info, `${request.idPrefix}-z`) : null;
+  const zones = zoneShell ? zoneCandidates(zoneShell, request, `${request.idPrefix}-`, (id) => excluded.has(id)).candidates : [];
   for (const arrangement of arrangements) {
     if (candidates.length >= intent.count) break;
     for (const relax of [0, 1, 2] as Relaxation[]) {
@@ -115,8 +139,8 @@ function planWholeLayouts(request: PlanningRequest): PlanningResult {
       lastProblem = built.reason;
     }
   }
-  const exhausted = excluded.size > 0 && !arrangements.length;
-  if (candidates.length) return { candidates, issues: [] };
+  const exhausted = excluded.size > 0 && !arrangements.length && !zones.length;
+  if (candidates.length || zones.length) return { candidates: merge([...zones, ...candidates], intent.count, intent.similarTo), issues: [] };
   if (exhausted) return { candidates, issues: [{ code: "does-not-fit", message: "There are no more distinct layouts for this brief. Change the brief to explore other options." }] };
   return { candidates, issues: [{ code: "does-not-fit", message: tooSmallMessage(request, allowed) ?? `No layout fits: ${lastProblem}`, tooSmall: true }] };
 }
@@ -249,7 +273,8 @@ function planAutoRectangles(request: PlanningRequest, allowed: readonly Arrangem
       break;
     }
   }
-  if (candidates.length) return { candidates, issues: [] };
+  const zones = autoZoneCandidates(request, excluded);
+  if (candidates.length || zones.length) return { candidates: merge([...zones, ...candidates], intent.count, intent.similarTo), issues: [] };
   if (excluded.size && !queue.length) {
     return { candidates, issues: [{ code: "does-not-fit", message: "There are no more distinct layouts for these rooms. Change the rooms to explore other options." }] };
   }

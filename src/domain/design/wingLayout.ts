@@ -59,6 +59,8 @@ export interface LabeledRoom {
   via?: string;
   /** Wants doors straight out to the garden: a living space on the garden side. */
   gardenDoor?: boolean;
+  /** Rooms (by key) this one also has a door into, beyond its `via`: a kitchen into the living room as well as the dining room. */
+  links?: string[];
 }
 
 export interface LayoutPlan {
