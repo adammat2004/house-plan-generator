@@ -96,6 +96,8 @@ export const roomSchema = z.object({
   maxArea: areaSchema.optional(),
   floorMaterial: z.enum(FLOOR_MATERIALS).optional(),
   externalWall: z.enum(EXTERNAL_WALL_PREFERENCES).optional(),
+  /** Pinned: edits and proposals that would change its shape, doors or windows are refused. */
+  locked: z.boolean().optional(),
 });
 
 /** Furniture and fittings in the catalog (src/domain/furniture/catalog.ts). */

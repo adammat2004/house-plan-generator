@@ -13,7 +13,7 @@ import { ROOM_FURNITURE } from "@/domain/furniture/catalog";
 import { canFurnish } from "@/domain/furniture/furnish";
 import { furnitureIssues } from "@/domain/furniture/issues";
 import { furnitureInRoom } from "@/domain/furniture/layout";
-import { Button, Menu, MenuItem, NumberField, OptionalNumberField, SelectField, TextField } from "@/components/ui/controls";
+import { Button, IconButton, Menu, MenuItem, NumberField, OptionalNumberField, SelectField, TextField } from "@/components/ui/controls";
 import {
   ArmchairIcon,
   BathIcon,
@@ -23,6 +23,7 @@ import {
   DeskIcon,
   DoorIcon,
   LeafIcon,
+  PinIcon,
   PlusIcon,
   SofaIcon,
   SparkleIcon,
@@ -79,11 +80,23 @@ export function RoomInspector({ level, roomId, focusKey }: { level: Level; roomI
   const area = region?.clearArea ?? null;
   const designing = workspace === "design";
   const tabs: Tab[] = designing ? ["details", "furniture", "materials", "ai"] : ["details", "materials"];
+  const pinned = room.locked === true;
 
   return (
     <InspectorFrame
       icon={<RoomTypeIcon type={room.type} />}
       title={room.name}
+      actions={
+        <IconButton
+          label={pinned ? "Unpin room" : "Pin room"}
+          tooltip={pinned ? "Unpin: let edits change this room" : "Pin: keep this room's shape, doors and windows"}
+          active={pinned}
+          onClick={() => run({ type: "updateRoom", roomId, changes: { locked: !pinned } })}
+          data-testid="room-pin"
+        >
+          <PinIcon width={18} height={18} fill={pinned ? "currentColor" : "none"} />
+        </IconButton>
+      }
       summary={
         <>
           <span className="card-area" data-testid="room-area">

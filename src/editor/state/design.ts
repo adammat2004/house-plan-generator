@@ -1,5 +1,5 @@
 import { normaliseBrief, type HouseBrief } from "@/domain/brief/schema";
-import { applyCommand } from "@/domain/commands";
+import { applyCommand, pinnedMessage, pinnedRoomChanges } from "@/domain/commands";
 import { designIntentSchema, ROOM_GOAL_LABEL, type DesignIntent, type RoomGoal } from "@/domain/design/intent";
 import type { LayoutPlanner, PlanningResult } from "@/domain/design/planner";
 import { designContext, interpretationFromReply, type AiMode } from "@/domain/design/aiInterpretation";
@@ -367,6 +367,11 @@ export function createDesignActions({ session, project }: EditorStores, actions:
       if (!proposal || proposal.state !== "open") return false;
       if (proposal.source !== actions.current()) {
         actions.notify("info", "The plan has changed since this option was made. Ask again for fresh options.");
+        return false;
+      }
+      const [pinned] = pinnedRoomChanges(proposal.source.levels[0], proposal.document.levels[0], { furniture: true });
+      if (pinned) {
+        actions.notify("error", pinnedMessage(pinned.name));
         return false;
       }
       const result = actions.dispatch({ type: "replaceDocument", document: proposal.document });

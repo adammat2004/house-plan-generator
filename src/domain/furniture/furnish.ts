@@ -309,13 +309,16 @@ export function withLayout<T>(level: Level, roomId: Id, run: (l: Layout) => T): 
   return ctx ? run(new Layout(ctx)) : null;
 }
 
-/** Furnishes every room of a plan as one command. Rooms that already hold furniture are left as they are unless `replace`. */
+/**
+ * Furnishes every room of a plan as one command. Rooms that already hold
+ * furniture are left as they are unless `replace`; pinned rooms always are.
+ */
 export function furnishPlanCommand(document: PlanDocument, idPrefix: string, replace = false): PlanCommand | null {
   const level = document.levels[0];
   const remove: Id[] = [];
   const add: Furniture[] = [];
   for (const room of Object.values(level.rooms)) {
-    if (!canFurnish(room.type)) continue;
+    if (!canFurnish(room.type) || room.locked) continue;
     if (!replace && furnitureInRoom(level, room.id).length) continue;
     const result = furnishRoom(level, room.id, `${idPrefix}-${room.id}`);
     if (!result) continue;

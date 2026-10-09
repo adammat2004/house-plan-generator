@@ -5,7 +5,7 @@ import { fail } from "../ops";
 import type { RoomChanges } from "../types";
 
 const MAX_AREA = 10_000;
-type OptionalKey = "targetArea" | "minArea" | "maxArea" | "floorMaterial" | "externalWall";
+type OptionalKey = "targetArea" | "minArea" | "maxArea" | "floorMaterial" | "externalWall" | "locked";
 
 export function updateRoom(level: Level, roomId: Id, changes: RoomChanges): Level {
   const room = level.rooms[roomId];
@@ -44,6 +44,9 @@ export function updateRoom(level: Level, roomId: Id, changes: RoomChanges): Leve
     fail("invalid-value", "Unknown external wall preference.", [roomId]);
   }
   setOptional("externalWall", changes.externalWall);
+  if (changes.locked != null && typeof changes.locked !== "boolean") fail("invalid-value", "Pinned must be true or false.", [roomId]);
+  // Unpinned rooms carry no flag, so files stay as they were.
+  setOptional("locked", changes.locked === false ? null : changes.locked);
   if (next.minArea !== undefined && next.maxArea !== undefined && next.minArea > next.maxArea) {
     fail("invalid-value", "Minimum area can't be larger than maximum area.", [roomId]);
   }

@@ -24,7 +24,8 @@ export type IssueCode =
   | "opening-too-tall"
   | "room-unmatched"
   | "room-duplicate"
-  | "rear-wall-invalid";
+  | "rear-wall-invalid"
+  | "room-pinned";
 
 /** A structured validation or command failure. */
 export interface PlanIssue {
@@ -52,6 +53,8 @@ export interface RoomChanges {
   maxArea?: number | null;
   floorMaterial?: FloorMaterial | null;
   externalWall?: ExternalWallPreference | null;
+  /** Pins the room; `false` or `null` unpins it. */
+  locked?: boolean | null;
 }
 
 export type FurnitureChanges = Partial<Pick<Furniture, "position" | "rotation" | "width" | "depth" | "height">>;

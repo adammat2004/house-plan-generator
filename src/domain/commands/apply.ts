@@ -7,6 +7,7 @@ import { addOpening, deleteOpening, updateOpening } from "./handlers/openings";
 import { createOutline, moveOutlineEdge } from "./handlers/outline";
 import { addWall, deleteWall, moveWall, moveWallEndpoint, updateWall } from "./handlers/walls";
 import { IdSource } from "./ids";
+import { pinnedMessage, pinnedRoomChanges } from "./locks";
 import { CommandFailure, fail } from "./ops";
 import { reconcileRooms } from "./reconcile";
 import { loadPlanDocument } from "./serialization";
@@ -15,7 +16,7 @@ import { validateLevelSemantics, validateLevelStructure } from "./validate";
 
 /**
  * Applies one command as an atomic transaction:
- * transform → derive topology → reconcile rooms → validate → commit.
+ * transform → derive topology → reconcile rooms → validate → check pins → commit.
  *
  * Pure: the input document is never mutated, and a failure returns
  * structured issues while the caller keeps its last valid document.
@@ -131,6 +132,17 @@ function run(document: PlanDocument, command: PlanCommand): CommandResult {
 
   const semantic = validateLevelSemantics(next, geometry);
   if (semantic.length) return { ok: false, issues: semantic };
+
+  // Pinned rooms keep their shape, doors and windows. Furniture stays free.
+  if (geometryChanged || next.openings !== level.openings) {
+    const pinned = pinnedRoomChanges(level, next, { furniture: false });
+    if (pinned.length) {
+      return {
+        ok: false,
+        issues: pinned.map((p) => ({ code: "room-pinned", message: pinnedMessage(p.name), entityIds: [p.roomId] })),
+      };
+    }
+  }
 
   const nextDocument: PlanDocument =
     (command.type === "createFootprint" || command.type === "createOutline") && command.name?.trim()

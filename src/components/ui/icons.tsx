@@ -450,6 +450,14 @@ export const SwapIcon = (p: IconProps) => (
   </svg>
 );
 
+/** A push pin: the room is kept as it is. Pass `fill="currentColor"` for the pinned state. */
+export const PinIcon = (p: IconProps) => (
+  <svg {...base} {...p}>
+    <path d="M9 3.5h6l-1 5.5 3 3V14H7v-2l3-3z" />
+    <path d="M12 14v6.5" />
+  </svg>
+);
+
 export const SendIcon = (p: IconProps) => (
   <svg {...base} {...p}>
     <path d="M21 3 10 14" />

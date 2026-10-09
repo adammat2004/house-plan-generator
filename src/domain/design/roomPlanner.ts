@@ -1,4 +1,5 @@
 import { applyCommand } from "../commands/apply";
+import { pinnedRoomChanges } from "../commands/locks";
 import type { PlanCommand } from "../commands/types";
 import { furnishRoom, islandSpot, kitchenRun, Layout, toFurniture } from "../furniture/furnish";
 import { furnitureIssues } from "../furniture/issues";
@@ -58,6 +59,7 @@ export function planRoomChange(request: PlanningRequest): PlanningResult {
   const room = level.rooms[roomId];
 
   if (!room && !intent.goals.length) return { candidates: [], issues: [{ code: "invalid-source", message: "That room isn't on this plan any more." }] };
+  if (room?.locked) return { candidates: [], issues: [{ code: "room-pinned", message: `Unpin ${room.name} to redesign it.` }] };
   // No goals: a spread of what the planner can do for this kind of room.
   const goals: RoomGoal[] = intent.goals.length ? intent.goals : room ? [...new Set<RoomGoal>([...suggestedGoals(room.type), "make_larger", "make_smaller"])] : [];
   const exclude = new Set(intent.exclude ?? []);
@@ -87,7 +89,11 @@ export function planRoomChange(request: PlanningRequest): PlanningResult {
       reasons.push(result);
       return [];
     }
-    return result.filter((o) => !exclude.has(o.variant)).sort((a, b) => b.score - a.score);
+    return result
+      .filter((o) => !exclude.has(o.variant))
+      // Pinned rooms are left exactly as they are, furniture included.
+      .filter((o) => !pinnedRoomChanges(level, o.document.levels[0], { furniture: true }).length)
+      .sort((a, b) => b.score - a.score);
   });
 
   // Take the best of each goal in turn, so mixed requests get a spread.
@@ -361,7 +367,7 @@ function tidyFurniture(doc: PlanDocument, roomIds: Id[], prefix: string): PlanDo
   let current = doc;
   roomIds.forEach((roomId, i) => {
     const level = current.levels[0];
-    if (!level.rooms[roomId]) return;
+    if (!level.rooms[roomId] || level.rooms[roomId].locked) return;
     const items = furnitureInRoom(level, roomId);
     const issues = furnitureIssues(level);
     if (!items.some((f) => issues.has(f.id))) return;

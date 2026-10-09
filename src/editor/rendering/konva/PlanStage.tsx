@@ -3,7 +3,7 @@
 import type { Context } from "konva/lib/Context";
 import type { Shape as KonvaShape } from "konva/lib/Shape";
 import { memo, useMemo } from "react";
-import { Circle, Group, Layer, Line, Rect, Shape, Stage, Text } from "react-konva";
+import { Circle, Group, Layer, Line, Path, Rect, Shape, Stage, Text } from "react-konva";
 import { deriveLevelGeometry } from "@/domain/geometry/derive";
 import { analyzeEnvelope } from "@/domain/geometry/envelope";
 import type { MultiPolygon, Ring } from "@/domain/geometry/polygons";
@@ -253,6 +253,9 @@ function labelWidth(text: string): number {
   return width;
 }
 
+/** The pin from the room card's icon, on its 24-unit grid. */
+const PIN_PATH = "M9 3.5h6l-1 5.5 3 3V14H7v-2l3-3z M12 14v6.5";
+
 function RoomLabels({ scene, viewport, selection }: { scene: PlanScene; viewport: Viewport; selection: Selection }) {
   return (
     <>
@@ -268,8 +271,24 @@ function RoomLabels({ scene, viewport, selection }: { scene: PlanScene; viewport
         const p = worldToScreen(viewport, room.label);
         const showArea = heightPx >= 30 + 18 * lines && widthPx >= 70;
         const selected = selection?.kind === "room" && selection.id === room.id;
+        const nameTop = -((showArea ? 18 : 8) + (lines - 1) * 18);
         return (
           <Group key={room.id} x={p.x} y={p.y} listening={false}>
+            {room.pinned && (
+              <Path
+                name="room-pin"
+                data={PIN_PATH}
+                x={Math.min(labelWidth(room.name), boxW) / 2 + 3}
+                y={nameTop + 2}
+                scaleX={0.55}
+                scaleY={0.55}
+                fill={selected ? T.accent : T.roomLabel}
+                stroke={selected ? T.accent : T.roomLabel}
+                strokeWidth={2.6}
+                lineCap="round"
+                lineJoin="round"
+              />
+            )}
             <Text
               text={room.name}
               width={boxW}

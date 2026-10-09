@@ -29,6 +29,7 @@ export function InspectorFrame({
   summary,
   menu,
   icon,
+  actions,
   children,
 }: {
   title: string;
@@ -36,6 +37,8 @@ export function InspectorFrame({
   menu?: ReactNode;
   /** A picture of the thing, beside its name. */
   icon?: ReactNode;
+  /** Buttons beside the menu, such as the room's pin. */
+  actions?: ReactNode;
   children: ReactNode;
 }) {
   const collapsed = useSessionState((s) => s.panels.inspectorCollapsed);
@@ -52,6 +55,7 @@ export function InspectorFrame({
           )}
         </div>
         <div className="card-actions">
+          {actions}
           <Menu label="More actions" align="right" testId="inspector-menu" className="inspector-menu" summary={<MoreIcon width={18} height={18} />}>
             {menu}
             <MenuItem onSelect={() => editor.setPanels({ inspectorCollapsed: !collapsed })} data-testid="inspector-collapse">

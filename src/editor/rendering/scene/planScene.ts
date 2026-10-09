@@ -26,6 +26,8 @@ export interface RoomPrimitive {
   label: Point2;
   /** Clear-region bounds, used to decide whether a label fits on screen. */
   bounds: Rect;
+  /** Pinned rooms show a pin beside their name. */
+  pinned: boolean;
 }
 
 export interface OpeningPrimitive {
@@ -101,6 +103,7 @@ export function buildPlanScene(level: Level): PlanScene {
       areaLabel: formatArea(region.clearArea),
       label: region.labelPoint,
       bounds,
+      pinned: room.locked === true,
     });
   }
 

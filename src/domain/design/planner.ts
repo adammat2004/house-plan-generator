@@ -42,7 +42,7 @@ export interface PlanCandidate {
 }
 
 export interface PlanningIssue {
-  code: "unsupported-intent" | "does-not-fit" | "invalid-source";
+  code: "unsupported-intent" | "does-not-fit" | "invalid-source" | "room-pinned";
   message: string;
   /** The user's own house is too small for the brief; sizing houses from the rooms would work. */
   tooSmall?: boolean;
