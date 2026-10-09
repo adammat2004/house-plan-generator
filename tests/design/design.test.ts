@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createStripPlanner } from "@/domain/design/stripPlanner";
+import { furnitureInRoom } from "@/domain/furniture/layout";
 import { createDesignActions } from "@/editor/state/design";
 import { createEditorActions, createEditorStores } from "@/editor/state/stores";
 import { apply, level, newHouse } from "../helpers";
@@ -131,6 +132,40 @@ describe("AI designer workflow", () => {
     expect(after[b.id]).toMatchObject({ name: a.name, type: a.type });
     expect(actions.undo()).toBe(true);
     expect(level(actions.current()).rooms[a.id].name).toBe(a.name);
+  });
+
+  it("lays both swapped rooms out again for their new use, and one undo puts both back", async () => {
+    const { actions, design } = setup();
+    await design.generateLayouts(1);
+    const before = actions.current();
+    const rooms = Object.values(level(before).rooms);
+    const bedroom = rooms.find((r) => r.type === "bedroom")!;
+    const day = rooms.find((r) => r.type === "living" || r.type === "kitchen_dining" || r.type === "kitchen")!;
+    const kinds = (roomId: string) => furnitureInRoom(level(actions.current()), roomId).map((f) => f.kind);
+    const beds = (roomId: string) => kinds(roomId).filter((k) => k.startsWith("bed_")).length;
+    expect(beds(bedroom.id)).toBeGreaterThan(0);
+    expect(beds(day.id)).toBe(0);
+
+    expect(design.swapRooms(bedroom.id, day.id)).toBe(true);
+    expect(level(actions.current()).rooms[day.id].type).toBe("bedroom");
+    expect(beds(day.id)).toBeGreaterThan(0);
+    expect(beds(bedroom.id)).toBe(0);
+    expect(kinds(bedroom.id).length).toBeGreaterThan(0);
+
+    expect(actions.undo()).toBe(true);
+    expect(actions.current()).toBe(before);
+  });
+
+  it("won't swap a pinned room", async () => {
+    const { stores, actions, design } = setup();
+    await design.generateLayouts(1);
+    const rooms = Object.values(level(actions.current()).rooms);
+    const [a, b] = [rooms.find((r) => r.type === "primary_bedroom")!, rooms.find((r) => r.type === "bedroom")!];
+    actions.dispatch({ type: "updateRoom", roomId: b.id, changes: { locked: true } });
+    const before = actions.current();
+    expect(design.swapRooms(a.id, b.id)).toBe(false);
+    expect(actions.current()).toBe(before);
+    expect(stores.documents.getState().notice?.message).toBe(`Unpin ${b.name} to swap it.`);
   });
 
   it("turns a typed request into room options and brief changes", async () => {

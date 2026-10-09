@@ -5,6 +5,7 @@ import type { LayoutPlanner, PlanningResult } from "@/domain/design/planner";
 import { designContext, interpretationFromReply, type AiMode } from "@/domain/design/aiInterpretation";
 import { roomAtPoint } from "@/domain/design/analysis";
 import { interpretRequest, type Interpretation } from "@/domain/design/request";
+import { furnishRoom } from "@/domain/furniture/furnish";
 import type { Id, Level, PlanDocument } from "@/domain/plan/types";
 import type { AiInterpreter } from "./aiInterpreter";
 import { newIdPrefix } from "./ids";
@@ -407,11 +408,19 @@ export function createDesignActions({ session, project }: EditorStores, actions:
       return id;
     },
 
-    /** Exchanges two rooms' names and uses (and their targets) in one undoable edit. */
+    /**
+     * Exchanges two rooms' names and uses (and their targets), and lays both
+     * out again for their new use, in one undoable edit.
+     */
     swapRooms(a: Id, b: Id): boolean {
       const doc = actions.current();
       const [ra, rb] = [doc.levels[0].rooms[a], doc.levels[0].rooms[b]];
       if (!ra || !rb || a === b) return false;
+      const held = [ra, rb].find((r) => r.locked);
+      if (held) {
+        actions.notify("error", `Unpin ${held.name} to swap it.`, [held.id]);
+        return false;
+      }
       const pick = (r: typeof ra) => ({ name: r.name, type: r.type, targetArea: r.targetArea ?? null, floorMaterial: r.floorMaterial ?? null });
       let next = doc;
       for (const [id, changes] of [[a, pick(rb)], [b, pick(ra)]] as const) {
@@ -422,6 +431,15 @@ export function createDesignActions({ session, project }: EditorStores, actions:
         }
         next = result.document;
       }
+      // The furniture follows the use: the bed leaves what is now the kitchen.
+      const prefix = newIdPrefix();
+      for (const id of [a, b]) {
+        const layout = furnishRoom(next.levels[0], id, `${prefix}-${id}`);
+        if (!layout) continue;
+        const result = applyCommand(next, { type: "replaceFurniture", remove: layout.remove, add: layout.items });
+        if (result.ok) next = result.document;
+      }
+      // Plan-sense warnings about the swapped rooms (a bedroom off the kitchen, say) go here.
       const result = actions.dispatch({ type: "replaceDocument", document: next });
       if (result.ok) actions.notify("success", `Swapped ${ra.name} and ${rb.name}. Undo to go back.`);
       return result.ok;
