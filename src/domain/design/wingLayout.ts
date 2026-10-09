@@ -1,5 +1,5 @@
 import { EPS, roundToPrecision } from "../geometry/numeric";
-import { outlineEdges, type EnvelopeSide } from "../geometry/outline";
+import { OPPOSITE_SIDE, outlineEdges, type EnvelopeSide } from "../geometry/outline";
 import { partitionOutline, sharedSide, type FringePiece } from "../geometry/partition";
 import type { Ring } from "../geometry/polygons";
 import type { Rect } from "../geometry/vector";
@@ -78,7 +78,6 @@ export interface WingLayoutOptions {
 }
 
 type Axis = "x" | "y";
-const OPPOSITE: Record<EnvelopeSide, EnvelopeSide> = { north: "south", south: "north", east: "west", west: "east" };
 
 interface Seg {
   /** A horizontal segment runs along x at y = line. */
@@ -198,7 +197,7 @@ function hallChoices(w: Wing, fringe: FringePiece[], h: number, root: boolean): 
   const T = c1 - c0;
   const extra = (high: boolean) => {
     const side = crossSide(w.along, high);
-    return Math.max(0, ...fringe.filter((f) => f.core === w.index && f.toward === OPPOSITE[side]).map((f) => (w.along === "x" ? f.rect.maxY - f.rect.minY : f.rect.maxX - f.rect.minX)));
+    return Math.max(0, ...fringe.filter((f) => f.core === w.index && f.toward === OPPOSITE_SIDE[side]).map((f) => (w.along === "x" ? f.rect.maxY - f.rect.minY : f.rect.maxX - f.rect.minX)));
   };
   const [eLo, eHi] = [extra(false), extra(true)];
   const out: HallChoice[] = [];
@@ -244,7 +243,7 @@ function wingTree(cores: Rect[]): Wing[] {
       .sort((a, b) => b.s.length - a.s.length || a.c.index - b.c.index);
     for (const { c, s } of next) {
       const seg = sideSeg(p.rect, s.side);
-      const cs = sideSeg(c.rect, OPPOSITE[s.side]);
+      const cs = sideSeg(c.rect, OPPOSITE_SIDE[s.side]);
       c.parent = p.index;
       c.junction = { horizontal: seg.horizontal, line: seg.line, lo: Math.max(seg.lo, cs.lo), hi: Math.min(seg.hi, cs.hi) };
       p.children.push(c.index);
@@ -377,7 +376,7 @@ function buildGeometry(wings: Wing[], choices: HallChoice[], fringe: FringePiece
       });
     b.endContact = { lo: endTouch(lowEnd), hi: endTouch(highEnd) };
     if (!b.contact && !b.endContact.lo && !b.endContact.hi) return null;
-    const outer = OPPOSITE[b.hallSide];
+    const outer = OPPOSITE_SIDE[b.hallSide];
     const os = sideSeg(b.rect, outer);
     for (const f of fringe) {
       if (f.core !== b.wing || f.toward !== b.hallSide) continue;
@@ -499,7 +498,7 @@ export function distributeWidths(length: number, spaces: SpaceSpec[], mins: numb
 }
 
 function dayPreference(b: Band, arrangement: WingArrangement, rear: EnvelopeSide, rootWing: number): number {
-  const front = OPPOSITE[rear];
+  const front = OPPOSITE_SIDE[rear];
   const garden = b.facing === rear ? 1 : b.facing === front ? -1 : 0;
   const root = b.wing === rootWing ? 1 : 0;
   switch (arrangement) {

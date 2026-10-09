@@ -52,6 +52,8 @@ export const SIDE_NORMAL: Record<EnvelopeSide, Point2> = {
   west: { x: -1, y: 0 },
 };
 
+export const OPPOSITE_SIDE: Record<EnvelopeSide, EnvelopeSide> = { north: "south", south: "north", east: "west", west: "east" };
+
 export function outlineEdges(ring: Ring): OutlineEdge[] {
   return ring.map((start, index) => {
     const end = ring[(index + 1) % ring.length];
