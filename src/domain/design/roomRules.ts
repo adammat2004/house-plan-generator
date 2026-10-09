@@ -34,7 +34,7 @@ export const ROOM_RULES: Record<RoomType, RoomRule> = {
   hall: { zone: "day", window: "none", habitable: false, minWidth: 0.9, maxProportion: Infinity, minArea: 0 },
   primary_bedroom: { zone: "night", window: "standard", habitable: true, minWidth: 2.7, maxProportion: 1.9, minArea: 11 },
   bedroom: { zone: "night", window: "standard", habitable: true, minWidth: 2.1, maxProportion: 2.1, minArea: 7 },
-  ensuite: { zone: "night", window: "none", habitable: false, minWidth: 1.2, maxProportion: 2.6, minArea: 2.8 },
+  ensuite: { zone: "night", window: "none", habitable: false, minWidth: 1.2, maxProportion: 2.6, minArea: 3 },
   bathroom: { zone: "night", window: "small", habitable: false, minWidth: 1.5, maxProportion: 2.6, minArea: 3.8 },
   wc: { zone: "night", window: "small", habitable: false, minWidth: 0.8, maxProportion: 2.8, minArea: 1.2 },
   other: { zone: "day", window: "standard", habitable: false, minWidth: 0, maxProportion: Infinity, minArea: 0 },

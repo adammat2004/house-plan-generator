@@ -1,0 +1,17 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`plan sense scoreboard > records how many generated plans break each rule 1`] = `
+{
+  "failing": {
+    "daylight": 0,
+    "front_door": 18,
+    "kitchen_connected": 6,
+    "master_largest": 11,
+    "reachable": 0,
+    "room_shape": 25,
+    "wet_room_privacy": 0,
+  },
+  "meanScore": 46,
+  "plans": 27,
+}
+`;
