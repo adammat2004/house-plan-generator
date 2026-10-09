@@ -47,6 +47,8 @@ Every geometric result still comes from `applyCommand`, so a wrong reading can a
   - a stable system prompt, cached.
 - **Refusals.** Server-side `fallbacks: "default"` re-runs a refused request on Anthropic's recommended model. A refusal that still stands is reported to the user.
 - **Rate limit.** In memory: 30 requests per visitor per 10 minutes. The app has no accounts, so this is what keeps a deployed copy from being used to spend the key.
+  - *Amended 2026-10-09:* the visitor is taken from the right-hand end of `x-forwarded-for` (`TRUSTED_PROXY_HOPS`), since a client can write anything at the left. An optional `CLAUDE_DAILY_LIMIT` caps successful calls per day, per process. The real ceiling is the Anthropic workspace spend limit (README, "Deploying").
+- **Timeouts** (added 2026-10-09). 20 s per attempt, one retry, and a 28 s overall deadline inside the route's 30 s `maxDuration`; a timeout is a 504. The browser gives up at 25 s and the built-in reader answers that request.
 
 ### Client side
 

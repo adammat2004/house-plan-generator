@@ -56,10 +56,10 @@ Until now, layouts only filled a house rectangle the user had drawn or typed, an
 - **Out-of-date check.** `renderKey` hashes only what an image shows, so editing one room marks only that room's photo out of date.
 - **Server.** `server/imageRenderer.ts` uses `@google/genai`'s `models.generateContent` with an image part and `responseModalities: [IMAGE]`.
   - The model is `GEMINI_IMAGE_MODEL`, default `gemini-3.1-flash-image`. That is the non-preview image model available to the key on 2026-10-08.
-  - Blocks map to 422, bad keys to 503 and quota to 429.
+  - Blocks map to 422, bad keys to 503 and quota to 429. Since 2026-10-09 the call has a 50 s timeout (504), and network errors map to 502.
 - **Route.** `app/api/design/render/route.ts`:
   - GET reports whether it's set up.
-  - POST rejects bodies over 2 MB, checks the request schema and the JPEG magic bytes, and allows 20 photos per visitor per 10 minutes, plus an optional `GEMINI_DAILY_LIMIT`.
+  - POST rejects bodies over 2 MB, checks the request schema and the JPEG magic bytes, and allows 20 photos per visitor per 10 minutes, plus an optional `GEMINI_DAILY_LIMIT`. Only photos that come back count towards the daily limit (since 2026-10-09).
   - The rate limiter is shared with the Claude route (`server/rateLimit.ts`).
 - **Storage.** Photos live in a new IndexedDB store (database version 3, `renders`, indexed by project), not in the autosaved project JSON. Autosave copies every revision, so images there would be rewritten constantly.
   - Deleting a project deletes its photos, and duplicating copies them.
