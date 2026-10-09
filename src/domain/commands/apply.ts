@@ -7,7 +7,7 @@ import { addOpening, deleteOpening, updateOpening } from "./handlers/openings";
 import { createOutline, moveOutlineEdge } from "./handlers/outline";
 import { addWall, deleteWall, moveWall, moveWallEndpoint, updateWall } from "./handlers/walls";
 import { IdSource } from "./ids";
-import { pinnedMessage, pinnedRoomChanges } from "./locks";
+import { pinnedMessage, pinnedRoomChanges, roomPinnedBy } from "./locks";
 import { CommandFailure, fail } from "./ops";
 import { reconcileRooms } from "./reconcile";
 import { loadPlanDocument } from "./serialization";
@@ -47,6 +47,11 @@ function run(document: PlanDocument, command: PlanCommand): CommandResult {
   const level = document.levels[0];
   if (!level) fail("invalid-structure", "The document has no level.");
   const ids = new IdSource(command.idPrefix, level);
+  // A wall around a pinned room stays put (its height may change): say so before anything else the edit would break.
+  if (command.type === "moveWall" || command.type === "deleteWall" || (command.type === "updateWall" && command.thickness !== undefined)) {
+    const room = roomPinnedBy(level, command.wallId);
+    if (room) fail("room-pinned", pinnedMessage(room.name), [room.id]);
+  }
   let next: Level;
   let reconcileFrom: Level | null = level;
 

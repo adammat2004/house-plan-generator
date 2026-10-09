@@ -179,3 +179,20 @@ function distanceToLine(p: Point2, a: Point2, b: Point2): number {
 }
 
 const near = (a: Point2, b: Point2) => Math.abs(a.x - b.x) <= TOLERANCE && Math.abs(a.y - b.y) <= TOLERANCE;
+
+/**
+ * The pinned room a wall bounds, if any. Moving, removing or re-sizing that
+ * wall always changes the room, so the edit can be refused up front, with
+ * the pin as the reason rather than whatever else the edit would break.
+ */
+export function roomPinnedBy(level: Level, wallId: Id): { id: Id; name: string } | null {
+  const pinned = Object.values(level.rooms).filter((room) => room.locked);
+  if (!pinned.length) return null;
+  const faces = deriveLevelGeometry(level).faces;
+  const faceOf = roomFaceIndices(level);
+  for (const room of pinned) {
+    const face = faces[faceOf.get(room.id) ?? -1];
+    if (face?.boundaryWallIds.includes(wallId)) return { id: room.id, name: room.name };
+  }
+  return null;
+}

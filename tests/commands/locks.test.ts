@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_BRIEF } from "@/domain/brief/schema";
-import { parsePlanDocumentJson, pinnedRoomChanges, serializePlanDocument, type PlanCommand } from "@/domain/commands";
+import { applyCommand, parsePlanDocumentJson, pinnedRoomChanges, serializePlanDocument, type PlanCommand } from "@/domain/commands";
 import { roomAtPoint } from "@/domain/design/analysis";
 import type { RoomGoal } from "@/domain/design/intent";
 import { planLayouts } from "@/domain/design/stripPlanner";
@@ -160,5 +160,19 @@ describe("pinned rooms and the room planner", () => {
     const result = redesign(pin(doc, primary.id), primary.id, ["make_larger"]);
     expect(result.candidates).toEqual([]);
     expect(result.issues[0]).toMatchObject({ code: "room-pinned", message: `Unpin ${primary.name} to redesign it.` });
+  });
+});
+
+describe("walls around a pinned room", () => {
+  it("say the room is pinned before anything else, but can still change height", () => {
+    let doc = addWall(newHouse(), "v", [4, AXIS.south], [4, AXIS.north]);
+    const roomId = roomAtPoint(level(doc), { x: 2, y: 5 })!;
+    doc = apply(doc, { type: "updateRoom", roomId, changes: { locked: true } });
+    const name = level(doc).rooms[roomId].name;
+    const commands: PlanCommand[] = [{ type: "moveWall", wallId: "v", delta: 0.5 }, { type: "deleteWall", wallId: "v" }, { type: "updateWall", wallId: "v", thickness: 0.2 }];
+    for (const command of commands) {
+      expect(reject(doc, command)[0], command.type).toMatchObject({ code: "room-pinned", message: `${name} is pinned. Unpin it to change it.` });
+    }
+    expect(applyCommand(doc, { type: "updateWall", wallId: "v", height: 2.7 }).ok).toBe(true);
   });
 });
