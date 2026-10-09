@@ -17,8 +17,8 @@ function areas(level: Level): Record<string, number> {
   return out;
 }
 
-/** An internal wall between two bedrooms, and a point on it clear of doors and furniture to grab it by. */
-function bedroomWall(level: Level) {
+/** An internal wall between two bedrooms, and a point on it clear of doors (and furniture, unless ignored) to grab it by. */
+function bedroomWall(level: Level, ignoreFurniture = false) {
   const geometry = deriveLevelGeometry(level);
   const isBedroom = (id: string | null): id is string => !!id && /bedroom/.test(level.rooms[id].type);
   for (const wall of Object.values(level.walls)) {
@@ -30,7 +30,7 @@ function bedroomWall(level: Level) {
       const [left, right] = [side(0.3), side(-0.3)];
       if (!isBedroom(left) || !isBedroom(right) || left === right) continue;
       if (Object.values(level.openings).some((o) => o.wallId === wall.id && s > o.offset - 0.3 && s < o.offset + o.width + 0.3)) continue;
-      const nearFurniture = Object.values(level.furniture).some((f) => {
+      const nearFurniture = !ignoreFurniture && Object.values(level.furniture).some((f) => {
         const r = furnitureRect(f);
         return p.x > r.minX - 0.3 && p.x < r.maxX + 0.3 && p.y > r.minY - 0.3 && p.y < r.maxY + 0.3;
       });
@@ -54,11 +54,13 @@ test.describe("Editing a concept in Design", () => {
     await page.getByTestId("next-step").click();
     await expect(page.getByTestId("concept-board")).toBeVisible();
 
-    // Open a concept with two bedrooms side by side.
-    const plan = (await getProject(page)).plans.slice(1).find((p) => bedroomWall(levelOf(p.document)))!;
+    // Open a concept with two bedrooms side by side, and clear its furniture so the wall between them is free to grab.
+    const plan = (await getProject(page)).plans.slice(1).find((p) => bedroomWall(levelOf(p.document), true))!;
     expect(plan).toBeTruthy();
     await page.getByTestId(`open-concept-${plan.label}`).click();
     await page.waitForTimeout(300);
+    await page.getByTestId("tool-more").click();
+    await page.getByTestId("clear-furniture").click();
     const start = await currentLevel(page);
     const { p, normal, left, right } = bedroomWall(start)!;
     const before = areas(start);

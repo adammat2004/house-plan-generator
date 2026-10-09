@@ -133,7 +133,9 @@ export async function openLayers(page: Page) {
  */
 export async function selectRoomFromList(page: Page, name: string) {
   const layers = await openLayers(page);
-  await layers.getByRole("button", { name: new RegExp(`^${name.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&")}`) }).click();
+  const entry = layers.getByRole("button", { name: new RegExp(`^${name.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&")}`) });
+  // Clicking the selected entry deselects it, so leave a room that's already selected alone.
+  if ((await entry.getAttribute("aria-pressed")) !== "true") await entry.click();
   await page.getByTestId("tool-more").click();
   await page.getByTestId("toggle-layers").click();
 }
