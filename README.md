@@ -39,6 +39,7 @@ Both keys stay on the server (`/api/design/interpret`, `/api/design/render`). Vi
 | `npm run test:e2e`  | Builds, then runs Playwright browser workflows             |
 | `npm run check`     | All of the above                                           |
 | `npm run eval`      | Opt-in: scores Claude's reading of about 30 example requests |
+| `npm run plans:render` | Draws generated plans for every preset and shape to `test-results/plans/index.html`, with what each gets wrong (`PLANS_OUT` picks the folder, for before/after comparisons) |
 
 Playwright uses port 3110 by default (`E2E_PORT` overrides it). Run `npx playwright install chromium` once before the first run. The visual spec writes screenshots to `test-results/visual/`.
 
@@ -82,7 +83,7 @@ Workspaces:
 
 - **Structure (1)** edits the shell: walls, doors and windows.
 - **Rooms (2)** picks the rooms (see *Start from rooms* below).
-- **Design (3)** works with whole rooms and their furniture. Clicks select rooms or furniture, and rooms are tinted by type. A selected room offers *Redesign this room* and suggestions such as *Add storage*, *Add kitchen island* or *Add an ensuite*. These come back as options to apply.
+- **Design (3)** works with whole rooms and their furniture. Clicks select rooms or furniture, and rooms are tinted by type. Inside walls, doors and windows can be dragged here too; the outline stays in Structure. A selected room offers *Redesign this room* and suggestions such as *Add storage*, *Add kitchen island* or *Add an ensuite*. These come back as options to apply.
 - **3D (4)** shows the house, with its furniture, in 3D.
 
 Rooms:
@@ -95,7 +96,7 @@ Rooms:
 House shapes:
 
 - New projects, the **New house** dialog and the house card's **Change shape…** offer rectangle, L, T, U and Z presets with their wing sizes.
-- Layouts fill any right-angle outline. Rectangles use the strip planner; other shapes use the wing planner, which splits the outline into wings, runs one connected hall through them and fills each wing with rooms.
+- Layouts fill any right-angle outline: rectangles and Ls as zone layouts where they fit (see below), and any shape with the wing planner, which splits the outline into wings, runs one connected hall through them and fills each wing with rooms.
 - When the house is sized from the rooms, the brief's **House shape** (Any, Rectangle, L, T or U) lets the planner shape it too. Typing "make it L-shaped" or "a courtyard house" sets it.
 
 Start from rooms (like drafted.ai):
@@ -112,7 +113,12 @@ Brief and AI Designer:
 
 - The **Rooms** step is the brief: the rooms picked, preferences, room sizes and free-text notes. The brief is saved with the project.
 - **Generate layouts** asks the layout planner for three alternatives. They open in **Design**, and the plan you were editing is never changed.
-- The planner is deterministic. It places two bands of rooms either side of a hall, across the depth or the width of the house. If the brief doesn't fit, it relaxes it step by step (combining kitchen and dining, then going open-plan), and each layout lists those compromises.
+- The planner is deterministic. Its main idea is a **day zone** beside a **night zone**, each running back from the street:
+  - The front door opens into a hall at the street end of the bedrooms' side, and one door leads from it into the living spaces.
+  - The living spaces open onto each other rather than onto a corridor: the kitchen beside the dining room, the utility off the kitchen, and garden doors from the room at the garden end.
+  - The bedrooms are off a hall that stops at the last room it serves, with a linen store beyond. Bathrooms can sit on the inside of the hall, and the ensuite has its own space beside the master bedroom.
+  - When the planner sizes the house from the rooms, and the brief allows it, the house becomes an L where the bedrooms need more depth than the living spaces.
+- It also tries the older strip and wing layouts, and offers the plans that make the most sense first (see *Plan sense*). If the brief doesn't fit, it relaxes it step by step (combining kitchen and dining, then going open-plan), and each layout lists those compromises.
 - The **AI Designer** beside a plan in Design takes requests in your own words. Room changes come back as options to apply, undo, or keep as a separate concept; new rooms go into the brief.
 - With an Anthropic API key set up (see below), **Claude** reads those requests and the brief's notes. It only turns words into room goals and brief changes; the planners draw everything, and every option is checked like a hand edit. Without a key, a simpler built-in reader handles typed requests and the notes are kept but not read.
 
@@ -129,6 +135,18 @@ Furniture:
   - The inspector sets its exact width, depth and height, and shows the gaps to the walls around it.
 - Furniture never blocks an edit. A piece that ends up in a wall, a door swing or another piece is outlined in red, and the inspector says why.
 - Structure shows furniture faded. In 3D it can be hidden with **Show furniture**.
+
+Plan sense:
+
+- Every plan is checked for what someone walking round it would notice: every room reachable from the front door, the front door on the street side, a window in every room people live in, the kitchen connected to where people eat, no bathroom opening onto a living space, rooms wide enough and not too long and narrow, and the master the largest bedroom.
+- Concept cards say how many things to check, and a concept's overview lists them. The recommended concept is the one that answers the brief and makes the most sense.
+- The same checks apply to plans you've edited, and to rooms you swap.
+
+Pins and laying out again:
+
+- Pin a room from the pin in its card. A pinned room keeps its walls, doors and windows: edits and options that would change it are refused, and saying so is the first thing you hear. Its furniture can still be moved.
+- **Lay out again**: in a room's AI tab, tick the rooms beside it and choose *Lay out these rooms again*. The same rooms come back in other orders and sizes, in the space they share, as options in the AI Designer; nothing else in the plan changes. The rooms must together make a rectangle (rooms side by side along the hall, say).
+- Swapping two rooms lays both out again for their new use, and says if the swap made either worse.
 
 Variations:
 
@@ -212,6 +230,8 @@ docs/adr/0004-claude-request-reader.md     Claude reading requests and brief not
 docs/adr/0005-rooms-first-and-photo-renders.md  Houses sized from rooms; 3D stills; Gemini photo renders
 docs/adr/0006-rooms-step.md                The Rooms step
 docs/adr/0007-orthogonal-outlines.md       Right-angle outlines, the wing planner, shapes from rooms, outline editing
+docs/adr/0008-zone-layouts-and-plan-sense.md  Room rules, plan sense, the access graph, zone layouts
+docs/adr/0009-pins-and-regenerate-selection.md  Pins, laying rooms out again, editing in Design, swaps
 ```
 
 Domain code must not import React, Konva, browser APIs or editor state. ESLint enforces this.
