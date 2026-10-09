@@ -1,6 +1,6 @@
 import { isDeepStrictEqual } from "node:util";
 import { afterAll, describe, it } from "vitest";
-import { DEFAULT_BRIEF, normaliseBrief, type HouseBrief } from "@/domain/brief/schema";
+import { DEFAULT_BRIEF, normaliseBrief, withPicks, type HouseBrief } from "@/domain/brief/schema";
 import { designContext, interpretationFromReply, type AiMode } from "@/domain/design/aiInterpretation";
 import type { RoomGoal } from "@/domain/design/intent";
 import { planLayouts } from "@/domain/design/stripPlanner";
@@ -48,11 +48,11 @@ const CASES: Case[] = [
   // Open plan, ensuite, storage, island, dining, privacy.
   { text: "Make the kitchen more open-plan", rooms: { Kitchen: ["make_open_plan"] } },
   { text: "Give bedroom 2 its own ensuite", rooms: { "Bedroom 2": ["add_ensuite"] } },
-  { text: "More wardrobe space in the primary bedroom", rooms: { "Primary Bedroom": ["add_storage"] } },
+  { text: "More wardrobe space in the primary bedroom", rooms: { "Master Bedroom": ["add_storage"] } },
   { text: "Put an island in the kitchen", rooms: { Kitchen: ["add_kitchen_island"] } },
   { text: "Make the kitchen bigger and add an island", rooms: { Kitchen: ["add_kitchen_island", "make_larger"] } },
   { text: "I want a dining area in the living room", rooms: { "Living Room": ["create_dining_zone"] } },
-  { text: "The primary bedroom should feel more private", rooms: { "Primary Bedroom": ["improve_privacy"] } },
+  { text: "The primary bedroom should feel more private", rooms: { "Master Bedroom": ["improve_privacy"] } },
   // Adding and removing rooms.
   { text: "Add a utility room", brief: { requiredSpaces: spaces(["utility"]) } },
   { text: "We need a garage", brief: { requiredSpaces: spaces(["garage"]) } },
@@ -78,7 +78,13 @@ const CASES: Case[] = [
   { text: "Add a utility room and add a second storey", brief: { requiredSpaces: spaces(["utility"]) }, unclear: true },
 ];
 
-const plan = level(planLayouts({ intent: { action: "generate_layouts", brief: DEFAULT_BRIEF, count: 1, footprint: "auto" }, source: newHouse(), brief: DEFAULT_BRIEF, idPrefix: "e" }).candidates[0].document);
+/**
+ * The plan requests are read against: picked rooms, so it has the separate
+ * kitchen, dining and living rooms the cases name whatever the planner does
+ * with a counts-only brief.
+ */
+const PLAN_BRIEF = withPicks(DEFAULT_BRIEF, { master_bedroom: 1, ensuite: 1, double_bedroom: 2, family_bathroom: 1, kitchen: 1, dining_room: 1, living_room: 1 });
+const plan = level(planLayouts({ intent: { action: "generate_layouts", brief: PLAN_BRIEF, count: 1, footprint: "auto" }, source: newHouse(), brief: PLAN_BRIEF, idPrefix: "e" }).candidates[0].document);
 
 function roomId(name: string): string {
   const room = Object.values(plan.rooms).find((r) => r.name === name);

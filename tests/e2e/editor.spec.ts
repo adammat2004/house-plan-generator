@@ -413,7 +413,7 @@ test.describe("Milestone 1 editing workflow", () => {
     await board.getByTestId("concept-Plan B").click();
     await expect(page.getByTestId("concept-detail")).toContainText("B.");
     await page.getByTestId("detail-tab-rooms").click();
-    await expect(page.getByTestId("concept-detail")).toContainText("Primary Bedroom");
+    await expect(page.getByTestId("concept-detail")).toContainText("Master Bedroom");
     await page.getByTestId("use-design").click();
     await expect(page.getByTestId("current-concept")).toContainText("B.");
     expect((await getProject(page)).activePlanId).toBe(generated[1].id);
@@ -468,9 +468,9 @@ test.describe("Milestone 1 editing workflow", () => {
 
     const doc = await getDoc(page);
     const bedroom = Object.values(level(doc).rooms).find((r) => r.type === "primary_bedroom")!;
-    await selectRoomFromList(page, "Primary Bedroom");
+    await selectRoomFromList(page, bedroom.name);
     const inspector = page.getByTestId("inspector");
-    await expect(inspector.getByRole("heading", { name: "Primary Bedroom" })).toBeVisible();
+    await expect(inspector.getByRole("heading", { name: bedroom.name })).toBeVisible();
     await expect(inspector.getByTestId("room-connections")).toContainText("Door to");
     await expect(page.getByTestId("room-quickbar")).toBeVisible();
 
@@ -499,7 +499,7 @@ test.describe("Milestone 1 editing workflow", () => {
     await inspector.getByTestId("swap-with-Bedroom 2").click();
     await expect(inspector.getByRole("heading", { name: "Bedroom 2" })).toBeVisible();
     await page.getByTestId("undo").click();
-    expect(level(await getDoc(page)).rooms[bedroom.id].name).toBe("Primary Bedroom");
+    expect(level(await getDoc(page)).rooms[bedroom.id].name).toBe(bedroom.name);
   });
 
   test("compares a room's variations side by side and applies one to the main plan", async ({ page }) => {
