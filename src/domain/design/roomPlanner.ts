@@ -8,11 +8,13 @@ import { deriveLevelGeometry, openingHostIntervals } from "../geometry/derive";
 import { formatArea, roundToPrecision } from "../geometry/numeric";
 import { asAxisRect } from "../geometry/polygons";
 import { axialParam } from "../geometry/walls";
+import { DOOR_PRESET } from "../plan/defaults";
 import { suggestRoomName } from "../plan/rooms";
 import type { Furniture, FurnitureKind, Id, Level, Opening, PlanDocument, Point2, Room, RoomType } from "../plan/types";
 import { gardenWallIds, neighbourAcross, roomAtPoint, roomRegion, roomWalls, SIDE_NORMAL, type RoomWall, type Side } from "./analysis";
 import { ROOM_GOAL_LABEL, suggestedGoals, SUPPORTED_ROOM_GOALS, type RoomGoal } from "./intent";
 import type { PlanCandidate, PlanningRequest, PlanningResult } from "./planner";
+import { planRegion } from "./regionPlanner";
 
 /**
  * Room-level changes: small, explainable edits to one room of an existing
@@ -53,6 +55,11 @@ const capital = (s: string) => s.charAt(0).toUpperCase() + s.slice(1).toLowerCas
 export function planRoomChange(request: PlanningRequest): PlanningResult {
   const { intent, source, idPrefix } = request;
   if (intent.action === "generate_layouts") return { candidates: [], issues: [{ code: "unsupported-intent", message: "Not a room request." }] };
+  // Several rooms: the same rooms laid out again in the space they share.
+  if (intent.action === "room_variations" && intent.roomIds.length > 1) {
+    const doorWidth = request.brief.preferences.includes("accessible_layout") ? 1 : DOOR_PRESET.width;
+    return planRegion(source, intent.roomIds, { idPrefix, count: intent.count, doorWidth, exclude: new Set(intent.exclude ?? []) });
+  }
   const roomId = intent.action === "redesign_room" ? intent.roomId : intent.roomIds[0];
   const count = intent.action === "room_variations" ? intent.count : 3;
   const level = source.levels[0];

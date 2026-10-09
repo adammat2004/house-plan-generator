@@ -10,7 +10,7 @@ import { pointInRing } from "../geometry/polygons";
 import { dot, sub } from "../geometry/vector";
 import { axialParam, pointOnAxis } from "../geometry/walls";
 import { DEFAULT_HOUSE, DOOR_PRESET } from "../plan/defaults";
-import type { Opening, PlanDocument, Point2 } from "../plan/types";
+import type { Level, Opening, PlanDocument, Point2 } from "../plan/types";
 import { floorFor, type WindowSize } from "./program";
 import type { LayoutPlan } from "./wingLayout";
 
@@ -24,9 +24,9 @@ import type { LayoutPlan } from "./wingLayout";
  * hand-drawn plan.
  */
 
-const WINDOW_WIDTH: Record<WindowSize, number> = { large: 2.4, standard: 1.4, small: 0.7, none: 0 };
+export const WINDOW_WIDTH: Record<WindowSize, number> = { large: 2.4, standard: 1.4, small: 0.7, none: 0 };
 /** Garden doors from a living space: a pair of glazed doors. */
-const GARDEN_DOOR = 1.6;
+export const GARDEN_DOOR = 1.6;
 /** Clearance between a corner door and the end of its stretch of wall. */
 const CORNER_GAP = 0.15;
 
@@ -39,7 +39,8 @@ export interface EmitOptions {
 
 export type EmitResult = { ok: true; document: PlanDocument; notes: string[] } | { ok: false; reason: string };
 
-interface Run {
+/** A straight stretch of boundary between two labelled rooms, or a room and the outside. */
+export interface Run {
   horizontal: boolean;
   line: number;
   lo: number;
@@ -208,53 +209,13 @@ export function emitLayout(shell: PlanDocument, plan: LayoutPlan, opts: EmitOpti
   // Openings. One that doesn't fit is left out rather than failing the layout.
   let openingCount = 0;
   let skipped = 0;
-  /**
-   * Places an opening on the clear part of a run, as wide as it allows up to
-   * `width`: centred, or near the end of the clear stretch closest to `toward`.
-   */
+  /** Places an opening with fitOpening and adds it; false (and counted as skipped) if it doesn't fit. */
   const place = (kind: "door" | "window", r: Run, width: number, margin: number, size: WindowSize = "standard", toward?: Point2): boolean => {
-    const mid = (r.lo + r.hi) / 2;
-    const p = r.horizontal ? { x: mid, y: r.line } : { x: r.line, y: mid };
-    const geometry = deriveLevelGeometry(doc.levels[0]);
-    const candidates = [...geometry.axes.values()].filter((a) => (a.orientation === "horizontal") === r.horizontal && pointOnAxis(a, p, 1e-6));
-    const axis = candidates[0];
-    if (!axis) {
+    const opening = fitOpening(doc.levels[0], r, kind, width, margin, size, `${opts.prefix}-o${++openingCount}`, toward);
+    if (!opening) {
       skipped++;
       return false;
     }
-    const s0 = axialParam(axis, r.horizontal ? { x: r.lo, y: r.line } : { x: r.line, y: r.lo });
-    const s1 = axialParam(axis, r.horizontal ? { x: r.hi, y: r.line } : { x: r.line, y: r.hi });
-    const [lo, hi] = [Math.min(s0, s1), Math.max(s0, s1)];
-    // The widest clear stretch of the run between junctions.
-    let span: [number, number] | null = null;
-    for (const [a, b] of openingHostIntervals(geometry, axis.wallId)) {
-      const x0 = Math.max(a, lo);
-      const x1 = Math.min(b, hi);
-      if (x1 - x0 > EPS && (!span || x1 - x0 > span[1] - span[0])) span = [x0, x1];
-    }
-    if (!span) {
-      skipped++;
-      return false;
-    }
-    const w = roundToPrecision(Math.min(width, span[1] - span[0] - margin));
-    if (w < (kind === "door" ? 0.6 : 0.5)) {
-      skipped++;
-      return false;
-    }
-    let offset = roundToPrecision((span[0] + span[1]) / 2 - w / 2);
-    if (toward && span[1] - span[0] >= w + 2 * CORNER_GAP) {
-      // Whichever end of the clear stretch lies nearer `toward`.
-      const t = axialParam(axis, toward);
-      offset = roundToPrecision(Math.abs(t - span[0]) <= Math.abs(t - span[1]) ? span[0] + CORNER_GAP : span[1] - CORNER_GAP - w);
-    }
-    const id = `${opts.prefix}-o${++openingCount}`;
-    const swingSide = dot(sub(r.inside, axis.start), axis.normal) < 0 ? "right" : "left";
-    const opening: Opening =
-      kind === "door"
-        ? { id, wallId: axis.wallId, kind, offset, width: w, height: DOOR_PRESET.height, hinge: "start", swingSide }
-        : size === "small"
-          ? { id, wallId: axis.wallId, kind, offset, width: w, height: 0.6, sillHeight: 1.4 }
-          : { id, wallId: axis.wallId, kind, offset, width: w, height: size === "large" ? 1.5 : 1.2, sillHeight: size === "large" ? 0.6 : 0.9 };
     if (run({ type: "addOpening", opening })) {
       skipped++;
       return false;
@@ -325,6 +286,44 @@ export function emitLayout(shell: PlanDocument, plan: LayoutPlan, opts: EmitOpti
   const issues = validateDocument(doc);
   if (issues.length) return { ok: false, reason: issues[0].message };
   return { ok: true, document: doc, notes };
+}
+
+/**
+ * An opening on the clear part of a run, as wide as it allows up to `width`
+ * less `margin`: centred, or near the end of the clear stretch closest to
+ * `toward`, swinging into the room `run.inside` is in. Null if it doesn't fit.
+ */
+export function fitOpening(level: Level, r: Run, kind: "door" | "window", width: number, margin: number, size: WindowSize, id: string, toward?: Point2): Opening | null {
+  const mid = (r.lo + r.hi) / 2;
+  const p = r.horizontal ? { x: mid, y: r.line } : { x: r.line, y: mid };
+  const geometry = deriveLevelGeometry(level);
+  const axis = [...geometry.axes.values()].find((a) => (a.orientation === "horizontal") === r.horizontal && pointOnAxis(a, p, 1e-6));
+  if (!axis) return null;
+  const s0 = axialParam(axis, r.horizontal ? { x: r.lo, y: r.line } : { x: r.line, y: r.lo });
+  const s1 = axialParam(axis, r.horizontal ? { x: r.hi, y: r.line } : { x: r.line, y: r.hi });
+  const [lo, hi] = [Math.min(s0, s1), Math.max(s0, s1)];
+  // The widest clear stretch of the run between junctions.
+  let span: [number, number] | null = null;
+  for (const [a, b] of openingHostIntervals(geometry, axis.wallId)) {
+    const x0 = Math.max(a, lo);
+    const x1 = Math.min(b, hi);
+    if (x1 - x0 > EPS && (!span || x1 - x0 > span[1] - span[0])) span = [x0, x1];
+  }
+  if (!span) return null;
+  const w = roundToPrecision(Math.min(width, span[1] - span[0] - margin));
+  if (w < (kind === "door" ? 0.6 : 0.5)) return null;
+  let offset = roundToPrecision((span[0] + span[1]) / 2 - w / 2);
+  if (toward && span[1] - span[0] >= w + 2 * CORNER_GAP) {
+    // Whichever end of the clear stretch lies nearer `toward`.
+    const t = axialParam(axis, toward);
+    offset = roundToPrecision(Math.abs(t - span[0]) <= Math.abs(t - span[1]) ? span[0] + CORNER_GAP : span[1] - CORNER_GAP - w);
+  }
+  const swingSide = dot(sub(r.inside, axis.start), axis.normal) < 0 ? "right" : "left";
+  return kind === "door"
+    ? { id, wallId: axis.wallId, kind, offset, width: w, height: DOOR_PRESET.height, hinge: "start", swingSide }
+    : size === "small"
+      ? { id, wallId: axis.wallId, kind, offset, width: w, height: 0.6, sillHeight: 1.4 }
+      : { id, wallId: axis.wallId, kind, offset, width: w, height: size === "large" ? 1.5 : 1.2, sillHeight: size === "large" ? 0.6 : 0.9 };
 }
 
 const midpoint = (r: Run): Point2 => (r.horizontal ? { x: (r.lo + r.hi) / 2, y: r.line } : { x: r.line, y: (r.lo + r.hi) / 2 });

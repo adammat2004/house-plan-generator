@@ -4,7 +4,7 @@ import type { Rect } from "../geometry/vector";
 import type { RoomType } from "../plan/types";
 import { shapeOf, type Footprint, type PlotLimits } from "./footprint";
 import type { Program, SpaceSpec } from "./program";
-import { ENSUITE_TARGET, ROOM_RULES } from "./roomRules";
+import { clearMin, ENSUITE_TARGET, proportionOk } from "./roomRules";
 import { distributeWidths, type LabeledRoom, type LayoutPlan } from "./wingLayout";
 
 /**
@@ -151,16 +151,9 @@ function slotMin(s: SpaceSpec, thickness: number, door: number, viaHall: boolean
   return Math.max(s.minWidth, viaHall ? door + 0.3 : 0, clearMin(s.type, thickness));
 }
 
-/** The shortest a room may run beside a given width and still keep its proportion and floor area. */
-const clearMin = (type: RoomType, across: number) => {
-  const rule = ROOM_RULES[type];
-  return Math.max((across - WALLS) / rule.maxProportion, rule.minArea / Math.max(across - WALLS, 0.5)) + WALLS + 0.05;
-};
 
-/** Wall centre to wall centre, less the walls: roughly the clear size a room ends up with, m. */
-const WALLS = 0.2;
-/** Whether a slot's clear floor stays within its room type's proportion. */
-const proportionOk = (type: RoomType, a: number, b: number) => Math.max(a, b) - WALLS <= (Math.min(a, b) - WALLS) * ROOM_RULES[type].maxProportion + EPS;
+
+
 
 /** Rooms cut from a band along v, in order; null if they don't fit or one would be too long and narrow. */
 function slotBand(spaces: SpaceSpec[], u: [number, number], v: [number, number], door: number, via: (s: SpaceSpec) => string): Placed[] | null {

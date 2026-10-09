@@ -302,6 +302,28 @@ export function createDesignActions({ session, project }: EditorStores, actions:
       return extendVariations(goal ? [goal] : [], "There are no more options like this one.");
     },
 
+    /**
+     * "Regenerate selection": several rooms laid out again in the space they
+     * share, offered in the AI Designer. Nothing else in the plan changes.
+     */
+    async regenerateArea(roomIds: Id[]): Promise<Proposal[]> {
+      const source = actions.current();
+      const names = roomIds.map((id) => source.levels[0].rooms[id]?.name).filter((n): n is string => !!n);
+      if (names.length < 2 || running()) return [];
+      const list = `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+      say({ role: "user", text: `Lay out ${list.toLowerCase()} again` });
+      actions.setDesigner({ panelOpen: true });
+      const result = await plan({ action: "room_variations", roomIds, goals: [], count: 3 }, source);
+      if (!result) return [];
+      if (!result.candidates.length) {
+        say({ role: "assistant", text: result.issues[0]?.message ?? `I couldn't find another way to lay out ${list.toLowerCase()}.` });
+        return [];
+      }
+      const proposals = toProposals(result, source, roomIds[0]);
+      say({ role: "assistant", text: `Here ${proposals.length === 1 ? "is another way" : `are ${proposals.length} other ways`} to lay out ${list.toLowerCase()}. The rest of the plan stays as it is.`, proposals });
+      return proposals;
+    },
+
     /** "Redesign this room" from chat: options for the given goals, offered in the AI Designer. */
     redesignRoom(roomId: Id, goals: RoomGoal[]): Promise<Proposal[]> {
       const room = actions.current().levels[0].rooms[roomId];

@@ -416,3 +416,16 @@ export function compareRoom(before: Level, after: Level, roomId: Id, afterRoomId
   }
   return changes;
 }
+
+/** The rooms sharing an inside wall with a room, nearest first along its walls; never the room itself. */
+export function neighbourRooms(level: Level, roomId: Id): Id[] {
+  const out: Id[] = [];
+  for (const wall of roomWalls(level, roomId)) {
+    if (wall.external) continue;
+    for (let at = wall.from + 0.25; at < wall.to; at += 0.5) {
+      const other = neighbourAcross(level, wall, at);
+      if (other && other !== roomId && !out.includes(other)) out.push(other);
+    }
+  }
+  return out;
+}

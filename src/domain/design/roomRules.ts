@@ -77,3 +77,15 @@ export const OPEN_PLAN_MIN_SLOT = 3.6;
 
 /** Target area of a generated ensuite, m². */
 export const ENSUITE_TARGET = 3.5;
+
+/** Wall centre to wall centre, less the walls: roughly how much clear size a slot loses, m. */
+export const SLOT_WALLS = 0.2;
+
+/** Whether a slot a by b (wall centre to wall centre) keeps its room type's proportion once the walls are taken off. */
+export const proportionOk = (type: RoomType, a: number, b: number) => Math.max(a, b) - SLOT_WALLS <= (Math.min(a, b) - SLOT_WALLS) * ROOM_RULES[type].maxProportion + 1e-6;
+
+/** The shortest a slot may run beside a given width (wall centre to wall centre) and still keep its room type's proportion and floor area. */
+export function clearMin(type: RoomType, across: number): number {
+  const rule = ROOM_RULES[type];
+  return Math.max((across - SLOT_WALLS) / rule.maxProportion, rule.minArea / Math.max(across - SLOT_WALLS, 0.5)) + SLOT_WALLS + 0.05;
+}

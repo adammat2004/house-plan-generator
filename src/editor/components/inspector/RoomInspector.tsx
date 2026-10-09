@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { connectionSummary, roomBounds, roomResizeCommand } from "@/domain/design/analysis";
+import { connectionSummary, neighbourRooms, roomBounds, roomResizeCommand } from "@/domain/design/analysis";
 import { ROOM_GOAL_LABEL, suggestedGoals } from "@/domain/design/intent";
 import { deriveRoomRegions, roomFaceIndices } from "@/domain/geometry/derive";
 import { formatArea } from "@/domain/geometry/numeric";
@@ -25,6 +25,7 @@ import {
   LeafIcon,
   PinIcon,
   PlusIcon,
+  RefreshIcon,
   SofaIcon,
   SparkleIcon,
   SwapIcon,
@@ -116,7 +117,12 @@ export function RoomInspector({ level, roomId, focusKey }: { level: Level; roomI
       {tab === "details" && <Details level={level} roomId={roomId} area={area} focusKey={focusKey} designing={designing} />}
       {tab === "furniture" && <RoomFurniture level={level} roomId={roomId} />}
       {tab === "materials" && <Materials roomId={roomId} value={room.floorMaterial ?? null} />}
-      {tab === "ai" && <RoomSuggestions roomId={roomId} type={room.type} />}
+      {tab === "ai" && (
+        <>
+          <RoomSuggestions roomId={roomId} type={room.type} />
+          <RegenerateArea level={level} roomId={roomId} />
+        </>
+      )}
     </InspectorFrame>
   );
 }
@@ -368,6 +374,51 @@ function RoomSuggestions({ roomId, type }: { roomId: string; type: RoomType }) {
       <p className="field-hint">Options appear in the AI Designer. Nothing changes until you apply one.</p>
       <button type="button" className="link-btn" onClick={() => editor.setDesigner({ panelOpen: true })}>
         Open the AI Designer
+      </button>
+    </Section>
+  );
+}
+
+/**
+ * "Regenerate selection": this room and the neighbours ticked, laid out again
+ * in the space they share. Pinned rooms and the hall can't be ticked.
+ */
+function RegenerateArea({ level, roomId }: { level: Level; roomId: string }) {
+  const running = useSessionState((s) => s.designer.status === "running");
+  const [picked, setPicked] = useState<ReadonlySet<string>>(new Set());
+  const neighbours = neighbourRooms(level, roomId).map((id) => level.rooms[id]).filter((r) => r && r.type !== "hall");
+  const ids = [roomId, ...neighbours.filter((r) => picked.has(r.id)).map((r) => r.id)];
+  const pinned = level.rooms[roomId]?.locked;
+  if (!neighbours.length) return null;
+  return (
+    <Section title="Lay out again">
+      <p className="field-hint">Tick the rooms beside it to lay out again together, in the space they share. Everything else stays as it is.</p>
+      <div className="chips" role="group" aria-label="Rooms to lay out again">
+        {neighbours.map((r) => {
+          const on = picked.has(r.id);
+          return (
+            <button
+              key={r.id}
+              type="button"
+              aria-pressed={on}
+              className={`chip${on ? " is-on" : ""}`}
+              disabled={!!r.locked}
+              title={r.locked ? `${r.name} is pinned` : undefined}
+              onClick={() => setPicked((prev) => {
+                const next = new Set(prev);
+                if (on) next.delete(r.id);
+                else next.add(r.id);
+                return next;
+              })}
+              data-testid={`regenerate-with-${r.name}`}
+            >
+              {r.name}
+            </button>
+          );
+        })}
+      </div>
+      <button type="button" className="action-row" disabled={running || pinned || ids.length < 2} onClick={() => void design.regenerateArea(ids)} data-testid="regenerate-area">
+        <RefreshIcon width={18} height={18} /> {ids.length < 2 ? "Tick a room to go with it" : `Lay out these ${ids.length} rooms again`}
       </button>
     </Section>
   );

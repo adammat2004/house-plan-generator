@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { neighbourRooms } from "@/domain/design/analysis";
 import { createStripPlanner } from "@/domain/design/stripPlanner";
 import { furnitureInRoom } from "@/domain/furniture/layout";
 import { createDesignActions } from "@/editor/state/design";
@@ -76,6 +77,30 @@ describe("AI designer workflow", () => {
 
     // A proposal made from an older plan is refused rather than discarding edits.
     expect(design.applyProposal(proposals[1]?.id ?? proposals[0].id)).toBe(false);
+  });
+
+  it("lays several rooms out again as proposals, leaving the rest of the plan as it is", async () => {
+    const { stores, actions, design } = setup();
+    await design.generateLayouts(1);
+    const before = actions.current();
+    const lvl = level(before);
+    // Two neighbouring rooms that together make a rectangle.
+    let proposals: Awaited<ReturnType<typeof design.regenerateArea>> = [];
+    for (const room of Object.values(lvl.rooms).filter((r) => r.type !== "hall")) {
+      for (const other of neighbourRooms(lvl, room.id).filter((id) => lvl.rooms[id].type !== "hall")) {
+        proposals = await design.regenerateArea([room.id, other]);
+        if (proposals.length) break;
+      }
+      if (proposals.length) break;
+    }
+    expect(proposals.length).toBeGreaterThan(0);
+    expect(actions.current()).toBe(before);
+    const chat = stores.session.getState().designer.chat;
+    expect(chat[chat.length - 1].proposals).toHaveLength(proposals.length);
+    expect(design.applyProposal(proposals[0].id)).toBe(true);
+    expect(actions.current()).not.toBe(before);
+    actions.undo();
+    expect(actions.current()).toBe(before);
   });
 
   it("saves a proposal as a separate concept without changing the plan", async () => {

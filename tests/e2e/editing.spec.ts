@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
-import { roomAtPoint } from "@/domain/design/analysis";
+import { neighbourRooms, roomAtPoint } from "@/domain/design/analysis";
+import { planRegion } from "@/domain/design/regionPlanner";
 import { furnitureRect } from "@/domain/furniture/geometry";
 import { deriveLevelGeometry, deriveRoomRegions, roomFaceIndices } from "@/domain/geometry/derive";
 import type { Level, PlanDocument, Point2 } from "@/domain/plan/types";
@@ -43,6 +44,19 @@ function bedroomWall(level: Level, ignoreFurniture = false) {
 
 const along = (p: Point2, n: Point2, d: number) => ({ x: p.x + n.x * d, y: p.y + n.y * d });
 
+/** Two neighbouring rooms the region planner can lay out again together (they make a rectangle). */
+function regenerablePair(doc: PlanDocument): [string, string] | null {
+  const level = doc.levels[0];
+  for (const room of Object.values(level.rooms)) {
+    if (room.type === "hall") continue;
+    for (const other of neighbourRooms(level, room.id)) {
+      if (level.rooms[other].type === "hall") continue;
+      if (planRegion(doc, [room.id, other], { idPrefix: "t", count: 1, doorWidth: 0.9 }).candidates.length) return [room.id, other];
+    }
+  }
+  return null;
+}
+
 test.describe("Editing a concept in Design", () => {
   test("drags a wall between bedrooms, refuses it once a room is pinned, and swaps rooms", async ({ page }) => {
     const errors: string[] = [];
@@ -75,6 +89,24 @@ test.describe("Editing a concept in Design", () => {
     expect((await historySize(page)).past).toBe(history.past + 1);
     await page.keyboard.press(undoKey);
     expect(areas(await currentLevel(page))).toEqual(before);
+
+    // Two neighbouring rooms laid out again together: options in the AI Designer, applied and undone in one step each.
+    const pair = regenerablePair((await getDoc(page)) as PlanDocument);
+    expect(pair).toBeTruthy();
+    await selectRoomFromList(page, start.rooms[pair![0]].name);
+    const card = page.getByTestId("inspector");
+    await card.getByTestId("room-tab-ai").click();
+    await card.getByTestId(`regenerate-with-${start.rooms[pair![1]].name}`).click();
+    await card.getByTestId("regenerate-area").click();
+    const option = page.getByTestId("proposal").first();
+    await expect(option).toBeVisible();
+    const unchanged = await getDoc(page);
+    await option.getByTestId("apply-proposal").click();
+    await expect(option).toContainText("Applied");
+    expect(await getDoc(page)).not.toEqual(unchanged);
+    await page.keyboard.press(undoKey);
+    expect(await getDoc(page)).toEqual(unchanged);
+    await card.getByTestId("room-tab-details").click();
 
     // Pinned, the room keeps its walls.
     const pinnedName = start.rooms[left].name;
