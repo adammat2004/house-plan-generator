@@ -27,10 +27,12 @@ const SCALE = 40;
 
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
-export function planSvg(level: Level): string {
+export function planSvg(level: Level, frame: Level = level): string {
   const mass = deriveWallMass(level);
-  const xs = mass.flatMap((p) => p.outer.map((q) => q.x));
-  const ys = mass.flatMap((p) => p.outer.map((q) => q.y));
+  // Drawn to the bounds of `frame` (the ground floor), so floors of different sizes line up.
+  const bounds = deriveWallMass(frame);
+  const xs = bounds.flatMap((p) => p.outer.map((q) => q.x));
+  const ys = bounds.flatMap((p) => p.outer.map((q) => q.y));
   const [minX, maxX, minY, maxY] = [Math.min(...xs) - 0.5, Math.max(...xs) + 0.5, Math.min(...ys) - 0.5, Math.max(...ys) + 0.5];
   const width = (maxX - minX) * SCALE;
   const height = (maxY - minY) * SCALE;

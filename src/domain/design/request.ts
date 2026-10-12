@@ -100,18 +100,16 @@ export function interpretRequest(text: string, level: Level, brief: HouseBrief, 
   let next = { ...brief };
 
   for (const clause of clauses) {
-    // So is how many storeys it has.
+    // So is how many storeys it has, and its shape: "an L-shaped two-storey house" is both.
     const storeys = storeysIn(clause);
+    const shape = houseShapeIn(clause);
     if (storeys) {
       if (storeys === 3) unclear.push(clause);
       else if ((next.storeys ?? 1) !== storeys) {
         next = { ...next, storeys };
         steps.push({ kind: "brief", patch: { storeys }, describe: storeysStep(storeys), clause });
       }
-      continue;
     }
-    // The shape of the house is part of the brief.
-    const shape = houseShapeIn(clause);
     if (shape) {
       if (next.houseShape !== shape) {
         next = { ...next, houseShape: shape };
@@ -119,6 +117,7 @@ export function interpretRequest(text: string, level: Level, brief: HouseBrief, 
       }
       continue;
     }
+    if (storeys) continue;
     // Asking for a new space changes the brief: a room-level edit can't add rooms.
     const adding = /\b(?:add|include|need|want|give me|make room for)\b/.test(clause);
     const removing = /\b(?:remove|drop|without|lose|get rid of)\b/.test(clause) && !/\bwall\b/.test(clause);

@@ -78,12 +78,13 @@ describe("furniture commands", () => {
     expect(furnitureIssues(level(outside)).get("sofa")).toBe("wall");
   });
 
-  it("keeps furniture where it is when walls move", () => {
+  it("pushes furniture out of a moving wall's way, never blocking the move", () => {
     let doc = apply(newHouse(), { type: "addFurniture", item: sofa({ position: { x: 6, y: 2 } }) });
     doc = addWall(doc, "v", [4, AXIS.south], [4, AXIS.north]);
     doc = apply(doc, { type: "moveWall", wallId: "v", delta: 1 });
-    expect(level(doc).furniture.sofa.position).toEqual({ x: 6, y: 2 });
-    expect(furnitureIssues(level(doc)).get("sofa")).toBe("wall");
+    // Just clear of the wall's new face.
+    expect(level(doc).furniture.sofa.position).toEqual({ x: 6.1, y: 2 });
+    expect(furnitureIssues(level(doc)).get("sofa")).toBeUndefined();
   });
 
   it("round-trips furniture through the file format and upgrades version 2 plans", () => {

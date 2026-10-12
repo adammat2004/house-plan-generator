@@ -155,7 +155,7 @@ Floors and stairs:
 - The **Stairs** tool (S) places a straight, L or U flight that snaps to a wall; Shift+R turns it. The inspector sets its shape, width and going, and says how many steps of what height it needs. Walls can't cross stairs, and furniture keeps off them.
 - The house card's **Floors** section names the floor on show and sets its ceiling height and floor thickness; the floors above move with them.
 - In 3D, **Floors** in the Show tab shows the ground floor, the floors up to the first, or all of them.
-- On the **Rooms** step, **Two storeys** generates houses with living spaces and a WC downstairs and the bedrooms upstairs, joined by a straight flight from the hall to the landing. Typing "a two-storey house" sets it. Two-storey layouts are rectangular for now, and three-storey houses aren't generated yet (ADR 0010).
+- On the **Rooms** step, **Two storeys** generates houses with living spaces and a WC downstairs and the bedrooms upstairs, joined by a straight flight from the hall to the landing. Typing "a two-storey house" sets it. A two-storey house can be any shape: in an L, T or U the floor above covers the main part with the wings single-storey, or the whole house (ADR 0011). Three-storey houses aren't generated yet (ADR 0010).
 
 Variations:
 
@@ -242,6 +242,7 @@ docs/adr/0007-orthogonal-outlines.md       Right-angle outlines, the wing planne
 docs/adr/0008-zone-layouts-and-plan-sense.md  Room rules, plan sense, the access graph, zone layouts
 docs/adr/0009-pins-and-regenerate-selection.md  Pins, laying rooms out again, editing in Design, swaps
 docs/adr/0010-floors-and-stairs.md         Floors, stairs, two-storey 3D and two-storey generation
+docs/adr/0011-shaped-two-storey-houses.md  Two-storey houses of any shape: a stacked core with wings
 ```
 
 Domain code must not import React, Konva, browser APIs or editor state. ESLint enforces this.

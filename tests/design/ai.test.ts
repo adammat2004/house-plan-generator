@@ -147,6 +147,8 @@ describe("storeys", () => {
     expect(read("a bungalow please", { ...DEFAULT_BRIEF, storeys: 2 }).steps[0]).toMatchObject({ patch: { storeys: 1 } });
     expect(read("a bungalow please").steps).toEqual([]);
     expect(read("three storeys").unclear).toEqual(["three storeys"]);
+    // Both at once.
+    expect(read("an L-shaped two-storey house").steps.map((s) => (s.kind === "brief" ? s.patch : null))).toEqual([{ storeys: 2 }, { houseShape: "L" }]);
   });
 
   it("takes storeys from Claude's reply, and sees every floor", () => {

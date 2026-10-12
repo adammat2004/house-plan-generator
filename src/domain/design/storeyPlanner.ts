@@ -1,10 +1,12 @@
 import { EPS, roundToPrecision } from "../geometry/numeric";
+import type { Ring } from "../geometry/polygons";
 import type { Rect } from "../geometry/vector";
 import { STAIR_PRESET } from "../plan/defaults";
 import type { Point2, RoomType } from "../plan/types";
+import { bandOf, DOWN, LIVING, UP } from "./bands";
 import type { Program, SpaceSpec } from "./program";
 import { clearMin, proportionOk, ROOM_RULES, SLOT_WALLS } from "./roomRules";
-import { distributeWidths, type LabeledRoom, type LayoutPlan } from "./wingLayout";
+import type { LabeledRoom, LayoutPlan } from "./wingLayout";
 import { dayRow, frameOf, MIN_DAY_WIDTH, nightOrders, nightSpaces, slotBand, slotMin, type Box, type Frame, type Placed, type ZoneOptions } from "./zonePlanner";
 
 /**
@@ -52,6 +54,16 @@ export interface StoreyPlan {
   stairs: { rect: Rect; foot: Point2; rotation: 0 | 90 | 180 | 270 };
   /** Lower is better. */
   score: number;
+  /** Where the floor above is smaller than the ground floor: its outline, on the wall centrelines. */
+  upperAxis?: Ring;
+  /** In a house that isn't a rectangle: upstairs over the main part alone, or over all of it. */
+  stack?: "setback" | "full";
+  /** Which part of such a house takes the floor above, for variety. */
+  core?: string;
+  /** How many wings it has beside the main part. */
+  wings?: number;
+  /** The main part, on the wall centrelines: what the stairs and the plan of both floors were laid out in. */
+  main?: Rect;
 }
 
 /** From the front wall's inside face to the bottom step: room to come in and turn, m. */
@@ -66,7 +78,6 @@ const PASSAGE = 1.1;
 const HALF = 0.05;
 /** Widest column of rooms beside the spine, m. */
 const MAX_COLUMN = 7;
-const LIVING: ReadonlySet<RoomType> = new Set(["living", "kitchen", "kitchen_dining", "dining"]);
 const WET: ReadonlySet<RoomType> = new Set(["bathroom", "ensuite", "wc"]);
 const PLUMBED: ReadonlySet<RoomType> = new Set(["bathroom", "ensuite", "wc", "kitchen", "kitchen_dining", "utility"]);
 /** What can go behind the hall downstairs, and behind the landing upstairs. */
@@ -356,6 +367,19 @@ export function planStoreys(axis: Rect, ground: Program, upper: Program, opts: S
 // landing where its wall meets it clear of the stairs, or off the room beside
 // it (a utility off the kitchen, an ensuite off its bedroom). Squarer houses
 // than the spine suits, as most two-storey family houses are.
+//
+// In a house too shallow for a band across the front (the front of an L, T
+// or U, about 5 to 7.5 m deep), the band with the stairs runs along the
+// street wall itself, the front door straight into it, and every room is
+// behind it:
+//
+//            street
+//   ┌──────────────────┬──────┐
+//   │ Hall ▓▓ stairs ▓▓│  WC  │   the hall along the street wall
+//   ├─────────┬────────┴──────┤
+//   │ Living  │ Kitchen       │   every room behind it
+//   └─────────┴───────────────┘
+//            garden
 
 /** The hall strip in from the front door, wall centre to wall centre, m. */
 const ENTRY = 1.45;
@@ -363,6 +387,10 @@ const ENTRY = 1.45;
 const MIDDLE = roundToPrecision(HALF + STAIR_PRESET.width + PASSAGE + HALF);
 /** Depths tried for the band across the front, m. */
 const FRONT_BANDS = [3, 3.4, 3.8, 4.2];
+/** The most rooms in the band across the back when there's none across the front. */
+const MAX_BEHIND = 5;
+/** The way past the stairs along the street wall, m: rooms open off its far side, so it needn't take a door beside the flight. */
+const STREET_PASSAGE = 0.9;
 /** The shallowest band of rooms across the back, m. */
 const MIN_BAND = 2.6;
 /** The most rooms in a band. */
@@ -384,107 +412,37 @@ interface Cross {
 }
 
 function crossesFor(W: number, V: number, opts: StoreyOptions): Cross[] {
+  const t = opts.externalThickness;
   const run = (opts.risers - 1) * STAIR_PRESET.going;
   const top = roundToPrecision(ENTRY + run);
   const hallEnd = up(top + HALF);
   const landingEnd = up(top + STAIR_PRESET.approach + HALF);
-  if (landingEnd > W - opts.externalThickness / 2 - 0.2) return [];
+  if (landingEnd > W - t / 2 - 0.2) return [];
   const out: Cross[] = [];
-  for (const f of FRONT_BANDS) {
-    const middle: [number, number] = [f, roundToPrecision(f + MIDDLE)];
+  // Along the street wall only where there's no room for a band across the front.
+  const fronts = V - (FRONT_BANDS[0] + MIDDLE) >= MIN_BAND - EPS ? FRONT_BANDS : [0];
+  for (const f of fronts) {
+    // Against the street wall, the band starts at its centreline and the stairs at its inside face.
+    const middle: [number, number] = [f, f ? roundToPrecision(f + MIDDLE) : up(t / 2 + STAIR_PRESET.width + STREET_PASSAGE + HALF)];
     if (V - middle[1] < MIN_BAND - EPS) continue;
     for (const stairFront of [true, false]) {
-      const v0 = roundToPrecision(stairFront ? f + HALF : middle[1] - HALF - STAIR_PRESET.width);
+      const v0 = roundToPrecision(stairFront ? (f ? f + HALF : t / 2) : middle[1] - HALF - STAIR_PRESET.width);
       out.push({ tag: `x${Math.round(f * 10)}${stairFront ? "f" : "r"}`, middle, stairFront, stair: { u0: ENTRY, u1: top, v0, v1: roundToPrecision(v0 + STAIR_PRESET.width) }, hallEnd, landingEnd });
     }
   }
   return out;
 }
 
-interface BandRules {
-  /** What it costs a room to open off the hall or landing; Infinity when it can't. */
-  hall: (s: SpaceSpec) => number;
-  /** What it costs `child` to open off the room beside it; Infinity when it shouldn't. */
-  via: (parent: SpaceSpec, child: SpaceSpec) => number;
-}
-
-const DOWN: BandRules = {
-  hall: (s) => (LIVING.has(s.type) ? 0 : s.type === "office" || s.type === "wc" || s.type === "storage" ? 0.3 : s.type === "garage" ? 0.5 : s.type === "utility" ? 1 : 1.5),
-  via: (parent, child) => {
-    if (parent.type === "utility") return child.type === "garage" ? 0.5 : Infinity;
-    if (!LIVING.has(parent.type)) return Infinity;
-    if (LIVING.has(child.type)) return 0;
-    if (child.type === "utility") return parent.type === "kitchen" || parent.type === "kitchen_dining" ? 0 : 2;
-    return child.type === "office" ? 1 : child.type === "wc" ? 1.5 : Infinity;
-  },
-};
-
-const UP: BandRules = {
-  hall: (s) => (s.type === "ensuite" ? Infinity : 0),
-  // An ensuite opens off its own bedroom only (nightSpaces keys it after the bedroom).
-  via: (parent, child) => (child.type === "ensuite" && child.key === `${parent.key}-ensuite` ? 0 : Infinity),
-};
-
-function* orders<T>(items: readonly T[]): Generator<T[]> {
-  if (items.length <= 1) {
-    yield [...items];
+/**
+ * Ways to split rooms between the front and back bands: every subset for
+ * the front, at most four to a band; with no band across the front, all of
+ * them behind.
+ */
+function* splits<T>(items: readonly T[], front = true): Generator<[T[], T[]]> {
+  if (!front) {
+    if (items.length && items.length <= MAX_BEHIND) yield [[], [...items]];
     return;
   }
-  for (let i = 0; i < items.length; i++) for (const rest of orders([...items.slice(0, i), ...items.slice(i + 1)])) yield [items[i], ...rest];
-}
-
-/**
- * Rooms side by side along a band, in the order whose doors and sizes suit
- * them best: each opening off the hall where the band meets it clear of the
- * stairs (or, with `entryFirst`, the first room off the hall strip at its
- * end), or off the room beside it. Null if no order works.
- */
-function bandOf(spaces: SpaceSpec[], along: [number, number], depth: [number, number], contacts: Array<[number, number]>, entryFirst: boolean, rules: BandRules, door: number): { rooms: Placed[]; score: number } | null {
-  if (!spaces.length) return { rooms: [], score: 0 };
-  const thickness = len(depth);
-  // Every room is at least as wide as it needs across the band, once the walls are off.
-  if (spaces.some((x) => thickness - SLOT_WALLS < ROOM_RULES[x.type].minWidth - 0.005)) return null;
-  const mins = (list: SpaceSpec[]) => list.map((x) => Math.max(x.minWidth, clearMin(x.type, thickness)));
-  if (mins(spaces).reduce((a, b) => a + b, 0) > len(along) + EPS) return null;
-  let best: { rooms: Placed[]; score: number } | null = null;
-  for (const order of orders(spaces)) {
-    const cuts = order.length === 1 ? [0, roundToPrecision(len(along))] : distributeWidths(len(along), order, mins(order));
-    if (!cuts) continue;
-    const boxes = order.map((_, i): Box => ({ u0: roundToPrecision(along[0] + cuts[i]), u1: roundToPrecision(along[0] + cuts[i + 1]), v0: depth[0], v1: depth[1] }));
-    if (boxes.some((b, i) => !proportionOk(order[i].type, b.u1 - b.u0, thickness))) continue;
-    const reaches = (b: Box, i: number) => (entryFirst && i === 0) || contacts.some(([a, c]) => Math.min(b.u1, c) - Math.max(b.u0, a) >= door + 0.3 - EPS);
-    // A cheapest tree from the hall over doors between neighbours.
-    const parent: Array<number | "hall" | null> = order.map(() => null);
-    let cost = 0;
-    for (let added = 0; added < order.length; added++) {
-      let pick: { i: number; from: number | "hall"; c: number } | null = null;
-      for (let i = 0; i < order.length; i++) {
-        if (parent[i] !== null) continue;
-        const options: Array<{ from: number | "hall"; c: number }> = reaches(boxes[i], i) ? [{ from: "hall", c: rules.hall(order[i]) }] : [];
-        for (const j of [i - 1, i + 1]) if (j >= 0 && j < order.length && parent[j] !== null) options.push({ from: j, c: rules.via(order[j], order[i]) });
-        for (const o of options) if (Number.isFinite(o.c) && (!pick || o.c < pick.c)) pick = { i, ...o };
-      }
-      if (!pick) break;
-      parent[pick.i] = pick.from;
-      cost += pick.c;
-    }
-    if (parent.some((x) => x === null)) continue;
-    const score = cost + order.reduce((sum, x, i) => sum + Math.abs(area(boxes[i]) - x.target) / Math.max(x.target, 2), 0);
-    if (best && score >= best.score - EPS) continue;
-    best = {
-      score,
-      rooms: order.map((x, i): Placed => {
-        const from = parent[i]!;
-        const via = from === "hall" ? "hall" : order[from].key;
-        return { key: x.key, kind: x.type === "ensuite" ? "ensuite" : x.type === "storage" ? "storage" : "room", name: x.name, type: x.type, target: x.target, window: x.window, box: boxes[i], via, ...(x.type === "ensuite" ? { of: via } : {}) };
-      }),
-    };
-  }
-  return best;
-}
-
-/** Ways to split rooms between the front and back bands: every subset for the front, at most three to a band. */
-function* splits<T>(items: readonly T[]): Generator<[T[], T[]]> {
   for (let mask = 0; mask < 1 << items.length; mask++) {
     const front = items.filter((_, i) => mask & (1 << i));
     const back = items.filter((_, i) => !(mask & (1 << i)));
@@ -503,6 +461,9 @@ function reachEnd(room: Placed, free: Array<[number, number]>, door: number): nu
   }
   return Infinity;
 }
+
+/** The longest a room at the end of the middle band can be, across a band so deep, and keep its proportion. */
+const farLongest = (space: SpaceSpec, depth: number) => (depth - SLOT_WALLS) * ROOM_RULES[space.type].maxProportion + SLOT_WALLS - 0.05;
 
 /** The end of the middle band past the hall or landing, and the room it takes, if it's long enough for one. */
 function farRoom(space: SpaceSpec, from: number, W: number, middle: [number, number]): Placed | null {
@@ -531,14 +492,16 @@ function crossGround(c: Cross, spaces: SpaceSpec[], W: number, V: number, door: 
     const frontFree: Array<[number, number]> = c.stairFront ? [[c.stair.u1, limit]] : [[ENTRY, limit]];
     const backFree = edgeContacts(limit, c.stair, !c.stairFront);
     const rest = spaces.filter((x) => x !== far);
-    for (const [frontSet, backSet] of splits(rest)) {
+    for (const [frontSet, backSet] of splits(rest, c.middle[0] > 0)) {
       // Living spaces with a door to the garden belong at the back, and one faces the street at the front.
-      if (!backSet.some((x) => LIVING.has(x.type)) || !frontSet.some((x) => LIVING.has(x.type) || x.type === "office")) continue;
+      if (!backSet.some((x) => LIVING.has(x.type)) || (c.middle[0] > 0 && !frontSet.some((x) => LIVING.has(x.type) || x.type === "office"))) continue;
       const f = band(frontSet, [ENTRY, W], front, frontFree, true);
       const b = f && band(backSet, [0, W], back, backFree, false);
       if (!f || !b) continue;
       const needs = [...f.rooms.filter((r) => r.via === "hall" && r.box.u0 > ENTRY + EPS).map((r) => reachEnd(r, frontFree, door)), ...b.rooms.filter((r) => r.via === "hall").map((r) => reachEnd(r, backFree, door))];
       let hallEnd = up(Math.max(c.hallEnd, ...needs));
+      // Along the street wall the hall runs on, so the room at its end keeps its proportion.
+      if (far && !c.middle[0]) hallEnd = Math.max(hallEnd, up(W - farLongest(far, len(c.middle))));
       if (hallEnd > limit + EPS) continue;
       if (!far && W - hallEnd < 1.2) hallEnd = W;
       const farPlaced = far ? farRoom(far, hallEnd, W, c.middle) : null;
@@ -546,9 +509,10 @@ function crossGround(c: Cross, spaces: SpaceSpec[], W: number, V: number, door: 
       // Without a room there, what's left of the middle band is a store.
       const extra = !far && hallEnd < W ? [{ key: "cloaks", kind: "storage" as const, name: "Store", type: "storage" as const, window: "none" as const, box: { u0: hallEnd, u1: W, v0: c.middle[0], v1: c.middle[1] }, via: "hall" }] : [];
       const rooms = [...f.rooms, ...b.rooms.map((r) => (LIVING.has(r.type) ? { ...r, gardenDoor: true } : r)), ...(farPlaced ? [farPlaced] : []), ...extra];
-      const hallArea = ENTRY * c.middle[0] + hallEnd * MIDDLE;
+      const hallArea = ENTRY * c.middle[0] + hallEnd * (c.middle[0] > 0 ? MIDDLE : len(c.middle));
       const score = f.score + b.score + miss(farPlaced ? [farPlaced] : []) + (hallArea / (W * V)) * 25;
-      out.push({ tag: `${far ? far.type[0] : "n"}${frontSet.map((x) => x.key).join("")}`, hall: { u0: 0, u1: hallEnd, v0: c.middle[0], v1: c.middle[1] }, rooms, score, entry: { u0: 0, u1: ENTRY, v0: 0, v1: c.middle[0] } });
+      const entry = c.middle[0] > 0 ? { entry: { u0: 0, u1: ENTRY, v0: 0, v1: c.middle[0] } } : {};
+      out.push({ tag: `${far ? far.type[0] : "n"}${frontSet.map((x) => x.key).join("")}`, hall: { u0: 0, u1: hallEnd, v0: c.middle[0], v1: c.middle[1] }, rooms, score, ...entry });
     }
   }
   return out.sort((a, b) => a.score - b.score).slice(0, 3);
@@ -562,9 +526,9 @@ function crossUpper(c: Cross, program: Program, W: number, V: number, door: numb
   const back: [number, number] = [c.middle[1], V];
   const farOptions = [null, ...new Map(spaces.filter((x) => FAR_UP.has(x.type)).map((x) => [x.type, x])).values()];
   const cache = new Map<string, ReturnType<typeof bandOf>>();
-  const band = (list: SpaceSpec[], depth: [number, number], contacts: Array<[number, number]>) => {
-    const key = `${depth}|${JSON.stringify(contacts)}|${list.map((x) => x.key).sort()}`;
-    if (!cache.has(key)) cache.set(key, bandOf(list, [0, W], depth, contacts, false, UP, door));
+  const band = (list: SpaceSpec[], depth: [number, number], contacts: Array<[number, number]>, last?: string) => {
+    const key = `${depth}|${JSON.stringify(contacts)}|${list.map((x) => x.key).sort()}|${last ?? ""}`;
+    if (!cache.has(key)) cache.set(key, bandOf(list, [0, W], depth, contacts, false, UP, door, last));
     return cache.get(key)!;
   };
   for (const far of farOptions) {
@@ -573,12 +537,15 @@ function crossUpper(c: Cross, program: Program, W: number, V: number, door: numb
     const frontFree = edgeContacts(limit, c.stair, c.stairFront);
     const backFree = edgeContacts(limit, c.stair, !c.stairFront);
     const rest = spaces.filter((x) => x !== far);
-    for (const [frontSet, backSet] of splits(rest)) {
+    for (const [frontSet, backSet] of splits(rest, c.middle[0] > 0)) {
       const f = band(frontSet, front, frontFree);
-      const b = f && band(backSet, back, backFree);
+      // Along the street wall, an ensuite at the end of the landing has its bedroom at that end of the band behind.
+      const owner = far?.type === "ensuite" && !c.middle[0] ? far.key.replace(/-ensuite$/, "") : undefined;
+      const b = f && band(backSet, back, backFree, owner);
       if (!f || !b) continue;
       const needs = [...f.rooms.filter((r) => r.via === "hall").map((r) => reachEnd(r, frontFree, door)), ...b.rooms.filter((r) => r.via === "hall").map((r) => reachEnd(r, backFree, door))];
       let landingEnd = up(Math.max(c.landingEnd, ...needs));
+      if (far && !c.middle[0]) landingEnd = Math.max(landingEnd, up(W - farLongest(far, len(c.middle))));
       if (landingEnd > limit + EPS) continue;
       if (!far && W - landingEnd < 1.2) landingEnd = W;
       let farPlaced = far ? farRoom(far, landingEnd, W, c.middle) : null;
@@ -594,7 +561,7 @@ function crossUpper(c: Cross, program: Program, W: number, V: number, door: numb
       const master = rooms.find((r) => r.type === "primary_bedroom");
       // The master bedroom on the garden side, and the biggest bedroom.
       const quiet = (master && master.box.v0 >= c.middle[1] - EPS ? 0 : 0.5) + (master && rooms.some((r) => r.type === "bedroom" && area(r.box) > area(master.box) + 0.2) ? 2 : 0);
-      const score = f.score + b.score + miss(farPlaced ? [farPlaced] : []) + quiet + ((landingEnd * MIDDLE) / (W * V)) * 25;
+      const score = f.score + b.score + miss(farPlaced ? [farPlaced] : []) + quiet + ((landingEnd * (c.middle[0] > 0 ? MIDDLE : len(c.middle))) / (W * V)) * 25;
       out.push({ tag: `${far ? far.type[0] : "n"}${frontSet.map((x) => x.key).join("")}`, hall: { u0: 0, u1: landingEnd, v0: c.middle[0], v1: c.middle[1] }, rooms, score });
     }
   }

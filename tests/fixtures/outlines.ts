@@ -29,6 +29,25 @@ export const OUTLINES = {
 
 export type OutlineName = keyof typeof OUTLINES;
 
+/**
+ * Houses for two storeys that aren't rectangles, street to the south: each
+ * has a part at least 9 m deep from the street to take the stairs.
+ */
+export const STOREY_OUTLINES = {
+  /** An 8.5 × 9 m house with a 4.5 × 4 m wing behind it. */
+  L: ring([0, 0], [8.5, 0], [8.5, 9], [4.5, 9], [4.5, 13], [0, 13]),
+  /** An 8 × 10 m house with a 5 × 6 m wing beside it on the street. */
+  Lside: ring([0, 0], [13, 0], [13, 6], [8, 6], [8, 10], [0, 10]),
+  /** A 13 × 9 m house with a 5 × 4 m wing behind its middle. */
+  T: ring([0, 0], [13, 0], [13, 9], [9, 9], [9, 13], [4, 13], [4, 9], [0, 9]),
+  /** A 13 × 9 m house with 4 × 3.5 m wings behind both ends. */
+  U: ring([0, 0], [13, 0], [13, 12.5], [9, 12.5], [9, 9], [4, 9], [4, 12.5], [0, 12.5]),
+  /** A 9 × 9 m house and an 8 × 8 m block behind, overlapping by 4 m. */
+  Z: ring([0, 0], [9, 0], [9, 5], [13, 5], [13, 13], [5, 13], [5, 9], [0, 9]),
+  /** A 9 × 9.5 m house with a 3 × 1 m bay on the garden side. */
+  bay: ring([0, 0], [9, 0], [9, 9.5], [6, 9.5], [6, 10.5], [3, 10.5], [3, 9.5], [0, 9.5]),
+} as const satisfies Record<string, Ring>;
+
 /** Mulberry32: small, fast and reproducible. */
 export function seeded(seed: number): () => number {
   let a = seed >>> 0;

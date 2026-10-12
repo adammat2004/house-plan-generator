@@ -251,7 +251,10 @@ export function emitLayout(shell: PlanDocument, plan: LayoutPlan, opts: EmitOpti
     const width = narrow ? Math.min(opts.doorWidth, 0.8) : opts.doorWidth;
     // Where doors must keep clear of something (the stairs), any stretch of the shared wall will do, longest first.
     const tries = opts.doorAvoid?.length ? [...runsBetween(r, parent)].sort((p, q) => q.hi - q.lo - (p.hi - p.lo)) : [shared];
+    // Only a door that fits nowhere counts as left out, not each stretch tried on the way.
+    const before = skipped;
     if (!tries.some((run) => place("door", run, width, room.kind === "ensuite" ? 0.4 : 0.3, "standard", wayIn))) return { ok: false, reason: `there's no room for a door into ${room.name.toLowerCase()}.` };
+    skipped = before;
     for (const link of room.links ?? []) {
       const other = plan.rooms.findIndex((x) => x.key === link);
       const run = other >= 0 ? longest(runsBetween(r, other)) : undefined;
@@ -268,7 +271,8 @@ export function emitLayout(shell: PlanDocument, plan: LayoutPlan, opts: EmitOpti
     const lit = doorOut ? [...outs.filter((o) => o !== doorOut), doorOut] : outs;
     place("window", lit[0], WINDOW_WIDTH[room.window] * light, 0.6, room.window);
     if (room.window === "large" || opts.naturalLight) {
-      for (const o of lit.slice(1)) if (o.hi - o.lo >= 1.4) place("window", o, WINDOW_WIDTH[room.window] * light, 0.8, room.window);
+      // Not beside the garden doors: a window there would overlap them.
+      for (const o of lit.slice(1)) if (o !== doorOut && o.hi - o.lo >= 1.4) place("window", o, WINDOW_WIDTH[room.window] * light, 0.8, room.window);
     }
   }
 

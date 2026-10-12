@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { applyCommand } from "@/domain/commands";
+import type { Furniture } from "@/domain/plan/types";
 import { AXIS, addWall, apply, envelope, level, newHouse, reject, rooms } from "../helpers";
 
 const vertex = (doc: ReturnType<typeof newHouse>, wallId: string, end: "start" | "end") => {
@@ -138,5 +139,45 @@ describe("house resizing", () => {
 
   it("rejects dimensions too small for the walls", () => {
     expect(reject(newHouse(), { type: "resizeFootprint", width: 0.9 })[0].code).toBe("invalid-value");
+  });
+});
+
+describe("furniture when walls move", () => {
+  const piece = (id: string, kind: Furniture["kind"], x: number, y: number, width: number, depth: number, rotation: Furniture["rotation"] = 0): Furniture => ({ id, kind, position: { x, y }, rotation, width, depth, height: 0.8 });
+  /** A wall across the house at y = 5, a bed backed onto it from the south, a sofa from the north, and pieces away from it. */
+  function furnished() {
+    let doc = addWall(newHouse(), "h", [AXIS.west, 5], [AXIS.east, 5]);
+    for (const item of [
+      piece("bed", "bed_double", 2, 3.95, 1.6, 2, 180),
+      piece("chair", "armchair", 6, 2, 0.8, 0.8),
+      piece("sofa", "sofa_3", 2, 5.5, 2, 0.9),
+      piece("desk", "desk", 6, 6.5, 1.2, 0.6),
+    ]) doc = apply(doc, { type: "addFurniture", item });
+    return doc;
+  }
+  const at = (doc: ReturnType<typeof newHouse>, id: string) => level(doc).furniture[id].position;
+
+  it("moves what stands against a wall with it, and pushes what's in its way", () => {
+    const doc = apply(furnished(), { type: "moveWall", wallId: "h", delta: 1.3 });
+    // Backed onto the wall either side: they go with it.
+    expect(at(doc, "bed")).toEqual({ x: 2, y: 5.25 });
+    expect(at(doc, "sofa")).toEqual({ x: 2, y: 6.8 });
+    // In the wall's way: pushed just clear of its new face.
+    expect(at(doc, "desk")).toEqual({ x: 6, y: 6.65 });
+    // Away from it: stays put.
+    expect(at(doc, "chair")).toEqual({ x: 6, y: 2 });
+  });
+
+  it("puts them back on undo, as one step with the wall", () => {
+    const before = furnished();
+    const moved = applyCommand(before, { type: "moveWall", wallId: "h", delta: -1 });
+    expect(moved.ok && moved.document.levels[0].furniture.bed.position).toEqual({ x: 2, y: 2.95 });
+    expect(at(before, "bed")).toEqual({ x: 2, y: 3.95 });
+  });
+
+  it("takes furniture against an outside wall out with it", () => {
+    let doc = apply(newHouse(), { type: "addFurniture", item: piece("wardrobe", "wardrobe", 4, 9.4, 1.2, 0.6) });
+    doc = apply(doc, { type: "moveOutlineEdge", wallId: envelope(doc).sides.north, outward: 1 });
+    expect(at(doc, "wardrobe")).toEqual({ x: 4, y: 10.4 });
   });
 });

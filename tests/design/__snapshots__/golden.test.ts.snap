@@ -574,7 +574,6 @@ exports[`golden layouts > lays out plans inside the user's house 4`] = `
       "goal": undefined,
       "notes": [
         "Living, kitchen and dining share one open-plan space so the rooms fit this footprint.",
-        "1 door or window didn't fit and was left out.",
       ],
       "plan": [
         "house: 11.0 × 8.0 m rectangle, 73.6 m² of rooms, hall 10.4 m² (14%)",
@@ -599,7 +598,6 @@ exports[`golden layouts > lays out plans inside the user's house 4`] = `
       "goal": undefined,
       "notes": [
         "Living, kitchen and dining share one open-plan space so the rooms fit this footprint.",
-        "1 door or window didn't fit and was left out.",
       ],
       "plan": [
         "house: 11.0 × 8.0 m rectangle, 73.6 m² of rooms, hall 10.4 m² (14%)",
@@ -624,7 +622,6 @@ exports[`golden layouts > lays out plans inside the user's house 4`] = `
       "goal": undefined,
       "notes": [
         "Living, kitchen and dining share one open-plan space so the rooms fit this footprint.",
-        "1 door or window didn't fit and was left out.",
       ],
       "plan": [
         "house: 11.0 × 8.0 m rectangle, 73.6 m² of rooms, hall 10.4 m² (14%)",
@@ -649,7 +646,6 @@ exports[`golden layouts > lays out plans inside the user's house 4`] = `
       "goal": undefined,
       "notes": [
         "Living, kitchen and dining share one open-plan space so the rooms fit this footprint.",
-        "1 door or window didn't fit and was left out.",
       ],
       "plan": [
         "house: 11.0 × 8.0 m rectangle, 73.6 m² of rooms, hall 10.4 m² (14%)",
@@ -1048,9 +1044,7 @@ exports[`golden layouts > lays out plans inside the user's house 7`] = `
       "changedRoomIds": undefined,
       "footprint": undefined,
       "goal": undefined,
-      "notes": [
-        "1 door or window didn't fit and was left out.",
-      ],
+      "notes": [],
       "plan": [
         "house: 12.0 × 11.0 m rectangle, 113.6 m² of rooms, hall 19.0 m² (17%)",
         "doors out: E→Hall, W→Living Room (garden), street E",
@@ -1074,9 +1068,7 @@ exports[`golden layouts > lays out plans inside the user's house 7`] = `
       "changedRoomIds": undefined,
       "footprint": undefined,
       "goal": undefined,
-      "notes": [
-        "1 door or window didn't fit and was left out.",
-      ],
+      "notes": [],
       "plan": [
         "house: 12.0 × 11.0 m rectangle, 113.6 m² of rooms, hall 19.0 m² (17%)",
         "doors out: E→Hall, W→Living Room (garden), street E",
@@ -1100,9 +1092,7 @@ exports[`golden layouts > lays out plans inside the user's house 7`] = `
       "changedRoomIds": undefined,
       "footprint": undefined,
       "goal": undefined,
-      "notes": [
-        "1 door or window didn't fit and was left out.",
-      ],
+      "notes": [],
       "plan": [
         "house: 12.0 × 11.0 m rectangle, 113.6 m² of rooms, hall 19.0 m² (17%)",
         "doors out: E→Hall, W→Living Room (garden), street E",
@@ -1126,9 +1116,7 @@ exports[`golden layouts > lays out plans inside the user's house 7`] = `
       "changedRoomIds": undefined,
       "footprint": undefined,
       "goal": undefined,
-      "notes": [
-        "1 door or window didn't fit and was left out.",
-      ],
+      "notes": [],
       "plan": [
         "house: 12.0 × 11.0 m rectangle, 113.6 m² of rooms, hall 19.0 m² (17%)",
         "doors out: E→Hall, W→Living Room (garden), street E",
@@ -1350,6 +1338,975 @@ exports[`golden layouts > lays out plans inside the user's house 9`] = `
       "summary": "Sleeping wing on the entrance side with its rooms reversed, living wing opposite.",
       "title": undefined,
       "variant": undefined,
+    },
+  ],
+  "issues": [],
+}
+`;
+
+exports[`golden layouts > lays out two-storey houses 1`] = `
+{
+  "candidates": [
+    {
+      "arrangement": "storeys-a.x34r.ws2.ns4s5",
+      "floors": [
+        [
+          "house: 7.5 × 9.5 m rectangle, 59.6 m² of rooms, hall 12.7 m² (21%)",
+          "doors out: N→Kitchen / Dining (garden), S→Hall, street S",
+          "  Hall                       hall              12.7 m²  4.3×5.3 (not rectangular)  doors: Kitchen / Dining, Living Room, WC, outside  windows: W",
+          "  Living Room                living            17.8 m²  5.5×3.2  doors: Hall  windows: E S",
+          "  Kitchen / Dining           kitchen_dining    24.1 m²  6.9×3.5  doors: Hall, garden  windows: E W",
+          "  WC                         wc                 5.0 m²  2.5×2.0  doors: Hall  windows: E",
+        ],
+        [
+          "house: 7.5 × 9.5 m rectangle, 59.0 m² of rooms, hall 13.8 m² (23%)",
+          "doors out: none, street S",
+          "  Landing                    hall              13.8 m²  6.9×2.0  doors: Bathroom, Bedroom 2, Bedroom 3, Master Bedroom  windows: none",
+          "  Master Bedroom             primary_bedroom   12.6 m²  3.6×3.5  doors: Ensuite, Landing  windows: N(garden)",
+          "  Bedroom 2                  bedroom           10.9 m²  3.4×3.2  doors: Landing  windows: S",
+          "  Bedroom 3                  bedroom           10.9 m²  3.4×3.2  doors: Landing  windows: S",
+          "  Ensuite                    ensuite            5.2 m²  1.5×3.5  doors: Master Bedroom  windows: N(garden)",
+          "  Bathroom                   bathroom           5.6 m²  1.6×3.5  doors: Landing  windows: E",
+        ],
+      ],
+      "footprint": {
+        "depth": 9.5,
+        "shape": "deep",
+        "width": 7.5,
+      },
+      "notes": [
+        "A WC is added downstairs, as two-storey houses usually have one.",
+      ],
+      "stairs": [
+        {
+          "foot": {
+            "x": 1.6,
+            "y": 5.15,
+          },
+          "rotation": 270,
+          "shape": "straight",
+        },
+      ],
+      "summary": "A deep 7.5 × 9.5 m two-storey house. Living spaces downstairs beside the hall; the stairs lead up to the bedrooms off the landing.",
+      "variant": "storeys-a.x34r.ws2.ns4s5@2s:7.5x9.5",
+    },
+    {
+      "arrangement": "storeys-b.x34f.ws2.ns4s5",
+      "floors": [
+        [
+          "house: 7.5 × 9.5 m rectangle, 59.6 m² of rooms, hall 12.7 m² (21%)",
+          "doors out: N→Kitchen / Dining (garden), S→Hall, street S",
+          "  Hall                       hall              12.7 m²  4.3×5.3 (not rectangular)  doors: Kitchen / Dining, Living Room, WC, outside  windows: E",
+          "  Living Room                living            17.8 m²  5.6×3.2  doors: Hall  windows: S W",
+          "  Kitchen / Dining           kitchen_dining    24.1 m²  6.9×3.5  doors: Hall, garden  windows: E W",
+          "  WC                         wc                 5.0 m²  2.5×2.0  doors: Hall  windows: W",
+        ],
+        [
+          "house: 7.5 × 9.5 m rectangle, 59.0 m² of rooms, hall 13.8 m² (23%)",
+          "doors out: none, street S",
+          "  Landing                    hall              13.8 m²  6.9×2.0  doors: Bathroom, Bedroom 2, Bedroom 3, Master Bedroom  windows: none",
+          "  Master Bedroom             primary_bedroom   12.6 m²  3.6×3.5  doors: Ensuite, Landing  windows: N(garden)",
+          "  Bedroom 2                  bedroom           10.9 m²  3.4×3.2  doors: Landing  windows: S",
+          "  Bedroom 3                  bedroom           10.9 m²  3.4×3.2  doors: Landing  windows: S",
+          "  Ensuite                    ensuite            5.2 m²  1.5×3.5  doors: Master Bedroom  windows: N(garden)",
+          "  Bathroom                   bathroom           5.6 m²  1.6×3.5  doors: Landing  windows: W",
+        ],
+      ],
+      "footprint": {
+        "depth": 9.5,
+        "shape": "deep",
+        "width": 7.5,
+      },
+      "notes": [
+        "A WC is added downstairs, as two-storey houses usually have one.",
+      ],
+      "stairs": [
+        {
+          "foot": {
+            "x": 5.9,
+            "y": 4.05,
+          },
+          "rotation": 90,
+          "shape": "straight",
+        },
+      ],
+      "summary": "A deep 7.5 × 9.5 m two-storey house. Living spaces downstairs beside the hall; the stairs lead up to the bedrooms off the landing.",
+      "variant": "storeys-b.x34f.ws2.ns4s5@2s:7.5x9.5",
+    },
+    {
+      "arrangement": "storeys-a.x30f.ns1.es4s5",
+      "floors": [
+        [
+          "house: 9.0 × 9.0 m rectangle, 68.4 m² of rooms, hall 20.4 m² (30%)",
+          "doors out: N→Living Room (garden), S→Hall, street S",
+          "  Hall                       hall              20.4 m²  8.4×4.9 (not rectangular)  doors: Kitchen / Dining, Living Room, WC, outside  windows: W",
+          "  Living Room                living            23.8 m²  7.0×3.4  doors: Hall, garden  windows: W",
+          "  Kitchen / Dining           kitchen_dining    19.7 m²  7.0×2.8  doors: Hall  windows: E S",
+          "  WC                         wc                 4.4 m²  1.3×3.4  doors: Hall  windows: E",
+        ],
+        [
+          "house: 9.0 × 9.0 m rectangle, 68.1 m² of rooms, hall 11.2 m² (16%)",
+          "doors out: none, street S",
+          "  Landing                    hall              11.2 m²  5.6×2.0  doors: Bathroom, Bedroom 2, Bedroom 3, Master Bedroom  windows: none",
+          "  Master Bedroom             primary_bedroom   20.6 m²  6.0×3.4  doors: Ensuite, Landing  windows: N(garden)",
+          "  Bedroom 2                  bedroom           11.6 m²  4.2×2.8  doors: Landing  windows: S",
+          "  Bedroom 3                  bedroom           11.6 m²  4.1×2.8  doors: Landing  windows: S",
+          "  Ensuite                    ensuite            5.4 m²  2.7×2.0  doors: Master Bedroom  windows: E",
+          "  Bathroom                   bathroom           7.7 m²  2.3×3.4  doors: Landing  windows: W",
+        ],
+      ],
+      "footprint": {
+        "depth": 9,
+        "shape": "compact",
+        "width": 9,
+      },
+      "notes": [
+        "A WC is added downstairs, as two-storey houses usually have one.",
+      ],
+      "stairs": [
+        {
+          "foot": {
+            "x": 1.6,
+            "y": 3.65,
+          },
+          "rotation": 270,
+          "shape": "straight",
+        },
+      ],
+      "summary": "A compact 9 × 9 m two-storey house. Living spaces downstairs beside the hall; the stairs lead up to the bedrooms off the landing.",
+      "variant": "storeys-a.x30f.ns1.es4s5@2s:9x9",
+    },
+  ],
+  "issues": [],
+}
+`;
+
+exports[`golden layouts > lays out two-storey houses 2`] = `
+{
+  "candidates": [
+    {
+      "arrangement": "storeys-a.x42f.ws2s5.es7s8s9",
+      "floors": [
+        [
+          "house: 10.5 × 10.5 m rectangle, 94.8 m² of rooms, hall 19.1 m² (20%)",
+          "doors out: N→Kitchen / Dining (garden), S→Hall, street S",
+          "  Hall                       hall              19.1 m²  7.0×6.1 (not rectangular)  doors: Garage, Kitchen / Dining, Living Room, WC, outside  windows: W",
+          "  Living Room                living            17.2 m²  4.3×4.0  doors: Hall  windows: S",
+          "  Kitchen / Dining           kitchen_dining    30.3 m²  8.2×3.7  doors: Hall, Utility, garden  windows: W",
+          "  Utility                    utility            5.9 m²  1.6×3.7  doors: Kitchen / Dining  windows: E",
+          "  Garage                     garage            16.6 m²  4.1×4.0  doors: Hall  windows: none",
+          "  WC                         wc                 5.6 m²  2.8×2.0  doors: Hall  windows: E",
+        ],
+        [
+          "house: 10.5 × 10.5 m rectangle, 93.9 m² of rooms, hall 15.9 m² (17%)",
+          "doors out: none, street S",
+          "  Landing                    hall              15.9 m²  8.0×2.0  doors: Bathroom, Bathroom 2, Bedroom 2, Bedroom 3, Bedroom 4, Master Bedroom, Study  windows: none",
+          "  Study                      office             8.5 m²  2.3×3.7  doors: Landing  windows: N(garden)",
+          "  Master Bedroom             primary_bedroom   14.8 m²  4.0×3.7  doors: Ensuite, Landing  windows: N(garden)",
+          "  Bedroom 2                  bedroom           12.8 m²  3.2×4.0  doors: Landing  windows: W",
+          "  Bedroom 3                  bedroom           13.2 m²  3.3×4.0  doors: Landing  windows: S",
+          "  Bedroom 4                  bedroom           12.8 m²  3.2×4.0  doors: Landing  windows: E",
+          "  Ensuite                    ensuite            3.7 m²  1.8×2.0  doors: Master Bedroom  windows: E",
+          "  Bathroom                   bathroom           5.9 m²  1.6×3.7  doors: Landing  windows: W",
+          "  Bathroom 2                 bathroom           6.3 m²  1.7×3.7  doors: Landing  windows: N(garden)",
+        ],
+      ],
+      "footprint": {
+        "depth": 10.5,
+        "shape": "compact",
+        "width": 10.5,
+      },
+      "notes": [
+        "A WC is added downstairs, as two-storey houses usually have one.",
+        "The study is upstairs, which keeps the two floors about the same size.",
+      ],
+      "stairs": [
+        {
+          "foot": {
+            "x": 1.6,
+            "y": 4.85,
+          },
+          "rotation": 270,
+          "shape": "straight",
+        },
+      ],
+      "summary": "A compact 10.5 × 10.5 m two-storey house. Living spaces downstairs beside the hall; the stairs lead up to the bedrooms off the landing.",
+      "variant": "storeys-a.x42f.ws2s5.es7s8s9@2s:10.5x10.5",
+    },
+    {
+      "arrangement": "storeys-a.x42f.us2s5.es7s8s9",
+      "floors": [
+        [
+          "house: 10.5 × 10.5 m rectangle, 94.8 m² of rooms, hall 19.1 m² (20%)",
+          "doors out: N→Kitchen / Dining (garden), S→Hall, street S",
+          "  Hall                       hall              19.1 m²  7.0×6.1 (not rectangular)  doors: Garage, Kitchen / Dining, Living Room, Utility, WC, outside  windows: W",
+          "  Living Room                living            17.2 m²  4.3×4.0  doors: Hall  windows: S",
+          "  Kitchen / Dining           kitchen_dining    31.1 m²  8.4×3.7  doors: Hall, garden  windows: E",
+          "  Utility                    utility            5.6 m²  2.8×2.0  doors: Hall  windows: E",
+          "  Garage                     garage            16.6 m²  4.1×4.0  doors: Hall  windows: none",
+          "  WC                         wc                 5.2 m²  1.4×3.7  doors: Hall  windows: W",
+        ],
+        [
+          "house: 10.5 × 10.5 m rectangle, 93.9 m² of rooms, hall 15.9 m² (17%)",
+          "doors out: none, street S",
+          "  Landing                    hall              15.9 m²  8.0×2.0  doors: Bathroom, Bathroom 2, Bedroom 2, Bedroom 3, Bedroom 4, Master Bedroom, Study  windows: none",
+          "  Study                      office             8.5 m²  2.3×3.7  doors: Landing  windows: N(garden)",
+          "  Master Bedroom             primary_bedroom   14.8 m²  4.0×3.7  doors: Ensuite, Landing  windows: N(garden)",
+          "  Bedroom 2                  bedroom           12.8 m²  3.2×4.0  doors: Landing  windows: W",
+          "  Bedroom 3                  bedroom           13.2 m²  3.3×4.0  doors: Landing  windows: S",
+          "  Bedroom 4                  bedroom           12.8 m²  3.2×4.0  doors: Landing  windows: E",
+          "  Ensuite                    ensuite            3.7 m²  1.8×2.0  doors: Master Bedroom  windows: E",
+          "  Bathroom                   bathroom           5.9 m²  1.6×3.7  doors: Landing  windows: W",
+          "  Bathroom 2                 bathroom           6.3 m²  1.7×3.7  doors: Landing  windows: N(garden)",
+        ],
+      ],
+      "footprint": {
+        "depth": 10.5,
+        "shape": "compact",
+        "width": 10.5,
+      },
+      "notes": [
+        "A WC is added downstairs, as two-storey houses usually have one.",
+        "The study is upstairs, which keeps the two floors about the same size.",
+      ],
+      "stairs": [
+        {
+          "foot": {
+            "x": 1.6,
+            "y": 4.85,
+          },
+          "rotation": 270,
+          "shape": "straight",
+        },
+      ],
+      "summary": "A compact 10.5 × 10.5 m two-storey house. Living spaces downstairs beside the hall; the stairs lead up to the bedrooms off the landing.",
+      "variant": "storeys-a.x42f.us2s5.es7s8s9@2s:10.5x10.5",
+    },
+    {
+      "arrangement": "storeys-a.x38f.us2s5.es7s8s9",
+      "floors": [
+        [
+          "house: 11.0 × 10.0 m rectangle, 94.5 m² of rooms, hall 19.1 m² (20%)",
+          "doors out: N→Kitchen / Dining (garden), S→Hall, street S",
+          "  Hall                       hall              19.1 m²  7.3×5.7 (not rectangular)  doors: Garage, Kitchen / Dining, Living Room, Utility, WC, outside  windows: W",
+          "  Living Room                living            16.4 m²  4.5×3.6  doors: Hall  windows: S",
+          "  Kitchen / Dining           kitchen_dining    32.2 m²  8.9×3.6  doors: Hall, garden  windows: E",
+          "  Utility                    utility            6.1 m²  3.0×2.0  doors: Hall  windows: E",
+          "  Garage                     garage            15.8 m²  4.4×3.6  doors: Hall  windows: none",
+          "  WC                         wc                 4.9 m²  1.3×3.6  doors: Hall  windows: W",
+        ],
+        [
+          "house: 11.0 × 10.0 m rectangle, 93.7 m² of rooms, hall 16.6 m² (18%)",
+          "doors out: none, street S",
+          "  Landing                    hall              16.6 m²  8.3×2.0  doors: Bathroom, Bathroom 2, Bedroom 2, Bedroom 3, Bedroom 4, Master Bedroom, Study  windows: none",
+          "  Study                      office             9.0 m²  2.5×3.6  doors: Landing  windows: N(garden)",
+          "  Master Bedroom             primary_bedroom   15.5 m²  4.3×3.6  doors: Ensuite, Landing  windows: N(garden)",
+          "  Bedroom 2                  bedroom           12.1 m²  3.4×3.6  doors: Landing  windows: W",
+          "  Bedroom 3                  bedroom           12.6 m²  3.5×3.6  doors: Landing  windows: S",
+          "  Bedroom 4                  bedroom           12.1 m²  3.3×3.6  doors: Landing  windows: E",
+          "  Ensuite                    ensuite            4.0 m²  2.0×2.0  doors: Master Bedroom  windows: E",
+          "  Bathroom                   bathroom           5.8 m²  1.6×3.6  doors: Landing  windows: W",
+          "  Bathroom 2                 bathroom           6.1 m²  1.7×3.6  doors: Landing  windows: N(garden)",
+        ],
+      ],
+      "footprint": {
+        "depth": 10,
+        "shape": "compact",
+        "width": 11,
+      },
+      "notes": [
+        "A WC is added downstairs, as two-storey houses usually have one.",
+        "The study is upstairs, which keeps the two floors about the same size.",
+      ],
+      "stairs": [
+        {
+          "foot": {
+            "x": 1.6,
+            "y": 4.45,
+          },
+          "rotation": 270,
+          "shape": "straight",
+        },
+      ],
+      "summary": "A compact 11 × 10 m two-storey house. Living spaces downstairs beside the hall; the stairs lead up to the bedrooms off the landing.",
+      "variant": "storeys-a.x38f.us2s5.es7s8s9@2s:11x10",
+    },
+  ],
+  "issues": [],
+}
+`;
+
+exports[`golden layouts > lays out two-storey houses 3`] = `
+{
+  "candidates": [
+    {
+      "arrangement": "storeys-a.x34r.ws2.ns4s5s6",
+      "floors": [
+        [
+          "house: 7.5 × 9.0 m rectangle, 56.2 m² of rooms, hall 12.7 m² (23%)",
+          "doors out: N→Kitchen / Dining (garden), S→Hall, street S",
+          "  Hall                       hall              12.7 m²  4.3×5.3 (not rectangular)  doors: Kitchen / Dining, Living Room, WC, outside  windows: W",
+          "  Living Room                living            17.8 m²  5.5×3.2  doors: Hall  windows: E S",
+          "  Kitchen / Dining           kitchen_dining    20.7 m²  6.9×3.0  doors: Hall, garden  windows: E W",
+          "  WC                         wc                 5.0 m²  2.5×2.0  doors: Hall  windows: E",
+        ],
+        [
+          "house: 7.5 × 9.0 m rectangle, 55.6 m² of rooms, hall 13.8 m² (25%)",
+          "doors out: none, street S",
+          "  Landing                    hall              13.8 m²  6.9×2.0  doors: Bathroom, Bedroom 2, Bedroom 3, Master Bedroom  windows: none",
+          "  Master Bedroom             primary_bedroom   16.2 m²  5.4×3.0  doors: Ensuite, Landing  windows: N(garden)",
+          "  Bedroom 2                  bedroom            8.0 m²  2.5×3.2  doors: Landing  windows: W",
+          "  Bedroom 3                  bedroom            8.3 m²  2.6×3.2  doors: Landing  windows: S",
+          "  Ensuite                    ensuite            4.2 m²  1.4×3.0  doors: Master Bedroom  windows: E",
+          "  Bathroom                   bathroom           5.1 m²  1.6×3.2  doors: Landing  windows: E",
+        ],
+      ],
+      "footprint": undefined,
+      "notes": [
+        "A WC is added downstairs, as two-storey houses usually have one.",
+      ],
+      "stairs": [
+        {
+          "foot": {
+            "x": 1.6,
+            "y": 5.15,
+          },
+          "rotation": 270,
+          "shape": "straight",
+        },
+      ],
+      "summary": "Living spaces downstairs beside the hall; the stairs lead up to the bedrooms off the landing.",
+      "variant": undefined,
+    },
+    {
+      "arrangement": "storeys-a.x30r.ws1.ns4s5",
+      "floors": [
+        [
+          "house: 7.5 × 9.0 m rectangle, 56.2 m² of rooms, hall 12.2 m² (22%)",
+          "doors out: N→Living Room (garden), S→Hall, street S",
+          "  Hall                       hall              12.2 m²  4.3×4.9 (not rectangular)  doors: Kitchen / Dining, Living Room, WC, outside  windows: W",
+          "  Living Room                living            23.5 m²  6.9×3.4  doors: Hall, garden  windows: E W",
+          "  Kitchen / Dining           kitchen_dining    15.5 m²  5.5×2.8  doors: Hall  windows: E S",
+          "  WC                         wc                 5.0 m²  2.5×2.0  doors: Hall  windows: E",
+        ],
+        [
+          "house: 7.5 × 9.0 m rectangle, 55.6 m² of rooms, hall 13.8 m² (25%)",
+          "doors out: none, street S",
+          "  Landing                    hall              13.8 m²  6.9×2.0  doors: Bathroom, Bedroom 2, Bedroom 3, Master Bedroom  windows: none",
+          "  Master Bedroom             primary_bedroom   12.2 m²  3.6×3.4  doors: Ensuite, Landing  windows: N(garden)",
+          "  Bedroom 2                  bedroom            9.5 m²  3.4×2.8  doors: Landing  windows: S",
+          "  Bedroom 3                  bedroom            9.5 m²  3.4×2.8  doors: Landing  windows: S",
+          "  Ensuite                    ensuite            5.1 m²  1.5×3.4  doors: Master Bedroom  windows: N(garden)",
+          "  Bathroom                   bathroom           5.4 m²  1.6×3.4  doors: Landing  windows: E",
+        ],
+      ],
+      "footprint": undefined,
+      "notes": [
+        "A WC is added downstairs, as two-storey houses usually have one.",
+      ],
+      "stairs": [
+        {
+          "foot": {
+            "x": 1.6,
+            "y": 4.75,
+          },
+          "rotation": 270,
+          "shape": "straight",
+        },
+      ],
+      "summary": "Living spaces downstairs beside the hall; the stairs lead up to the bedrooms off the landing.",
+      "variant": undefined,
+    },
+    {
+      "arrangement": "storeys-a.x30f.ws1.ns4s5",
+      "floors": [
+        [
+          "house: 7.5 × 9.0 m rectangle, 56.2 m² of rooms, hall 12.2 m² (22%)",
+          "doors out: N→Living Room (garden), S→Hall, street S",
+          "  Hall                       hall              12.2 m²  4.3×4.9 (not rectangular)  doors: Kitchen / Dining, Living Room, WC, outside  windows: W",
+          "  Living Room                living            23.5 m²  6.9×3.4  doors: Hall, garden  windows: E W",
+          "  Kitchen / Dining           kitchen_dining    15.5 m²  5.5×2.8  doors: Hall  windows: E S",
+          "  WC                         wc                 5.0 m²  2.5×2.0  doors: Hall  windows: E",
+        ],
+        [
+          "house: 7.5 × 9.0 m rectangle, 55.6 m² of rooms, hall 13.8 m² (25%)",
+          "doors out: none, street S",
+          "  Landing                    hall              13.8 m²  6.9×2.0  doors: Bathroom, Bedroom 2, Bedroom 3, Master Bedroom  windows: none",
+          "  Master Bedroom             primary_bedroom   12.2 m²  3.6×3.4  doors: Ensuite, Landing  windows: N(garden)",
+          "  Bedroom 2                  bedroom            9.5 m²  3.4×2.8  doors: Landing  windows: S",
+          "  Bedroom 3                  bedroom            9.5 m²  3.4×2.8  doors: Landing  windows: S",
+          "  Ensuite                    ensuite            5.1 m²  1.5×3.4  doors: Master Bedroom  windows: N(garden)",
+          "  Bathroom                   bathroom           5.4 m²  1.6×3.4  doors: Landing  windows: E",
+        ],
+      ],
+      "footprint": undefined,
+      "notes": [
+        "A WC is added downstairs, as two-storey houses usually have one.",
+      ],
+      "stairs": [
+        {
+          "foot": {
+            "x": 1.6,
+            "y": 3.65,
+          },
+          "rotation": 270,
+          "shape": "straight",
+        },
+      ],
+      "summary": "Living spaces downstairs beside the hall; the stairs lead up to the bedrooms off the landing.",
+      "variant": undefined,
+    },
+  ],
+  "issues": [],
+}
+`;
+
+exports[`golden layouts > lays out two-storey houses 4`] = `
+{
+  "candidates": [],
+  "issues": [
+    {
+      "code": "does-not-fit",
+      "message": "No two-storey layout fits: the living spaces don't fit round the hall.",
+      "tooSmall": true,
+    },
+  ],
+}
+`;
+
+exports[`golden layouts > lays out two-storey houses 5`] = `
+{
+  "candidates": [
+    {
+      "arrangement": "storeys-a.s00-cce.x34f.ns2.es4s5",
+      "floors": [
+        [
+          "house: 8.5 × 13.0 m L, 79.9 m² of rooms, hall 19.9 m² (25%)",
+          "doors out: N→Kitchen / Dining (garden), S→Hall, street S",
+          "  Hall                       hall              19.9 m²  7.9×5.3 (not rectangular)  doors: Kitchen / Dining, Living Room, WC, outside  windows: W",
+          "  Living Room                living            21.0 m²  6.5×3.2  doors: Hall  windows: E S",
+          "  Kitchen / Dining           kitchen_dining    35.5 m²  6.7×7.0 (not rectangular)  doors: Hall, garden  windows: E N(garden) W",
+          "  WC                         wc                 3.5 m²  1.1×3.0  doors: Hall  windows: E",
+        ],
+        [
+          "house: 8.5 × 9.0 m rectangle, 64.0 m² of rooms, hall 11.2 m² (18%)",
+          "doors out: none, street S",
+          "  Landing                    hall              11.2 m²  5.6×2.0  doors: Bathroom, Bedroom 2, Bedroom 3, Master Bedroom  windows: none",
+          "  Master Bedroom             primary_bedroom   17.1 m²  5.7×3.0  doors: Ensuite, Landing  windows: N(garden)",
+          "  Bedroom 2                  bedroom           12.5 m²  3.9×3.2  doors: Landing  windows: S",
+          "  Bedroom 3                  bedroom           12.5 m²  3.9×3.2  doors: Landing  windows: S",
+          "  Ensuite                    ensuite            4.4 m²  2.2×2.0  doors: Master Bedroom  windows: E",
+          "  Bathroom                   bathroom           6.3 m²  2.1×3.0  doors: Landing  windows: W",
+        ],
+      ],
+      "footprint": undefined,
+      "notes": [
+        "A WC is added downstairs, as two-storey houses usually have one.",
+      ],
+      "stairs": [
+        {
+          "foot": {
+            "x": 1.6,
+            "y": 4.05,
+          },
+          "rotation": 270,
+          "shape": "straight",
+        },
+      ],
+      "summary": "Bedrooms upstairs over the main part of the house; the single-storey wing holds the kitchen / dining.",
+      "variant": undefined,
+    },
+    {
+      "arrangement": "storeys-a.s00-cce.x34r.ns2.es4s5",
+      "floors": [
+        [
+          "house: 8.5 × 13.0 m L, 79.9 m² of rooms, hall 19.9 m² (25%)",
+          "doors out: N→Kitchen / Dining (garden), S→Hall, street S",
+          "  Hall                       hall              19.9 m²  7.9×5.3 (not rectangular)  doors: Kitchen / Dining, Living Room, WC, outside  windows: W",
+          "  Living Room                living            21.0 m²  6.5×3.2  doors: Hall  windows: E S",
+          "  Kitchen / Dining           kitchen_dining    35.5 m²  6.7×7.0 (not rectangular)  doors: Hall, garden  windows: E N(garden) W",
+          "  WC                         wc                 3.5 m²  1.1×3.0  doors: Hall  windows: E",
+        ],
+        [
+          "house: 8.5 × 9.0 m rectangle, 64.0 m² of rooms, hall 11.2 m² (18%)",
+          "doors out: none, street S",
+          "  Landing                    hall              11.2 m²  5.6×2.0  doors: Bathroom, Bedroom 2, Bedroom 3, Master Bedroom  windows: none",
+          "  Master Bedroom             primary_bedroom   17.1 m²  5.7×3.0  doors: Ensuite, Landing  windows: N(garden)",
+          "  Bedroom 2                  bedroom           12.5 m²  3.9×3.2  doors: Landing  windows: S",
+          "  Bedroom 3                  bedroom           12.5 m²  3.9×3.2  doors: Landing  windows: S",
+          "  Ensuite                    ensuite            4.4 m²  2.2×2.0  doors: Master Bedroom  windows: E",
+          "  Bathroom                   bathroom           6.3 m²  2.1×3.0  doors: Landing  windows: W",
+        ],
+      ],
+      "footprint": undefined,
+      "notes": [
+        "A WC is added downstairs, as two-storey houses usually have one.",
+      ],
+      "stairs": [
+        {
+          "foot": {
+            "x": 1.6,
+            "y": 5.15,
+          },
+          "rotation": 270,
+          "shape": "straight",
+        },
+      ],
+      "summary": "Bedrooms upstairs over the main part of the house; the single-storey wing holds the kitchen / dining.",
+      "variant": undefined,
+    },
+    {
+      "arrangement": "storeys-b.w00-cceue.x34f.ns2.es4s5",
+      "floors": [
+        [
+          "house: 8.5 × 13.0 m L, 79.8 m² of rooms, hall 19.9 m² (25%)",
+          "doors out: N→Kitchen / Dining (garden), S→Hall, street S",
+          "  Hall                       hall              19.9 m²  7.9×5.3 (not rectangular)  doors: Kitchen / Dining, Living Room, WC, outside  windows: E",
+          "  Living Room                living            21.0 m²  6.6×3.2  doors: Hall  windows: S W",
+          "  Kitchen / Dining           kitchen_dining    35.3 m²  7.9×7.0 (not rectangular)  doors: Hall, garden  windows: E E N(garden) W",
+          "  WC                         wc                 3.6 m²  1.1×3.1  doors: Hall  windows: W",
+        ],
+        [
+          "house: 8.5 × 13.0 m L, 79.6 m² of rooms, hall 11.2 m² (14%)",
+          "doors out: none, street S",
+          "  Landing                    hall              11.2 m²  5.6×2.0  doors: Bathroom, Bedroom 2, Bedroom 3, Master Bedroom  windows: none",
+          "  Master Bedroom             primary_bedroom   32.7 m²  5.7×7.0 (not rectangular)  doors: Ensuite, Landing  windows: W",
+          "  Bedroom 2                  bedroom           12.5 m²  3.9×3.2  doors: Landing  windows: S",
+          "  Bedroom 3                  bedroom           12.5 m²  3.9×3.2  doors: Landing  windows: S",
+          "  Ensuite                    ensuite            4.4 m²  2.2×2.0  doors: Master Bedroom  windows: W",
+          "  Bathroom                   bathroom           6.3 m²  2.1×3.0  doors: Landing  windows: E",
+        ],
+      ],
+      "footprint": undefined,
+      "notes": [
+        "A WC is added downstairs, as two-storey houses usually have one.",
+      ],
+      "stairs": [
+        {
+          "foot": {
+            "x": 6.9,
+            "y": 4.05,
+          },
+          "rotation": 90,
+          "shape": "straight",
+        },
+      ],
+      "summary": "Bedrooms upstairs over the whole house; downstairs the wing holds the kitchen / dining.",
+      "variant": undefined,
+    },
+    {
+      "arrangement": "storeys-b.w00-cceue.x34r.ns2.es4s5",
+      "floors": [
+        [
+          "house: 8.5 × 13.0 m L, 79.8 m² of rooms, hall 19.9 m² (25%)",
+          "doors out: N→Kitchen / Dining (garden), S→Hall, street S",
+          "  Hall                       hall              19.9 m²  7.9×5.3 (not rectangular)  doors: Kitchen / Dining, Living Room, WC, outside  windows: E",
+          "  Living Room                living            21.0 m²  6.6×3.2  doors: Hall  windows: S W",
+          "  Kitchen / Dining           kitchen_dining    35.3 m²  7.9×7.0 (not rectangular)  doors: Hall, garden  windows: E E N(garden) W",
+          "  WC                         wc                 3.6 m²  1.1×3.1  doors: Hall  windows: W",
+        ],
+        [
+          "house: 8.5 × 13.0 m L, 79.6 m² of rooms, hall 11.2 m² (14%)",
+          "doors out: none, street S",
+          "  Landing                    hall              11.2 m²  5.6×2.0  doors: Bathroom, Bedroom 2, Bedroom 3, Master Bedroom  windows: none",
+          "  Master Bedroom             primary_bedroom   32.7 m²  5.7×7.0 (not rectangular)  doors: Ensuite, Landing  windows: W",
+          "  Bedroom 2                  bedroom           12.5 m²  3.9×3.2  doors: Landing  windows: S",
+          "  Bedroom 3                  bedroom           12.5 m²  3.9×3.2  doors: Landing  windows: S",
+          "  Ensuite                    ensuite            4.4 m²  2.2×2.0  doors: Master Bedroom  windows: W",
+          "  Bathroom                   bathroom           6.3 m²  2.1×3.0  doors: Landing  windows: E",
+        ],
+      ],
+      "footprint": undefined,
+      "notes": [
+        "A WC is added downstairs, as two-storey houses usually have one.",
+      ],
+      "stairs": [
+        {
+          "foot": {
+            "x": 6.9,
+            "y": 5.15,
+          },
+          "rotation": 90,
+          "shape": "straight",
+        },
+      ],
+      "summary": "Bedrooms upstairs over the whole house; downstairs the wing holds the kitchen / dining.",
+      "variant": undefined,
+    },
+  ],
+  "issues": [],
+}
+`;
+
+exports[`golden layouts > lays out two-storey houses 6`] = `
+{
+  "candidates": [
+    {
+      "arrangement": "storeys-a.s10-cccccee.x30f.us4s5s-wc.bs7s8s10",
+      "floors": [
+        [
+          "house: 13.0 × 12.5 m U, 124.2 m² of rooms, hall 20.1 m² (16%)",
+          "doors out: N→Kitchen / Dining (garden), N→Living Room (garden), S→Hall, street S",
+          "  Hall                       hall              20.1 m²  8.2×4.9 (not rectangular)  doors: Garage, Kitchen / Dining, Living Room, Office, Utility, WC, outside  windows: W",
+          "  Living Room                living            30.3 m²  5.4×6.9 (not rectangular)  doors: Hall, garden  windows: E N(garden) W",
+          "  Kitchen / Dining           kitchen_dining    35.4 m²  6.9×6.9 (not rectangular)  doors: Hall, garden  windows: E N(garden) W",
+          "  Office                     office             8.4 m²  3.0×2.8  doors: Hall  windows: S",
+          "  Utility                    utility            8.1 m²  4.0×2.0  doors: Hall  windows: E",
+          "  Garage                     garage            18.8 m²  6.7×2.8  doors: Hall  windows: none",
+          "  WC                         wc                 3.2 m²  1.2×2.8  doors: Hall  windows: S",
+        ],
+        [
+          "house: 13.0 × 9.0 m rectangle, 100.2 m² of rooms, hall 17.9 m² (18%)",
+          "doors out: none, street S",
+          "  Landing                    hall              17.9 m²  8.9×2.0  doors: Bathroom, Bathroom 2, Bedroom 2, Bedroom 3, Bedroom 4, Master Bedroom  windows: none",
+          "  Master Bedroom             primary_bedroom   20.4 m²  6.0×3.4  doors: Ensuite, Landing  windows: N(garden)",
+          "  Bedroom 2                  bedroom           13.7 m²  4.9×2.8  doors: Landing  windows: S",
+          "  Bedroom 3                  bedroom           13.7 m²  4.9×2.8  doors: Landing  windows: S",
+          "  Bedroom 4                  bedroom           16.0 m²  4.7×3.4  doors: Landing  windows: N(garden)",
+          "  Ensuite                    ensuite            5.1 m²  1.5×3.4  doors: Master Bedroom  windows: N(garden)",
+          "  Bathroom                   bathroom           6.7 m²  2.4×2.8  doors: Landing  windows: S",
+          "  Bathroom 2                 bathroom           6.7 m²  3.3×2.0  doors: Landing  windows: E",
+        ],
+      ],
+      "footprint": undefined,
+      "notes": [
+        "A WC is added downstairs, as two-storey houses usually have one.",
+      ],
+      "stairs": [
+        {
+          "foot": {
+            "x": 1.6,
+            "y": 3.65,
+          },
+          "rotation": 270,
+          "shape": "straight",
+        },
+      ],
+      "summary": "Bedrooms upstairs over the main part of the house; the single-storey wings hold the kitchen / dining and living room.",
+      "variant": undefined,
+    },
+    {
+      "arrangement": "storeys-a.s10-cccccee.x30f.us4s5s-wc.bs7s9s10",
+      "floors": [
+        [
+          "house: 13.0 × 12.5 m U, 124.2 m² of rooms, hall 20.1 m² (16%)",
+          "doors out: N→Kitchen / Dining (garden), N→Living Room (garden), S→Hall, street S",
+          "  Hall                       hall              20.1 m²  8.2×4.9 (not rectangular)  doors: Garage, Kitchen / Dining, Living Room, Office, Utility, WC, outside  windows: W",
+          "  Living Room                living            30.3 m²  5.4×6.9 (not rectangular)  doors: Hall, garden  windows: E N(garden) W",
+          "  Kitchen / Dining           kitchen_dining    35.4 m²  6.9×6.9 (not rectangular)  doors: Hall, garden  windows: E N(garden) W",
+          "  Office                     office             8.4 m²  3.0×2.8  doors: Hall  windows: S",
+          "  Utility                    utility            8.1 m²  4.0×2.0  doors: Hall  windows: E",
+          "  Garage                     garage            18.8 m²  6.7×2.8  doors: Hall  windows: none",
+          "  WC                         wc                 3.2 m²  1.2×2.8  doors: Hall  windows: S",
+        ],
+        [
+          "house: 13.0 × 9.0 m rectangle, 100.2 m² of rooms, hall 17.9 m² (18%)",
+          "doors out: none, street S",
+          "  Landing                    hall              17.9 m²  8.9×2.0  doors: Bathroom, Bathroom 2, Bedroom 2, Bedroom 3, Bedroom 4, Master Bedroom  windows: none",
+          "  Master Bedroom             primary_bedroom   20.4 m²  6.0×3.4  doors: Ensuite, Landing  windows: N(garden)",
+          "  Bedroom 2                  bedroom           13.7 m²  4.9×2.8  doors: Landing  windows: S",
+          "  Bedroom 3                  bedroom           16.0 m²  4.7×3.4  doors: Landing  windows: N(garden)",
+          "  Bedroom 4                  bedroom           13.7 m²  4.9×2.8  doors: Landing  windows: S",
+          "  Ensuite                    ensuite            5.1 m²  1.5×3.4  doors: Master Bedroom  windows: N(garden)",
+          "  Bathroom                   bathroom           6.7 m²  2.4×2.8  doors: Landing  windows: S",
+          "  Bathroom 2                 bathroom           6.7 m²  3.3×2.0  doors: Landing  windows: E",
+        ],
+      ],
+      "footprint": undefined,
+      "notes": [
+        "A WC is added downstairs, as two-storey houses usually have one.",
+      ],
+      "stairs": [
+        {
+          "foot": {
+            "x": 1.6,
+            "y": 3.65,
+          },
+          "rotation": 270,
+          "shape": "straight",
+        },
+      ],
+      "summary": "Bedrooms upstairs over the main part of the house; the single-storey wings hold the kitchen / dining and living room.",
+      "variant": undefined,
+    },
+    {
+      "arrangement": "storeys-a.s10-cccccee.x30f.us4s5s-wc.bs8s9s10",
+      "floors": [
+        [
+          "house: 13.0 × 12.5 m U, 124.2 m² of rooms, hall 20.1 m² (16%)",
+          "doors out: N→Kitchen / Dining (garden), N→Living Room (garden), S→Hall, street S",
+          "  Hall                       hall              20.1 m²  8.2×4.9 (not rectangular)  doors: Garage, Kitchen / Dining, Living Room, Office, Utility, WC, outside  windows: W",
+          "  Living Room                living            30.3 m²  5.4×6.9 (not rectangular)  doors: Hall, garden  windows: E N(garden) W",
+          "  Kitchen / Dining           kitchen_dining    35.4 m²  6.9×6.9 (not rectangular)  doors: Hall, garden  windows: E N(garden) W",
+          "  Office                     office             8.4 m²  3.0×2.8  doors: Hall  windows: S",
+          "  Utility                    utility            8.1 m²  4.0×2.0  doors: Hall  windows: E",
+          "  Garage                     garage            18.8 m²  6.7×2.8  doors: Hall  windows: none",
+          "  WC                         wc                 3.2 m²  1.2×2.8  doors: Hall  windows: S",
+        ],
+        [
+          "house: 13.0 × 9.0 m rectangle, 100.2 m² of rooms, hall 17.9 m² (18%)",
+          "doors out: none, street S",
+          "  Landing                    hall              17.9 m²  8.9×2.0  doors: Bathroom, Bathroom 2, Bedroom 2, Bedroom 3, Bedroom 4, Master Bedroom  windows: none",
+          "  Master Bedroom             primary_bedroom   20.4 m²  6.0×3.4  doors: Ensuite, Landing  windows: N(garden)",
+          "  Bedroom 2                  bedroom           16.0 m²  4.7×3.4  doors: Landing  windows: N(garden)",
+          "  Bedroom 3                  bedroom           13.7 m²  4.9×2.8  doors: Landing  windows: S",
+          "  Bedroom 4                  bedroom           13.7 m²  4.9×2.8  doors: Landing  windows: S",
+          "  Ensuite                    ensuite            5.1 m²  1.5×3.4  doors: Master Bedroom  windows: N(garden)",
+          "  Bathroom                   bathroom           6.7 m²  2.4×2.8  doors: Landing  windows: S",
+          "  Bathroom 2                 bathroom           6.7 m²  3.3×2.0  doors: Landing  windows: E",
+        ],
+      ],
+      "footprint": undefined,
+      "notes": [
+        "A WC is added downstairs, as two-storey houses usually have one.",
+      ],
+      "stairs": [
+        {
+          "foot": {
+            "x": 1.6,
+            "y": 3.65,
+          },
+          "rotation": 270,
+          "shape": "straight",
+        },
+      ],
+      "summary": "Bedrooms upstairs over the main part of the house; the single-storey wings hold the kitchen / dining and living room.",
+      "variant": undefined,
+    },
+  ],
+  "issues": [],
+}
+`;
+
+exports[`golden layouts > lays out two-storey houses 7`] = `
+{
+  "candidates": [
+    {
+      "arrangement": "storeys-a.s00-ccb.x0f.w.e",
+      "floors": [
+        [
+          "house: 12.0 × 11.0 m L, 80.7 m² of rooms, hall 12.6 m² (16%)",
+          "doors out: N→Living Room (garden), N→Snug (garden), S→Hall, street S",
+          "  Hall                       hall              12.6 m²  7.0×1.8  doors: Kitchen / Dining, Living Room, WC, outside  windows: none",
+          "  Living Room                living            17.0 m²  5.6×3.0  doors: Hall, garden  windows: E",
+          "  Snug                       living            26.0 m²  4.9×5.3  doors: Kitchen / Dining, garden  windows: E W",
+          "  Kitchen / Dining           kitchen_dining    17.4 m²  5.7×3.1  doors: Hall, Snug  windows: W",
+          "  WC                         wc                 7.7 m²  4.3×1.8  doors: Hall  windows: S",
+        ],
+        [
+          "house: 12.0 × 5.5 m rectangle, 53.6 m² of rooms, hall 16.0 m² (30%)",
+          "doors out: none, street S",
+          "  Landing                    hall              16.0 m²  8.9×1.8  doors: Bathroom, Bedroom 2, Bedroom 3, Master Bedroom  windows: S",
+          "  Master Bedroom             primary_bedroom   11.2 m²  3.7×3.0  doors: Ensuite, Landing  windows: N(garden)",
+          "  Bedroom 2                  bedroom            8.4 m²  2.8×3.0  doors: Landing  windows: W",
+          "  Bedroom 3                  bedroom            8.5 m²  2.9×3.0  doors: Landing  windows: N(garden)",
+          "  Ensuite                    ensuite            4.3 m²  2.4×1.8  doors: Master Bedroom  windows: S",
+          "  Bathroom                   bathroom           5.1 m²  1.7×3.0  doors: Landing  windows: N(garden)",
+        ],
+      ],
+      "footprint": undefined,
+      "notes": [
+        "A WC is added downstairs, as two-storey houses usually have one.",
+        "A wing the rooms don't fill is a snug.",
+      ],
+      "stairs": [
+        {
+          "foot": {
+            "x": 1.6,
+            "y": 0.75,
+          },
+          "rotation": 270,
+          "shape": "straight",
+        },
+      ],
+      "summary": "Bedrooms upstairs over the main part of the house; the single-storey wing holds the snug.",
+      "variant": undefined,
+    },
+    {
+      "arrangement": "storeys-a.s00-ccb.x0r.w.e",
+      "floors": [
+        [
+          "house: 12.0 × 11.0 m L, 80.7 m² of rooms, hall 12.6 m² (16%)",
+          "doors out: N→Living Room (garden), N→Snug (garden), S→Hall, street S",
+          "  Hall                       hall              12.6 m²  7.0×1.8  doors: Kitchen / Dining, Living Room, WC, outside  windows: none",
+          "  Living Room                living            17.0 m²  5.6×3.0  doors: Hall, garden  windows: E",
+          "  Snug                       living            26.0 m²  4.9×5.3  doors: Kitchen / Dining, garden  windows: E W",
+          "  Kitchen / Dining           kitchen_dining    17.4 m²  5.7×3.1  doors: Hall, Snug  windows: W",
+          "  WC                         wc                 7.7 m²  4.3×1.8  doors: Hall  windows: S",
+        ],
+        [
+          "house: 12.0 × 5.5 m rectangle, 53.6 m² of rooms, hall 16.0 m² (30%)",
+          "doors out: none, street S",
+          "  Landing                    hall              16.0 m²  8.9×1.8  doors: Bathroom, Bedroom 2, Bedroom 3, Master Bedroom  windows: S",
+          "  Master Bedroom             primary_bedroom   11.2 m²  3.7×3.0  doors: Ensuite, Landing  windows: N(garden)",
+          "  Bedroom 2                  bedroom            8.4 m²  2.8×3.0  doors: Landing  windows: W",
+          "  Bedroom 3                  bedroom            8.5 m²  2.9×3.0  doors: Landing  windows: N(garden)",
+          "  Ensuite                    ensuite            4.3 m²  2.4×1.8  doors: Master Bedroom  windows: S",
+          "  Bathroom                   bathroom           5.1 m²  1.7×3.0  doors: Landing  windows: N(garden)",
+        ],
+      ],
+      "footprint": undefined,
+      "notes": [
+        "A WC is added downstairs, as two-storey houses usually have one.",
+        "A wing the rooms don't fill is a snug.",
+      ],
+      "stairs": [
+        {
+          "foot": {
+            "x": 1.6,
+            "y": 1.65,
+          },
+          "rotation": 270,
+          "shape": "straight",
+        },
+      ],
+      "summary": "Bedrooms upstairs over the main part of the house; the single-storey wing holds the snug.",
+      "variant": undefined,
+    },
+    {
+      "arrangement": "storeys-b.s00-ccb.x0f.w.e",
+      "floors": [
+        [
+          "house: 12.0 × 11.0 m L, 80.7 m² of rooms, hall 12.6 m² (16%)",
+          "doors out: N→Kitchen / Dining (garden), N→Snug (garden), S→Hall, street S",
+          "  Hall                       hall              12.6 m²  7.0×1.8  doors: Kitchen / Dining, Living Room, WC, outside  windows: none",
+          "  Living Room                living            17.4 m²  5.7×3.1  doors: Hall, Snug  windows: W",
+          "  Snug                       living            26.0 m²  4.9×5.3  doors: Living Room, garden  windows: E W",
+          "  Kitchen / Dining           kitchen_dining    17.0 m²  5.6×3.0  doors: Hall, garden  windows: E",
+          "  WC                         wc                 7.7 m²  4.3×1.8  doors: Hall  windows: S",
+        ],
+        [
+          "house: 12.0 × 5.5 m rectangle, 53.6 m² of rooms, hall 16.0 m² (30%)",
+          "doors out: none, street S",
+          "  Landing                    hall              16.0 m²  8.9×1.8  doors: Bathroom, Bedroom 2, Bedroom 3, Master Bedroom  windows: S",
+          "  Master Bedroom             primary_bedroom   11.2 m²  3.8×3.0  doors: Ensuite, Landing  windows: N(garden)",
+          "  Bedroom 2                  bedroom            8.4 m²  2.8×3.0  doors: Landing  windows: E",
+          "  Bedroom 3                  bedroom            8.5 m²  2.8×3.0  doors: Landing  windows: N(garden)",
+          "  Ensuite                    ensuite            4.3 m²  2.4×1.8  doors: Master Bedroom  windows: S",
+          "  Bathroom                   bathroom           5.1 m²  1.7×3.0  doors: Landing  windows: N(garden)",
+        ],
+      ],
+      "footprint": undefined,
+      "notes": [
+        "A WC is added downstairs, as two-storey houses usually have one.",
+        "A wing the rooms don't fill is a snug.",
+      ],
+      "stairs": [
+        {
+          "foot": {
+            "x": 10.4,
+            "y": 0.75,
+          },
+          "rotation": 90,
+          "shape": "straight",
+        },
+      ],
+      "summary": "Bedrooms upstairs over the main part of the house; the single-storey wing holds the snug.",
+      "variant": undefined,
+    },
+  ],
+  "issues": [],
+}
+`;
+
+exports[`golden layouts > lays out two-storey houses 8`] = `
+{
+  "candidates": [
+    {
+      "arrangement": "storeys-a.s00-cc0c0r.x34r.os2s-wc.es7s8s11",
+      "floors": [
+        [
+          "house: 9.5 × 19.0 m L, 122.1 m² of rooms, hall 12.7 m² (10%)",
+          "doors out: N→Kitchen / Dining (garden), S→Hall, street S",
+          "  Hall                       hall              12.7 m²  4.3×5.3 (not rectangular)  doors: Kitchen / Dining, Living Room, Office, WC, outside  windows: W",
+          "  Living Room                living            19.7 m²  6.1×3.2  doors: Hall  windows: E S",
+          "  Kitchen / Dining           kitchen_dining    53.7 m²  8.9×6.1  doors: Hall, Utility, garden  windows: E W",
+          "  Office                     office             9.0 m²  4.5×2.0  doors: Hall  windows: E",
+          "  Utility                    utility            5.8 m²  3.4×1.7  doors: Garage, Kitchen / Dining  windows: W",
+          "  Garage                     garage            17.0 m²  3.4×5.0  doors: Utility  windows: none",
+          "  WC                         wc                 4.2 m²  1.3×3.2  doors: Hall  windows: S",
+        ],
+        [
+          "house: 9.5 × 12.0 m rectangle, 97.6 m² of rooms, hall 13.8 m² (14%)",
+          "doors out: none, street S",
+          "  Landing                    hall              13.8 m²  6.9×2.0  doors: Bathroom, Bathroom 2, Bedroom 2, Bedroom 3, Bedroom 4, Master Bedroom  windows: none",
+          "  Master Bedroom             primary_bedroom   19.5 m²  3.2×6.0  doors: Ensuite, Landing  windows: E",
+          "  Bedroom 2                  bedroom           11.2 m²  3.5×3.2  doors: Landing  windows: S",
+          "  Bedroom 3                  bedroom           11.2 m²  3.5×3.2  doors: Landing  windows: S",
+          "  Bedroom 4                  bedroom           17.7 m²  3.0×6.0  doors: Landing  windows: W",
+          "  Ensuite                    ensuite            3.8 m²  1.9×2.0  doors: Master Bedroom  windows: E",
+          "  Bathroom                   bathroom          15.0 m²  2.5×6.0  doors: Landing  windows: N(garden)",
+          "  Bathroom 2                 bathroom           5.4 m²  1.7×3.2  doors: Landing  windows: S",
+        ],
+      ],
+      "footprint": {
+        "depth": 19,
+        "shape": "deep",
+        "width": 9.5,
+      },
+      "notes": [
+        "A WC is added downstairs, as two-storey houses usually have one.",
+      ],
+      "stairs": [
+        {
+          "foot": {
+            "x": 1.6,
+            "y": 5.15,
+          },
+          "rotation": 270,
+          "shape": "straight",
+        },
+      ],
+      "summary": "An L-shaped 9.5 × 19 m two-storey house. Bedrooms upstairs over the main part of the house; the single-storey wing holds the utility and garage.",
+      "variant": "storeys-a.s00-cc0c0r.x34r.os2s-wc.es7s8s11@2s:L:9.5x19:12:4",
+    },
+    {
+      "arrangement": "storeys-a.s00-cc0c0r.x34r.os2s-wc.es7s9s11",
+      "floors": [
+        [
+          "house: 9.5 × 19.0 m L, 122.1 m² of rooms, hall 12.7 m² (10%)",
+          "doors out: N→Kitchen / Dining (garden), S→Hall, street S",
+          "  Hall                       hall              12.7 m²  4.3×5.3 (not rectangular)  doors: Kitchen / Dining, Living Room, Office, WC, outside  windows: W",
+          "  Living Room                living            19.7 m²  6.1×3.2  doors: Hall  windows: E S",
+          "  Kitchen / Dining           kitchen_dining    53.7 m²  8.9×6.1  doors: Hall, Utility, garden  windows: E W",
+          "  Office                     office             9.0 m²  4.5×2.0  doors: Hall  windows: E",
+          "  Utility                    utility            5.8 m²  3.4×1.7  doors: Garage, Kitchen / Dining  windows: W",
+          "  Garage                     garage            17.0 m²  3.4×5.0  doors: Utility  windows: none",
+          "  WC                         wc                 4.2 m²  1.3×3.2  doors: Hall  windows: S",
+        ],
+        [
+          "house: 9.5 × 12.0 m rectangle, 97.6 m² of rooms, hall 13.8 m² (14%)",
+          "doors out: none, street S",
+          "  Landing                    hall              13.8 m²  6.9×2.0  doors: Bathroom, Bathroom 2, Bedroom 2, Bedroom 3, Bedroom 4, Master Bedroom  windows: none",
+          "  Master Bedroom             primary_bedroom   19.5 m²  3.2×6.0  doors: Ensuite, Landing  windows: E",
+          "  Bedroom 2                  bedroom           11.2 m²  3.5×3.2  doors: Landing  windows: S",
+          "  Bedroom 3                  bedroom           17.7 m²  3.0×6.0  doors: Landing  windows: W",
+          "  Bedroom 4                  bedroom           11.2 m²  3.5×3.2  doors: Landing  windows: S",
+          "  Ensuite                    ensuite            3.8 m²  1.9×2.0  doors: Master Bedroom  windows: E",
+          "  Bathroom                   bathroom          15.0 m²  2.5×6.0  doors: Landing  windows: N(garden)",
+          "  Bathroom 2                 bathroom           5.4 m²  1.7×3.2  doors: Landing  windows: S",
+        ],
+      ],
+      "footprint": {
+        "depth": 19,
+        "shape": "deep",
+        "width": 9.5,
+      },
+      "notes": [
+        "A WC is added downstairs, as two-storey houses usually have one.",
+      ],
+      "stairs": [
+        {
+          "foot": {
+            "x": 1.6,
+            "y": 5.15,
+          },
+          "rotation": 270,
+          "shape": "straight",
+        },
+      ],
+      "summary": "An L-shaped 9.5 × 19 m two-storey house. Bedrooms upstairs over the main part of the house; the single-storey wing holds the utility and garage.",
+      "variant": "storeys-a.s00-cc0c0r.x34r.os2s-wc.es7s9s11@2s:L:9.5x19:12:4",
     },
   ],
   "issues": [],
@@ -2773,9 +3730,7 @@ exports[`golden layouts > sizes houses from the rooms 1`] = `
         "width": 8.5,
       },
       "goal": undefined,
-      "notes": [
-        "1 door or window didn't fit and was left out.",
-      ],
+      "notes": [],
       "plan": [
         "house: 8.5 × 15.5 m rectangle, 113.1 m² of rooms, hall 12.9 m² (11%)",
         "doors out: N→Living Room (garden), S→Hall, street S",
@@ -2802,9 +3757,7 @@ exports[`golden layouts > sizes houses from the rooms 1`] = `
         "width": 12.5,
       },
       "goal": undefined,
-      "notes": [
-        "1 door or window didn't fit and was left out.",
-      ],
+      "notes": [],
       "plan": [
         "house: 12.5 × 11.0 m rectangle, 118.9 m² of rooms, hall 16.1 m² (14%)",
         "doors out: N→Living Room (garden), S→Hall, street S",
@@ -2832,9 +3785,7 @@ exports[`golden layouts > sizes houses from the rooms 1`] = `
         "width": 11.5,
       },
       "goal": undefined,
-      "notes": [
-        "1 door or window didn't fit and was left out.",
-      ],
+      "notes": [],
       "plan": [
         "house: 11.5 × 11.5 m rectangle, 113.9 m² of rooms, hall 16.3 m² (14%)",
         "doors out: N→Living Room (garden), S→Hall, street S",
@@ -2952,9 +3903,7 @@ exports[`golden layouts > sizes houses from the rooms 2`] = `
         "width": 9.5,
       },
       "goal": undefined,
-      "notes": [
-        "1 door or window didn't fit and was left out.",
-      ],
+      "notes": [],
       "plan": [
         "house: 9.5 × 20.5 m rectangle, 169.4 m² of rooms, hall 18.6 m² (11%)",
         "doors out: N→Living Room (garden), S→Hall, street S",
@@ -3153,9 +4102,7 @@ exports[`golden layouts > sizes houses from the rooms 3`] = `
         "width": 8.5,
       },
       "goal": undefined,
-      "notes": [
-        "1 door or window didn't fit and was left out.",
-      ],
+      "notes": [],
       "plan": [
         "house: 8.5 × 15.5 m rectangle, 113.1 m² of rooms, hall 12.9 m² (11%)",
         "doors out: N→Living Room (garden), S→Hall, street S",
@@ -3182,9 +4129,7 @@ exports[`golden layouts > sizes houses from the rooms 3`] = `
         "width": 10,
       },
       "goal": undefined,
-      "notes": [
-        "1 door or window didn't fit and was left out.",
-      ],
+      "notes": [],
       "plan": [
         "house: 10.0 × 13.5 m rectangle, 116.7 m² of rooms, hall 11.6 m² (10%)",
         "doors out: N→Living Room (garden), S→Hall, street S",

@@ -131,9 +131,10 @@ const areaOf = (spaces: SpaceSpec[]) => spaces.reduce((sum, s) => sum + s.target
  * The rooms of a two-storey house: the living spaces, utility, garage and a
  * WC downstairs (one is added if none was picked: a convenience, not a
  * regulation); bedrooms, ensuites, bathrooms and any other WCs upstairs. An
- * office goes up as a study when the ground floor would be much the bigger.
+ * office goes up as a study when the ground floor would be much the bigger,
+ * unless the house has single-storey wings to put it in.
  */
-export function storeyPrograms(brief: HouseBrief, relax: Relaxation = 0): StoreyPrograms {
+export function storeyPrograms(brief: HouseBrief, relax: Relaxation = 0, opts: { wings?: boolean } = {}): StoreyPrograms {
   const all = programFromBrief(brief, relax);
   const notes = [...all.notes];
   const ground: SpaceSpec[] = [];
@@ -149,7 +150,7 @@ export function storeyPrograms(brief: HouseBrief, relax: Relaxation = 0): Storey
     notes.push("A WC is added downstairs, as two-storey houses usually have one.");
   }
   const office = ground.find((s) => s.type === "office");
-  if (office && areaOf(ground) > areaOf(upper) * 1.25) {
+  if (office && !opts.wings && areaOf(ground) > areaOf(upper) * 1.25) {
     ground.splice(ground.indexOf(office), 1);
     upper.push({ ...office, name: office.name.replace("Office", "Study"), zone: "night" });
     notes.push("The study is upstairs, which keeps the two floors about the same size.");

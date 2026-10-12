@@ -47,3 +47,7 @@ next-env.d.ts
 
 # Claude Code agent worktrees
 /.claude/worktrees/
+
+# furniture asset pipeline working files (scripts/assets)
+/.assets-cache/
+/public/assets/_lab/

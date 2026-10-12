@@ -29,7 +29,13 @@ Furniture {
 
 - **Quarter turns only.** Walls are orthogonal, so every footprint stays an axis-aligned rectangle. Collision, snapping and layout all stay simple. Free angles can come later through another schema step.
 - **The room is derived, not stored.** A piece belongs to whichever room contains its position (`roomAtPoint`). Wall edits never have to update furniture, and furniture never has to be reconciled like rooms are.
-- **Furniture never blocks an edit.** Commands check only the piece itself: a known kind, a quarter turn, sizes within `FURNITURE_LIMITS`. Where it stands is reported by `furnitureIssues(level)`: outside every room, into a wall, in a door swing, or overlapping another piece. These show as red outlines in Designs and a note in the inspector. A wall move that leaves a sofa half inside a wall is therefore allowed, and the sofa is flagged.
+- **Furniture never blocks an edit.** Commands check only the piece itself: a known kind, a quarter turn, sizes within `FURNITURE_LIMITS`. Where it stands is reported by `furnitureIssues(level)`: outside every room, into a wall, in a door swing, or overlapping another piece. These show as red outlines in Designs and a note in the inspector. A wall move is never refused because of furniture.
+- **Furniture goes with its walls** (`commands/handlers/followFurniture.ts`, added 2026-10-12). When `moveWall` or `moveOutlineEdge` moves a wall:
+  - a piece standing against it, on either side, moves with it;
+  - a piece in its way is pushed just clear of its new face;
+  - everything else stays put.
+
+  It is part of the same command, so it's one undo step. A piece pushed into another, or out of its room, is still only flagged.
 
 ### Commands
 

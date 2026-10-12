@@ -83,8 +83,8 @@ test.describe("Houses of more than one floor", () => {
 
     await page.getByTestId("brief-storeys-2").click();
     await expect(page.getByTestId("brief-storeys-2")).toHaveAttribute("aria-checked", "true");
-    // Two-storey houses are rectangular for now, so there's no shape to choose.
-    await expect(page.getByTestId("brief-shape-rectangle")).toHaveCount(0);
+    // A two-storey house can still be any shape.
+    await expect(page.getByTestId("brief-shape-rectangle")).toBeVisible();
     // The live preview draws both floors.
     await expect(page.getByTestId("rooms-preview").getByText("First floor")).toBeVisible();
     await page.getByTestId("rooms-view-3d").click();
@@ -110,6 +110,34 @@ test.describe("Houses of more than one floor", () => {
     await expect(page.getByTestId(`floor-${doc.levels[1].id}`)).toHaveAttribute("aria-checked", "true");
     await page.keyboard.press("Shift+Digit2");
     await expect(page.getByTestId("three-view")).toHaveAttribute("aria-label", /^A two-storey house/);
+    expect(errors).toEqual([]);
+  });
+
+  test("generates L-shaped two-storey houses, the wing single-storey or built up too", async ({ page }) => {
+    const errors: string[] = [];
+    page.on("pageerror", (e) => errors.push(e.message));
+    page.on("console", (m) => m.type() === "error" && errors.push(m.text()));
+    await freshHome(page);
+    await page.getByTestId("start-rooms").click();
+    await page.getByTestId("brief-storeys-2").click();
+    await page.getByTestId("brief-shape-L").click();
+    await expect(page.getByTestId("brief-shape-L")).toHaveAttribute("aria-checked", "true");
+    await expect(page.getByTestId("rooms-preview").getByText("First floor")).toBeVisible();
+
+    await page.getByTestId("generate-layouts").click();
+    const cards = page.getByTestId("concept-board").locator(".layout-card:not(.is-loading)");
+    await expect(cards.first()).toContainText("· 2 storeys");
+    const project = await getProject(page);
+    const docs = project.plans.slice(1).map((p) => p.document as Plan);
+    expect(docs.length).toBeGreaterThan(0);
+    for (const doc of docs) {
+      expect(doc.levels).toHaveLength(2);
+      // An L downstairs; upstairs, a rectangle over the main part, or the whole L.
+      const walls = doc.levels[0].envelope.wallIds.length;
+      expect(walls).toBeGreaterThan(4);
+      expect([4, walls]).toContain(doc.levels[1].envelope.wallIds.length);
+    }
+    expect(docs.some((doc) => doc.levels[1].envelope.wallIds.length === 4)).toBe(true);
     expect(errors).toEqual([]);
   });
 });

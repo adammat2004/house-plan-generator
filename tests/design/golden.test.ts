@@ -7,11 +7,13 @@ import type { PlanningResult } from "@/domain/design/planner";
 import { describeChanges, describePlan } from "@/domain/design/planText";
 import { renderKey } from "@/domain/design/renderRequest";
 import { planLayouts } from "@/domain/design/stripPlanner";
-import type { PlanDocument } from "@/domain/plan/types";
+import { analyzeEnvelope } from "@/domain/geometry/envelope";
+import type { PlanDocument, Point2 } from "@/domain/plan/types";
 import { DEFAULT_APPEARANCE } from "@/domain/project/schema";
 import { buildTemplatePlan, PROJECT_TEMPLATES } from "@/domain/project/templates";
 import { buildDimensions } from "@/editor/rendering/scene/planScene";
 import { buildHouseModel } from "@/editor/rendering/three/houseModel";
+import { OUTLINES, STOREY_OUTLINES } from "../fixtures/outlines";
 import { apply, level, newHouse } from "../helpers";
 
 /**
@@ -100,6 +102,37 @@ describe("golden layouts", () => {
     expect(summarise(generate(LARGE, newHouse(), 6, { footprint: "auto" }))).toMatchSnapshot();
     expect(summarise(generate(DEFAULT_BRIEF, newHouse(), 4, { footprint: "auto", plot: { maxWidth: 10 } }))).toMatchSnapshot();
     expect(summarise(generate(LARGE, newHouse(), 3, { footprint: "auto", plot: { maxWidth: 9, maxDepth: 9 } }))).toMatchSnapshot();
+  });
+
+  it("lays out two-storey houses", () => {
+    const two = (brief: HouseBrief): HouseBrief => ({ ...brief, storeys: 2 });
+    // Each floor described in turn, with the stairs between them.
+    const storeys = (result: PlanningResult) => ({
+      issues: result.issues,
+      candidates: result.candidates.map((c) => ({
+        arrangement: c.arrangement,
+        variant: c.variant,
+        summary: c.summary,
+        notes: c.notes,
+        footprint: c.footprint,
+        floors: c.document.levels.map((l) => describePlan(l)),
+        stairs: Object.values(c.document.staircases ?? {}).map(({ foot, rotation, shape }) => ({ foot, rotation, shape })),
+      })),
+    });
+    expect(storeys(generate(two(DEFAULT_BRIEF), newHouse(), 3, { footprint: "auto" }))).toMatchSnapshot();
+    expect(storeys(generate(two(LARGE), newHouse(), 3, { footprint: "auto" }))).toMatchSnapshot();
+    expect(storeys(generate(two(DEFAULT_BRIEF), withRear(newHouse(7.5, 9)), 3))).toMatchSnapshot();
+    expect(storeys(generate(two(DEFAULT_BRIEF), withRear(newHouse(10, 9)), 3))).toMatchSnapshot();
+    // Houses that aren't rectangles: drawn, and sized from the rooms.
+    const drawn = (outline: Point2[]) => {
+      const doc = createPlanDocument({ id: "doc-1", name: "Test house", outline, externalThickness: 0.3, wallHeight: 2.4 });
+      const env = analyzeEnvelope(level(doc));
+      return apply(doc, { type: "setRearWall", wallId: env.ok ? env.info.sides.north : "" });
+    };
+    expect(storeys(generate(two(DEFAULT_BRIEF), drawn(STOREY_OUTLINES.L), 4))).toMatchSnapshot();
+    expect(storeys(generate(two(LARGE), drawn(STOREY_OUTLINES.U), 3))).toMatchSnapshot();
+    expect(storeys(generate(two(DEFAULT_BRIEF), drawn(OUTLINES.L), 3))).toMatchSnapshot();
+    expect(storeys(generate({ ...two(LARGE), houseShape: "L" }, newHouse(), 3, { footprint: "auto" }))).toMatchSnapshot();
   });
 
   it("builds the templates", () => {

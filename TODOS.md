@@ -201,17 +201,19 @@ Deferred from the Drafted-parity engineering review (2026-10-09). The work in sc
 **Priority:** P3
 **Depends on:** None.
 
-### Two-storey layouts in L, T and U houses
+### Shaped two-storey houses: what's still open
 
-**What:** Generate two-storey layouts in houses that aren't rectangles, and with setback upper floors.
+**What:** The gaps left by ADR 0011.
 
-**Why:** Today a drawn L, T or U house gets "two-storey layouts work in rectangular houses for now", and the Rooms step hides the shape choice when Two storeys is picked.
+**Why:** Each one leaves a shaped two-storey house less than it could be.
 
 **Context:**
-- The storey planner frames one rectangle. A wing house could stack the main body and leave a wing single-storey, which is the setback the editor already allows by pulling an upper floor in.
-- Very wide drawn houses need a third column of rooms or a wider landing than the spine (a 7 m column beside the hall) and cross arrangements give.
+- **A floor the user drew upstairs** is replanned from scratch. Its outline could choose the core instead.
+- **A wing upstairs beside a long landing** gets a study, or a bedroom grown into it. It could take a bedroom of its own, moved out of the core, with the core's upstairs replanned with one room fewer.
+- **Generous outlines with small briefs** get snugs downstairs. A bedroom downstairs (a guest room in the wing) would use the space better when upstairs is short of room.
+- **Very wide cores** are stacked in part (6.5–9.5 m), with the rest a wing. A third column of rooms, or a wider landing, would stack them whole.
 
-**Effort:** L
+**Effort:** M
 **Priority:** P3
 **Depends on:** None.
 
@@ -237,7 +239,6 @@ Deferred from the Drafted-parity engineering review (2026-10-09). The work in sc
 - **Walk** stays on the ground floor; climbing the stairs needs a ramp collider along the flight.
 - **Pitched roofs** over the upper floor. Exposed lower roofs are flat by choice.
 - **Inserting a floor** between two others. `addLevel` only adds at the top.
-- **Window and door note.** Every generated two-storey plan carries "1 door or window didn't fit": a side-wall window overlaps a door. The emitter should skip that window, not report it.
 - **Room areas** count a stairwell's floor as the landing's area on the upper floor.
 - **Basements**, which the user left out of scope.
 
@@ -246,6 +247,10 @@ Deferred from the Drafted-parity engineering review (2026-10-09). The work in sc
 **Depends on:** None.
 
 ## Completed
+
+### Two-storey houses of any shape (2026-10-12)
+
+Two-storey layouts in every right-angle outline (ADR 0011). A core of the outline takes the stairs and the floor above; the other parts are wings of ground-floor rooms, single-storey under flat roofs, or built up with a bedroom grown into them. In shallow parts the stairs run along the street wall. The Rooms step sizes L, T and U two-storey houses from the rooms. The emitter's false "1 door or window didn't fit" note is gone.
 
 ### One Refine mode instead of Edit walls (2026-10-12)
 

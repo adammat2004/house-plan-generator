@@ -49,7 +49,7 @@ ${goals}
 ${preferences}
 - roomSizes: living, kitchen or bedrooms as compact, standard or generous
 - houseShape: L, T or U for a house of that shape (a courtyard house is a U), rectangle for a simple box, any to let the planner choose, or null to leave unchanged. It shapes houses sized from the rooms; a house the user drew keeps its shape.
-- storeys: 2 for a two-storey house with the bedrooms upstairs, 1 for a single-storey house (a bungalow), or null to leave unchanged. Two-storey layouts are rectangular. A house of three or more storeys can't be planned yet: put those words in unclear.
+- storeys: 2 for a two-storey house with the bedrooms upstairs, 1 for a single-storey house (a bungalow), or null to leave unchanged. A two-storey house can be any shape: in an L, T or U house the floor above covers the main part and the wings stay single-storey. A house of three or more storeys can't be planned yet: put those words in unclear.
 
 How to decide:
 - Asking for a room the plan doesn't have (a utility room, an office, another bedroom) is a brief change, because adding a room needs a new layout.
@@ -81,6 +81,7 @@ function userTurn(request: AiRequest): string {
       preferences: context.brief.preferences,
       roomSizes: context.brief.roomSizes ?? {},
       storeys: context.brief.storeys ?? 1,
+      houseShape: context.brief.houseShape ?? "rectangle",
     },
   };
   return `Mode: ${request.mode}\n\nPlan summary (JSON):\n${JSON.stringify(summary)}\n\nThe user wrote:\n<user_text>\n${request.text}\n</user_text>`;

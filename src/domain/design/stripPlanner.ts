@@ -18,7 +18,7 @@ import { ENSUITE_TARGET } from "./roomRules";
 import { planRoomChange } from "./roomPlanner";
 import { footprintsFor, minimumFootprint, type Footprint, type FootprintShape } from "./footprint";
 import { assessSense } from "./sense";
-import { isStoreyLayout, planStoreyLayouts, STOREY_TITLE } from "./storeyLayouts";
+import { isStoreyLayout, planStoreyLayouts, storeyTitle } from "./storeyLayouts";
 import { planAutoShapes, planWingLayouts, shellFrom, WING_TITLE, wingArrangementOf } from "./wingPlanner";
 import { autoZoneCandidates, furnishZones, isZoneLayout, pickVaried, ZONE_TITLE, zoneCandidates, zoneFamily } from "./zoneLayouts";
 import { ARRANGEMENTS, hallWidthFor, minBandDepth, zoneProgram, type Arrangement } from "./zoning";
@@ -42,7 +42,7 @@ export const ARRANGEMENT_TITLE: Record<string, string> = Object.fromEntries(ARRA
 /** The card title for a layout's arrangement id, from any planner. */
 export function arrangementTitle(id: string): string | null {
   if (isZoneLayout(id)) return ZONE_TITLE;
-  if (isStoreyLayout(id)) return STOREY_TITLE;
+  if (isStoreyLayout(id)) return storeyTitle(id);
   const wing = wingArrangementOf(id);
   return ARRANGEMENT_TITLE[id] ?? (wing ? WING_TITLE[wing] : null);
 }

@@ -116,7 +116,7 @@ The user's choices:
 - **The emitter** takes `upper` (no front or garden door) and `doorAvoid` (keeps doors clear of the flight). Single-storey output is unchanged.
 - **Building a candidate.** Emit the ground floor, `addLevel`, emit the upper floor into a `levelView` and splice it back, `addStairs`, then validate, judge with `assessHouseSense` and furnish.
 - **Houses sized from the rooms** try up to 12 sizes until three houses fit. Variant ids look like `storeys-l.…@2s:7.5x10`, so Generate more and Generate similar work.
-- **Shapes.** A drawn rectangle is stacked to two floors. Other shapes get "two-storey layouts work in rectangular houses for now".
+- **Shapes.** A drawn rectangle is stacked to two floors. Other shapes followed in [ADR 0011](0011-shaped-two-storey-houses.md): a core stacked with single-storey wings, or the whole outline.
 - **AI.** The interpreter reads `storeys` ("two-storey", "upstairs", "bungalow"). Three storeys goes to unclear, because three-storey layouts aren't generated yet.
 
 ## Consequences
@@ -125,7 +125,6 @@ The user's choices:
 - Generating three two-storey layouts takes about 10–130 ms in tests, for houses of two to five bedrooms.
 - **A third storey** costs little in the domain, editor and 3D, which already handle it. Generating three-storey houses is the expensive part: a room split for townhouses, stairs lined up through every floor, middle-floor landings and fire escape. That is why the generator stops at two.
 - **Known gaps,** recorded in TODOS.md:
-  - two-storey generation in L, T and U houses;
   - wider houses than the cross bands cover;
   - regenerating one floor;
   - Walk climbing the stairs;

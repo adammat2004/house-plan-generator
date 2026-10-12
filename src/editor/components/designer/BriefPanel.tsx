@@ -96,11 +96,11 @@ function RoomsPanel({ preview }: { preview: Preview }) {
           </>
         )}
 
-        <BriefSection title="Storeys" hint={brief.storeys === 2 ? "Living spaces downstairs with a WC; bedrooms upstairs. Two-storey houses are rectangular for now." : undefined}>
+        <BriefSection title="Storeys" hint={brief.storeys === 2 ? "Living spaces downstairs with a WC; bedrooms upstairs. In an L, T or U house the wings stay single-storey." : undefined}>
           <StoreyChips value={brief.storeys} onChange={(storeys) => update({ storeys })} />
         </BriefSection>
 
-        {auto && brief.storeys !== 2 && (
+        {auto && (
           <BriefSection title="House shape" hint="The house is shaped and sized from your rooms. Any shape mixes rectangles with L, T and U houses.">
             <HouseShapeChips value={brief.houseShape} onChange={(houseShape) => update({ houseShape })} />
           </BriefSection>

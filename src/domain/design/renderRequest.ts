@@ -118,7 +118,7 @@ export function renderViewFor(source: Level | PlanDocument, target: StillTarget,
   };
 }
 
-const STYLE_WORDS: Record<InteriorStyle, string> = {
+export const STYLE_WORDS: Record<InteriorStyle, string> = {
   modern: "clean modern interior, crisp white walls, matte black accents, contemporary furniture",
   scandinavian: "Scandinavian interior, pale oak, white walls, soft wool textiles, simple lines",
   warm_minimal: "warm minimalist interior, limewash walls, natural oak, linen, soft daylight",

@@ -11,6 +11,7 @@ import { describeEntity } from "../describe";
 import type { IdSource } from "../ids";
 import { compensateOpenings, fail, removeOrphanVertices, requireFinite, requireLength } from "../ops";
 import type { PlanCommand } from "../types";
+import { furnitureFollowing, type WallMove } from "./followFurniture";
 
 type CreateOutline = Extract<PlanCommand, { type: "createOutline" }>;
 
@@ -208,7 +209,16 @@ export function moveOutlineEdge(level: Level, cmd: MoveOutlineEdge, ids: IdSourc
     const base = piece === "a" ? 0 : piece === "s" ? from : to;
     openings[o.id] = { ...o, wallId: idOf.get(piece)!, offset: roundToPrecision(o.offset - base) };
   }
-  next = { ...next, openings };
+  // Furniture against the stretch, inside, goes with it, as does furniture against internal walls running on along its line.
+  const shiftBy = axis.orientation === "horizontal" ? delta.y : delta.x;
+  const moves: WallMove[] = [
+    { horizontal: axis.orientation === "horizontal", line: axis.line, min: spanLo, max: spanHi, thickness: wall.thickness, delta: shiftBy },
+    ...[...chain].map((id) => {
+      const a = geometry.axes.get(id)!;
+      return { horizontal: a.orientation === "horizontal", line: a.line, min: a.min, max: a.max, thickness: level.walls[id].thickness, delta: shiftBy };
+    }),
+  ];
+  next = { ...next, openings, furniture: furnitureFollowing(level, moves) };
   return normalizeOutline(next);
 }
 

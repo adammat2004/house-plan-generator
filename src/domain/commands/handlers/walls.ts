@@ -17,6 +17,7 @@ import {
   wallsUsingVertex,
 } from "../ops";
 import type { PlanCommand } from "../types";
+import { furnitureFollowing, type WallMove } from "./followFurniture";
 
 type AddWall = Extract<PlanCommand, { type: "addWall" }>;
 type MoveWall = Extract<PlanCommand, { type: "moveWall" }>;
@@ -237,7 +238,9 @@ export function moveWall(level: Level, cmd: MoveWall, ids: IdSource): Level {
       }
     }
   }
-  return compensated;
+  // Furniture against the wall goes with it.
+  const moves: WallMove[] = chainAxes.map((a) => ({ horizontal, line: a.line, min: a.min, max: a.max, thickness: level.walls[a.wallId].thickness, delta }));
+  return { ...compensated, furniture: furnitureFollowing(level, moves) };
 }
 
 /**
