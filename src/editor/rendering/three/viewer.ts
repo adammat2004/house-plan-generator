@@ -8,6 +8,7 @@ import type { Id, PlanDocument, RoomType } from "@/domain/plan/types";
 import type { Appearance } from "@/domain/project/schema";
 import { PLAN_THEME } from "../konva/theme";
 import { buildBuildingModel } from "./buildingModel";
+import { ensureFurnitureModels, furnitureModels, furnitureModelsReady, placedItems } from "./furnitureAssets";
 import type { HouseModel, HouseModelOptions } from "./houseModel";
 import { roomCameraPose } from "../scene/roomCamera";
 import { applyLighting, buildHouse, clearGroup, TextureCache, type Ground, type Lighting, type Sky } from "./sceneBuilder";
@@ -73,6 +74,8 @@ export class HouseViewer {
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    // Furniture models are cut by a clipping plane in the cutaway.
+    this.renderer.localClippingEnabled = true;
     this.renderer.domElement.className = "three-canvas";
     this.renderer.domElement.tabIndex = 0;
     container.appendChild(this.renderer.domElement);
@@ -152,7 +155,40 @@ export class HouseViewer {
     clearGroup(this.house, this.textures);
     const model = buildBuildingModel(state.plan, { ...state.display, upTo: state.upTo });
     this.model = model;
-    this.floors = buildHouse(this.house, model, { appearance: state.appearance, ground: state.ground, landscape: state.display.landscape, labels: true }, this.textures);
+    this.floors = buildHouse(this.house, model, { appearance: state.appearance, ground: state.ground, landscape: state.display.landscape, labels: true }, this.textures, furnitureModels);
+    // Furniture shows as boxes until its models arrive, then the house is built again with them.
+    const items = placedItems(model.furniture);
+    const style = state.appearance.interiorStyle;
+    this.modelsReady = furnitureModelsReady(items, style)
+      ? Promise.resolve()
+      : ensureFurnitureModels(items, style).then(() => {
+          if (this.model !== model || this.disposed) return;
+          this.rebuild();
+          this.highlight();
+        });
+  }
+
+  private modelsReady: Promise<void> = Promise.resolve();
+  private disposed = false;
+
+  /** Resolves once the furniture models the current house needs are drawn. */
+  async furnitureReady(): Promise<void> {
+    let seen: Promise<void> | null = null;
+    while (seen !== this.modelsReady) {
+      seen = this.modelsReady;
+      await seen;
+    }
+  }
+
+  /** How many pieces are drawn from library models, and how many from boxes. */
+  furnitureStats(): { models: number; boxes: number } {
+    let models = 0;
+    const boxed = new Set<string>();
+    this.house.traverse((o) => {
+      if (o.userData.furnitureId && !(o instanceof THREE.Mesh)) models++;
+    });
+    for (const b of this.model?.boxes ?? []) if (b.furnitureId) boxed.add(b.furnitureId);
+    return { models, boxes: Math.max(0, boxed.size - models) };
   }
 
   private light() {
@@ -311,14 +347,20 @@ export class HouseViewer {
   async exportGlb(): Promise<Blob> {
     const exporter = new GLTFExporter();
     const meshes = new THREE.Group();
+    this.house.updateWorldMatrix(true, true);
     this.house.traverse((o) => {
-      if (o instanceof THREE.Mesh) meshes.add(o.clone());
+      if (!(o instanceof THREE.Mesh)) return;
+      // Library models sit inside a placed, scaled group: export each mesh where it actually is.
+      const copy = o.clone();
+      o.matrixWorld.decompose(copy.position, copy.quaternion, copy.scale);
+      meshes.add(copy);
     });
     const result = await exporter.parseAsync(meshes, { binary: true });
     return new Blob([result as ArrayBuffer], { type: "model/gltf-binary" });
   }
 
   dispose() {
+    this.disposed = true;
     this.renderer.setAnimationLoop(null);
     const el = this.renderer.domElement;
     el.removeEventListener("pointerdown", this.pointerDown);

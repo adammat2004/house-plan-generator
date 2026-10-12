@@ -205,6 +205,24 @@ export function solvePlacement(points: Points, target: Target, override?: { yawD
   };
 }
 
+/** A service's colour habit to undo, applied to every base-colour texture: Tripo's oak comes out orange. */
+export interface ColourCorrection {
+  saturation: number;
+  brightness: number;
+}
+
+async function correctColour(doc: Document, { saturation, brightness }: ColourCorrection) {
+  const done = new Set<unknown>();
+  for (const material of doc.getRoot().listMaterials()) {
+    const texture = material.getBaseColorTexture();
+    const image = texture?.getImage();
+    if (!texture || !image || done.has(texture)) continue;
+    done.add(texture);
+    const png = await sharp(Buffer.from(image)).modulate({ saturation, brightness }).png().toBuffer();
+    texture.setImage(new Uint8Array(png)).setMimeType("image/png");
+  }
+}
+
 export async function gltfIO(): Promise<NodeIO> {
   await Promise.all([MeshoptDecoder.ready, MeshoptEncoder.ready, MeshoptSimplifier.ready]);
   return new NodeIO().registerExtensions(ALL_EXTENSIONS).registerDependencies({ "meshopt.decoder": MeshoptDecoder, "meshopt.encoder": MeshoptEncoder });
@@ -258,6 +276,7 @@ export async function normaliseGlb(
   budget: { tris: number; textureSize: number },
   override?: { yawDeg?: number; turns?: Turns },
   facing: Turns = 0,
+  colour?: ColourCorrection,
 ): Promise<{ glb: Uint8Array; result: NormaliseResult }> {
   const io = await gltfIO();
   const doc = await io.readBinary(glb);
@@ -283,6 +302,8 @@ export async function normaliseGlb(
     material.setEmissiveFactor([0, 0, 0]);
     material.setEmissiveTexture(null);
   }
+
+  if (colour) await correctColour(doc, colour);
 
   await doc.transform(weld(), dedup(), join(), prune());
   const before = triangleCount(doc);

@@ -40,6 +40,8 @@ import { ReadOnlyNote } from "./shell/ReadOnlyNote";
 import { selectTool } from "./shell/tools";
 import { TopBar } from "./shell/TopBar";
 import { useKeyboardShortcuts } from "./useKeyboardShortcuts";
+import { furnitureStats3d, whenFurnitureReady } from "../rendering/three/registry";
+import { planSpriteCount } from "../rendering/konva/stageRegistry";
 
 const PlanCanvas = dynamic(() => import("./PlanCanvas"), {
   ssr: false,
@@ -57,6 +59,10 @@ declare global {
       getSession: () => unknown;
       worldToScreen: (p: { x: number; y: number }) => { x: number; y: number };
       historySize: () => { past: number; future: number };
+      /** Once the 3D view's furniture models have loaded: how many pieces it draws from models and from boxes (null with no 3D view). */
+      furniture3d: () => Promise<{ models: number; boxes: number } | null>;
+      /** How many pieces the plan draws from the asset library's pictures. */
+      planSprites: () => number;
     };
   }
 }
@@ -165,6 +171,8 @@ export default function EditorApp({ projectId, start }: EditorAppProps) {
         const h = editorStores.documents.getState().history;
         return { past: h.past.length, future: h.future.length };
       },
+      furniture3d: () => whenFurnitureReady().then(furnitureStats3d),
+      planSprites: planSpriteCount,
     };
   }, []);
 
@@ -260,7 +268,7 @@ export default function EditorApp({ projectId, start }: EditorAppProps) {
         onImport={() => fileInput.current?.click()}
         onRecover={() => void recover()}
         onExportJson={exportProjectFile}
-        onExportPng={exportPlanPng}
+        onExportPng={() => void exportPlanPng()}
         onExportPresentation={() => void exportPresentationPng()}
         onExport3dPng={() => void export3dPng()}
         onExport3dModel={() => void export3dModel()}

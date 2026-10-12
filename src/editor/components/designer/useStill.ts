@@ -3,12 +3,12 @@
 import { useEffect, useState } from "react";
 import type { Level, PlanDocument } from "@/domain/plan/types";
 import type { Appearance } from "@/domain/project/schema";
-import { renderStill, type StillView } from "../../rendering/three/stills";
+import { prepareStillModels, renderStill, type StillView } from "../../rendering/three/stills";
 
 /**
  * 3D preview images for cards and galleries. Stills render one at a time,
- * a frame apart, only once their card is on screen, and are cached per plan
- * so scrolling back is instant.
+ * a frame apart, only once their card is on screen and its furniture models
+ * have loaded, and are cached per plan so scrolling back is instant.
  */
 
 interface Size {
@@ -61,8 +61,13 @@ export function useStill(level: Level | PlanDocument, view: StillView, size: Siz
         cache.get(level)!.set(key, still);
         setResult({ level, key, url: still });
       };
-      queue.push(queued);
-      pump();
+      const job = queued;
+      // Furniture models first, so the still shows them rather than boxes.
+      void prepareStillModels(level, appearance).then(() => {
+        if (cancelled) return;
+        queue.push(job);
+        pump();
+      });
     });
     observer.observe(element);
     return () => {

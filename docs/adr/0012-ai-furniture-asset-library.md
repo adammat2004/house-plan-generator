@@ -1,6 +1,6 @@
 # ADR 0012 — AI-made furniture asset library
 
-- Status: proposed. The pipeline is built; the 3D service, where the files live, and the runtime are still open.
+- Status: accepted. The pipeline, Tripo as the service, and the 3D and plan runtime are built. All 21 modelled warm_minimal pieces are published (5.8 MB); the other five styles are still to make.
 - Date: 2026-10-12
 - Builds on: [ADR 0003](0003-furniture.md), [ADR 0005](0005-rooms-first-and-photo-renders.md)
 
@@ -56,14 +56,37 @@ The spike compared five services on warm_minimal × sofa, armchair, double bed, 
 - **Each service has a `facing`,** used when a piece has no tall back to go by.
 - **Every model is made matte:** the roughness map is dropped, metalness is set to 0 and roughness to 0.8. The services' glossy maps washed colours out under the studio light.
 - **The simplifier may lose more detail** (error 0.01) to stay near the triangle budgets.
+- **Tripo's base colours are corrected** (`colour`: saturation 0.8, brightness 1.04), because its oak came out orange against the reference pictures.
+- **Dining sets are turned** in `review.json` so the table runs across, with the chairs front and back as the planner lays them out. The four-seat set's prompt asks for exactly four chairs, none at the ends: the first one had five.
+
+**Decided 2026-10-12:** Tripo for everything, and the files are committed to git (about 1.4 MB for the first five pieces; about 8 MB per style).
+
+## Runtime
+
+- **Publishing.** `npm run assets:publish` copies each style/kind's chosen model and plan picture to `public/assets/furniture/{style}/{kind}.{hash8}.glb|.webp` and writes `src/editor/rendering/assets/furnitureAssets.json`. Files nothing points at are removed. `scripts/assets/review.json` can name another service for a piece, or reject it so it stays drawn in code.
+- **Lookups** live in `rendering/assets/manifest.ts`:
+  - `assetFor` tries the style, then "any", then warm_minimal.
+  - `assetForItem` gives up when an item is resized beyond 0.7–1.4× the catalog on any axis.
+  - Models are scaled from the catalog size, so a bed keeps its headboard however the item's height is set.
+- **3D** (`three/furnitureAssets.ts`):
+  - Each model loads once with `GLTFLoader` and the meshopt decoder, and every scene uses copies of it.
+  - The template's meshes and materials are marked `sharedAsset`, and `clearGroup` doesn't free them.
+  - `HouseModel.furniture` lists each piece with its floor height and cutaway cap.
+  - `buildHouse` places a model where one has loaded and skips that piece's boxes.
+  - In the cutaway, a model's materials are copied with a clipping plane (`localClippingEnabled`).
+  - The viewer builds with boxes first, then again once the models arrive.
+  - Stills (`prepareStillModels`, `useStill`) wait for the models, and the library's generation is part of the stills' scene cache key.
+  - The GLB export uses world transforms.
+- **Plan** (`konva/sprites.ts`):
+  - Furniture is drawn as a Konva image wherever it's shown (Furnished, and the Explore board), flipped with `scaleY: -1` and turned like the item. Pieces without a picture keep their symbol.
+  - Concept thumbnails (`PlanThumbnail`) draw the same pictures as SVG `<image>`s.
+  - Plan and presentation exports wait for the pictures; 3D exports wait for the models.
+- **Test hooks:** `__floorPlanEditor.planSprites()` and `furniture3d()`. The furniture e2e checks both.
 
 ## Still to decide
 
-- **Which service:** see the spike results above.
-- **Where the files live.** About 125 assets come to roughly 40–70 MB. They could go in plain git, in Git LFS, or in external storage.
-- **The runtime:**
-  - 3D: an `AssetLibrary` with clone-per-item, box fallbacks, and a clipping-plane cutaway; `clearGroup` must not free shared models; GLB export must use world transforms.
-  - 2D: Konva sprites in the Furnished view with `scaleY = -1` under the flipped stage, plus exports that wait for the pictures to load.
+- **The Asset Lab:** a dev page to approve or reject pieces and fix orientation, instead of editing `review.json` by hand.
+- **The other five styles,** and the decor kinds below.
 - **Decor kinds:** a side table and a floor lamp would need schema v7. Rugs stay derived from the furniture they sit under.
 
 ## Consequences

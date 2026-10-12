@@ -102,6 +102,8 @@ test.describe("Furniture", () => {
     await page.getByTestId("open-concept-Plan A").click();
     await page.waitForTimeout(300);
     expect((await furniture(page)).length).toBeGreaterThan(10);
+    // Pieces in the asset library are drawn from their pictures seen from above.
+    await expect.poll(() => page.evaluate(() => window.__floorPlanEditor!.planSprites())).toBeGreaterThan(0);
     await page.screenshot({ path: "test-results/visual/furniture-concept-plan.png" });
     // The 2D plan view leaves the furniture out.
     await page.getByTestId("view-plan").click();
@@ -110,6 +112,9 @@ test.describe("Furniture", () => {
     await page.keyboard.press("Shift+Digit2");
     await expect(page.getByTestId("three-view").locator("canvas")).toBeVisible();
     await page.getByTestId("present-tab-show").click();
+    // Pieces in the asset library are drawn from their 3D models, cut off in the cutaway like the walls.
+    const stats = await page.evaluate(() => window.__floorPlanEditor!.furniture3d());
+    expect(stats!.models).toBeGreaterThan(0);
     await page.getByTestId("display-cutaway").click();
     await page.waitForTimeout(1500);
     await page.screenshot({ path: "test-results/visual/furniture-3d.png" });

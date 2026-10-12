@@ -7,7 +7,7 @@ import { pointAtParam, type WallAxis } from "@/domain/geometry/walls";
 import { roomAtPoint, roomBounds } from "@/domain/design/analysis";
 import { furnitureRect } from "@/domain/furniture/geometry";
 import { furnitureIssues, type FurnitureProblem } from "@/domain/furniture/issues";
-import type { FloorMaterial, FurnitureKind, Id, Level, Opening, Point2, RoomType } from "@/domain/plan/types";
+import type { FloorMaterial, Furniture, FurnitureKind, Id, Level, Opening, Point2, RoomType } from "@/domain/plan/types";
 import { furnitureRug, furnitureSymbol, type SymbolPart } from "./furnitureSymbols";
 
 /**
@@ -59,6 +59,8 @@ export const SLIDING_DOOR_WIDTH = 1.5;
 export interface FurniturePrimitive {
   id: Id;
   kind: FurnitureKind;
+  /** The piece itself, for drawing it from the asset library's picture of it. */
+  item: Furniture;
   outline: Ring;
   parts: SymbolPart[];
   /** Why it doesn't stand clear, if it doesn't. */
@@ -138,6 +140,7 @@ export function buildPlanScene(level: Level): PlanScene {
   const furniture: FurniturePrimitive[] = Object.values(level.furniture).map((item) => ({
     id: item.id,
     kind: item.kind,
+    item,
     ...furnitureSymbol(item),
     problem: problems.get(item.id) ?? null,
   }));

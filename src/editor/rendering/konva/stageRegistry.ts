@@ -7,6 +7,11 @@ export function registerStage(stage: Stage | null) {
   current = stage;
 }
 
+/** How many pieces the plan draws from the asset library's pictures (for tests). */
+export function planSpriteCount(): number {
+  return current?.find(".furniture-sprite").length ?? 0;
+}
+
 export interface PlanImageOptions {
   pixelRatio?: number;
   /** The part of the stage to capture, in stage pixels; it may reach past what's on screen. */

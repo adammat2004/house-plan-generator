@@ -1,0 +1,572 @@
+{
+  "version": 1,
+  "entries": [
+    {
+      "kind": "car",
+      "style": "any",
+      "glb": "/assets/furniture/any/car.a49057b4.glb",
+      "sprite": {
+        "url": "/assets/furniture/any/car.19a420fb.webp",
+        "width": 550,
+        "height": 1229,
+        "pxPerM": 256,
+        "marginM": 0.15
+      },
+      "dims": [
+        1.85,
+        3.615,
+        1.332
+      ],
+      "catalog": [
+        1.85,
+        4.5,
+        1.5
+      ],
+      "tris": 24995,
+      "bytes": 436864,
+      "vendor": "tripo",
+      "licence": "Tripo API output, commercial use on paid plans",
+      "sourceHash": "4dff109017c4f632"
+    },
+    {
+      "kind": "fridge",
+      "style": "any",
+      "glb": "/assets/furniture/any/fridge.d75f60d6.glb",
+      "sprite": {
+        "url": "/assets/furniture/any/fridge.3e9b3ba8.webp",
+        "width": 256,
+        "height": 243,
+        "pxPerM": 256,
+        "marginM": 0.15
+      },
+      "dims": [
+        0.7,
+        0.65,
+        1.85
+      ],
+      "catalog": [
+        0.7,
+        0.65,
+        1.85
+      ],
+      "tris": 12000,
+      "bytes": 196848,
+      "vendor": "tripo",
+      "licence": "Tripo API output, commercial use on paid plans",
+      "sourceHash": "53ab38a028239817"
+    },
+    {
+      "kind": "toilet",
+      "style": "any",
+      "glb": "/assets/furniture/any/toilet.3e046e18.glb",
+      "sprite": {
+        "url": "/assets/furniture/any/toilet.86e9034d.webp",
+        "width": 179,
+        "height": 256,
+        "pxPerM": 256,
+        "marginM": 0.15
+      },
+      "dims": [
+        0.342,
+        0.7,
+        0.73
+      ],
+      "catalog": [
+        0.4,
+        0.7,
+        0.8
+      ],
+      "tris": 6000,
+      "bytes": 112668,
+      "vendor": "tripo",
+      "licence": "Tripo API output, commercial use on paid plans",
+      "sourceHash": "4f3b95e24c82e2b4"
+    },
+    {
+      "kind": "washing_machine",
+      "style": "any",
+      "glb": "/assets/furniture/any/washing_machine.42def1d3.glb",
+      "sprite": {
+        "url": "/assets/furniture/any/washing_machine.0c0a9b04.webp",
+        "width": 230,
+        "height": 230,
+        "pxPerM": 256,
+        "marginM": 0.15
+      },
+      "dims": [
+        0.6,
+        0.6,
+        0.85
+      ],
+      "catalog": [
+        0.6,
+        0.6,
+        0.85
+      ],
+      "tris": 5994,
+      "bytes": 112088,
+      "vendor": "tripo",
+      "licence": "Tripo API output, commercial use on paid plans",
+      "sourceHash": "2e0944b598a64e23"
+    },
+    {
+      "kind": "armchair",
+      "style": "warm_minimal",
+      "glb": "/assets/furniture/warm_minimal/armchair.4b5e3ba7.glb",
+      "sprite": {
+        "url": "/assets/furniture/warm_minimal/armchair.d3b3e949.webp",
+        "width": 294,
+        "height": 294,
+        "pxPerM": 256,
+        "marginM": 0.15
+      },
+      "dims": [
+        0.85,
+        0.85,
+        0.9
+      ],
+      "catalog": [
+        0.85,
+        0.85,
+        0.9
+      ],
+      "tris": 11996,
+      "bytes": 220640,
+      "vendor": "tripo",
+      "licence": "Tripo API output, commercial use on paid plans",
+      "sourceHash": "321bdc119ff992b1"
+    },
+    {
+      "kind": "basin",
+      "style": "warm_minimal",
+      "glb": "/assets/furniture/warm_minimal/basin.26b934df.glb",
+      "sprite": {
+        "url": "/assets/furniture/warm_minimal/basin.7b532915.webp",
+        "width": 230,
+        "height": 192,
+        "pxPerM": 256,
+        "marginM": 0.15
+      },
+      "dims": [
+        0.6,
+        0.45,
+        0.85
+      ],
+      "catalog": [
+        0.6,
+        0.45,
+        0.85
+      ],
+      "tris": 6000,
+      "bytes": 107976,
+      "vendor": "tripo",
+      "licence": "Tripo API output, commercial use on paid plans",
+      "sourceHash": "43d3c34ab59cae4f"
+    },
+    {
+      "kind": "bath",
+      "style": "warm_minimal",
+      "glb": "/assets/furniture/warm_minimal/bath.dc132078.glb",
+      "sprite": {
+        "url": "/assets/furniture/warm_minimal/bath.a98c78f2.webp",
+        "width": 512,
+        "height": 269,
+        "pxPerM": 256,
+        "marginM": 0.15
+      },
+      "dims": [
+        1.7,
+        0.75,
+        0.55
+      ],
+      "catalog": [
+        1.7,
+        0.75,
+        0.55
+      ],
+      "tris": 25000,
+      "bytes": 296068,
+      "vendor": "tripo",
+      "licence": "Tripo API output, commercial use on paid plans",
+      "sourceHash": "9194a0bda3f62988"
+    },
+    {
+      "kind": "bed_double",
+      "style": "warm_minimal",
+      "glb": "/assets/furniture/warm_minimal/bed_double.4c1cfa5b.glb",
+      "sprite": {
+        "url": "/assets/furniture/warm_minimal/bed_double.d499562b.webp",
+        "width": 448,
+        "height": 602,
+        "pxPerM": 256,
+        "marginM": 0.15
+      },
+      "dims": [
+        1.45,
+        2.05,
+        0.947
+      ],
+      "catalog": [
+        1.45,
+        2.05,
+        0.5
+      ],
+      "tris": 25000,
+      "bytes": 376008,
+      "vendor": "tripo",
+      "licence": "Tripo API output, commercial use on paid plans",
+      "sourceHash": "7a7a82e5457d5cff"
+    },
+    {
+      "kind": "bed_single",
+      "style": "warm_minimal",
+      "glb": "/assets/furniture/warm_minimal/bed_single.1d322d97.glb",
+      "sprite": {
+        "url": "/assets/furniture/warm_minimal/bed_single.4160c69c.webp",
+        "width": 320,
+        "height": 589,
+        "pxPerM": 256,
+        "marginM": 0.15
+      },
+      "dims": [
+        0.95,
+        2,
+        0.862
+      ],
+      "catalog": [
+        0.95,
+        2,
+        0.5
+      ],
+      "tris": 25000,
+      "bytes": 297068,
+      "vendor": "tripo",
+      "licence": "Tripo API output, commercial use on paid plans",
+      "sourceHash": "e5b87c56f7ef69bf"
+    },
+    {
+      "kind": "bedside_table",
+      "style": "warm_minimal",
+      "glb": "/assets/furniture/warm_minimal/bedside_table.8181849a.glb",
+      "sprite": {
+        "url": "/assets/furniture/warm_minimal/bedside_table.13cc8ec7.webp",
+        "width": 192,
+        "height": 179,
+        "pxPerM": 256,
+        "marginM": 0.15
+      },
+      "dims": [
+        0.45,
+        0.4,
+        0.55
+      ],
+      "catalog": [
+        0.45,
+        0.4,
+        0.55
+      ],
+      "tris": 6000,
+      "bytes": 98992,
+      "vendor": "tripo",
+      "licence": "Tripo API output, commercial use on paid plans",
+      "sourceHash": "fd28894da4eec1f7"
+    },
+    {
+      "kind": "bookcase",
+      "style": "warm_minimal",
+      "glb": "/assets/furniture/warm_minimal/bookcase.c79a80c1.glb",
+      "sprite": {
+        "url": "/assets/furniture/warm_minimal/bookcase.d017ade2.webp",
+        "width": 307,
+        "height": 166,
+        "pxPerM": 256,
+        "marginM": 0.15
+      },
+      "dims": [
+        0.9,
+        0.35,
+        1.9
+      ],
+      "catalog": [
+        0.9,
+        0.35,
+        1.9
+      ],
+      "tris": 5995,
+      "bytes": 127296,
+      "vendor": "tripo",
+      "licence": "Tripo API output, commercial use on paid plans",
+      "sourceHash": "02b47350d157bcc7"
+    },
+    {
+      "kind": "chest_of_drawers",
+      "style": "warm_minimal",
+      "glb": "/assets/furniture/warm_minimal/chest_of_drawers.000724c4.glb",
+      "sprite": {
+        "url": "/assets/furniture/warm_minimal/chest_of_drawers.8ac364f2.webp",
+        "width": 307,
+        "height": 192,
+        "pxPerM": 256,
+        "marginM": 0.15
+      },
+      "dims": [
+        0.9,
+        0.45,
+        0.85
+      ],
+      "catalog": [
+        0.9,
+        0.45,
+        0.85
+      ],
+      "tris": 12000,
+      "bytes": 247716,
+      "vendor": "tripo",
+      "licence": "Tripo API output, commercial use on paid plans",
+      "sourceHash": "aa48aa923a595d28"
+    },
+    {
+      "kind": "coffee_table",
+      "style": "warm_minimal",
+      "glb": "/assets/furniture/warm_minimal/coffee_table.22853ebb.glb",
+      "sprite": {
+        "url": "/assets/furniture/warm_minimal/coffee_table.0f6006e8.webp",
+        "width": 358,
+        "height": 230,
+        "pxPerM": 256,
+        "marginM": 0.15
+      },
+      "dims": [
+        1.1,
+        0.6,
+        0.42
+      ],
+      "catalog": [
+        1.1,
+        0.6,
+        0.42
+      ],
+      "tris": 12000,
+      "bytes": 278120,
+      "vendor": "tripo",
+      "licence": "Tripo API output, commercial use on paid plans",
+      "sourceHash": "c46ae9d9d9750b60"
+    },
+    {
+      "kind": "desk",
+      "style": "warm_minimal",
+      "glb": "/assets/furniture/warm_minimal/desk.88f6e7ac.glb",
+      "sprite": {
+        "url": "/assets/furniture/warm_minimal/desk.9e0f9b33.webp",
+        "width": 384,
+        "height": 358,
+        "pxPerM": 256,
+        "marginM": 0.15
+      },
+      "dims": [
+        1.2,
+        1.1,
+        0.75
+      ],
+      "catalog": [
+        1.2,
+        1.1,
+        0.75
+      ],
+      "tris": 25000,
+      "bytes": 330784,
+      "vendor": "tripo",
+      "licence": "Tripo API output, commercial use on paid plans",
+      "sourceHash": "002bb0269e2473b4"
+    },
+    {
+      "kind": "dining_set_4",
+      "style": "warm_minimal",
+      "glb": "/assets/furniture/warm_minimal/dining_set_4.9bb1ee97.glb",
+      "sprite": {
+        "url": "/assets/furniture/warm_minimal/dining_set_4.cdc310ab.webp",
+        "width": 435,
+        "height": 512,
+        "pxPerM": 256,
+        "marginM": 0.15
+      },
+      "dims": [
+        1.4,
+        1.7,
+        0.75
+      ],
+      "catalog": [
+        1.4,
+        1.7,
+        0.75
+      ],
+      "tris": 25000,
+      "bytes": 333084,
+      "vendor": "tripo",
+      "licence": "Tripo API output, commercial use on paid plans",
+      "sourceHash": "4df83f08c5fb84f4"
+    },
+    {
+      "kind": "dining_set_6",
+      "style": "warm_minimal",
+      "glb": "/assets/furniture/warm_minimal/dining_set_6.a0015671.glb",
+      "sprite": {
+        "url": "/assets/furniture/warm_minimal/dining_set_6.c0e57934.webp",
+        "width": 563,
+        "height": 538,
+        "pxPerM": 256,
+        "marginM": 0.15
+      },
+      "dims": [
+        1.9,
+        1.8,
+        0.75
+      ],
+      "catalog": [
+        1.9,
+        1.8,
+        0.75
+      ],
+      "tris": 25000,
+      "bytes": 350604,
+      "vendor": "tripo",
+      "licence": "Tripo API output, commercial use on paid plans",
+      "sourceHash": "2d8cf8438c221d9b"
+    },
+    {
+      "kind": "plant",
+      "style": "warm_minimal",
+      "glb": "/assets/furniture/warm_minimal/plant.d4e2ed62.glb",
+      "sprite": {
+        "url": "/assets/furniture/warm_minimal/plant.1b11463c.webp",
+        "width": 192,
+        "height": 192,
+        "pxPerM": 256,
+        "marginM": 0.15
+      },
+      "dims": [
+        0.45,
+        0.358,
+        0.741
+      ],
+      "catalog": [
+        0.45,
+        0.45,
+        1.1
+      ],
+      "tris": 5998,
+      "bytes": 132896,
+      "vendor": "tripo",
+      "licence": "Tripo API output, commercial use on paid plans",
+      "sourceHash": "4388bf0839bb694f"
+    },
+    {
+      "kind": "sideboard",
+      "style": "warm_minimal",
+      "glb": "/assets/furniture/warm_minimal/sideboard.7426b5c7.glb",
+      "sprite": {
+        "url": "/assets/furniture/warm_minimal/sideboard.b83b1f6a.webp",
+        "width": 486,
+        "height": 192,
+        "pxPerM": 256,
+        "marginM": 0.15
+      },
+      "dims": [
+        1.6,
+        0.45,
+        0.8
+      ],
+      "catalog": [
+        1.6,
+        0.45,
+        0.8
+      ],
+      "tris": 12000,
+      "bytes": 227280,
+      "vendor": "tripo",
+      "licence": "Tripo API output, commercial use on paid plans",
+      "sourceHash": "a7e735f31bf9663c"
+    },
+    {
+      "kind": "sofa_2",
+      "style": "warm_minimal",
+      "glb": "/assets/furniture/warm_minimal/sofa_2.6ea2013b.glb",
+      "sprite": {
+        "url": "/assets/furniture/warm_minimal/sofa_2.172eb5b7.webp",
+        "width": 486,
+        "height": 307,
+        "pxPerM": 256,
+        "marginM": 0.15
+      },
+      "dims": [
+        1.6,
+        0.9,
+        0.85
+      ],
+      "catalog": [
+        1.6,
+        0.9,
+        0.85
+      ],
+      "tris": 25000,
+      "bytes": 317024,
+      "vendor": "tripo",
+      "licence": "Tripo API output, commercial use on paid plans",
+      "sourceHash": "dc10b0879448a83e"
+    },
+    {
+      "kind": "sofa_3",
+      "style": "warm_minimal",
+      "glb": "/assets/furniture/warm_minimal/sofa_3.c0accdb8.glb",
+      "sprite": {
+        "url": "/assets/furniture/warm_minimal/sofa_3.049af2f9.webp",
+        "width": 614,
+        "height": 307,
+        "pxPerM": 256,
+        "marginM": 0.15
+      },
+      "dims": [
+        2.1,
+        0.9,
+        0.85
+      ],
+      "catalog": [
+        2.1,
+        0.9,
+        0.85
+      ],
+      "tris": 25000,
+      "bytes": 298056,
+      "vendor": "tripo",
+      "licence": "Tripo API output, commercial use on paid plans",
+      "sourceHash": "af40a4f2f8dea4d5"
+    },
+    {
+      "kind": "tv_unit",
+      "style": "warm_minimal",
+      "glb": "/assets/furniture/warm_minimal/tv_unit.a15ab0a2.glb",
+      "sprite": {
+        "url": "/assets/furniture/warm_minimal/tv_unit.ac419c4e.webp",
+        "width": 486,
+        "height": 192,
+        "pxPerM": 256,
+        "marginM": 0.15
+      },
+      "dims": [
+        1.6,
+        0.45,
+        0.5
+      ],
+      "catalog": [
+        1.6,
+        0.45,
+        0.5
+      ],
+      "tris": 12000,
+      "bytes": 245492,
+      "vendor": "tripo",
+      "licence": "Tripo API output, commercial use on paid plans",
+      "sourceHash": "1b7a47136d4fbd73"
+    }
+  ]
+}

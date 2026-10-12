@@ -15,7 +15,8 @@
     "test:screens": "bash scripts/screens.sh",
     "test:screens:update": "bash scripts/screens.sh --update-snapshots",
     "eval": "vitest run --config vitest.eval.config.mts",
-    "assets:build": "vitest run --config vitest.assets.config.mts",
+    "assets:build": "vitest run --config vitest.assets.config.mts build",
+    "assets:publish": "vitest run --config vitest.assets.config.mts publish",
     "check": "npm run typecheck && npm run lint && npm test && npm run test:e2e"
   },
   "dependencies": {

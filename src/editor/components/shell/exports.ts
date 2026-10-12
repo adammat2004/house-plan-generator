@@ -1,11 +1,12 @@
 import { downloadProject, downloadUrl, projectFileName } from "@/persistence/jsonFile";
 import { assessHouse } from "@/domain/design/analysis";
 import { analyzeEnvelope } from "@/domain/geometry/envelope";
+import { spritesSettled } from "../../rendering/konva/sprites";
 import { exportPlanImage } from "../../rendering/konva/stageRegistry";
 import { composePresentation } from "../../rendering/presentation";
 import { buildGarden } from "../../rendering/scene/garden";
 import { worldToScreen } from "../../viewport/viewport";
-import { exportModel, snapshot3d, whenViewerReady } from "../../rendering/three/registry";
+import { exportModel, snapshot3d, whenFurnitureReady, whenViewerReady } from "../../rendering/three/registry";
 import { editor, editorStores } from "../../state/editor";
 import { in3d, projectDocument } from "../../state/stores";
 
@@ -27,7 +28,14 @@ function pictureName(suffix = ""): string {
   return projectFileName(`${p.name}${label}${floor}${suffix}`, ".png");
 }
 
-export function exportPlanPng() {
+/** Waits for the furniture pictures on the plan, and a frame for the plan to redraw with them. */
+async function planPicturesReady() {
+  await spritesSettled();
+  await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+}
+
+export async function exportPlanPng() {
+  await planPicturesReady();
   const url = exportPlanImage();
   if (!url) {
     editor.notify("error", "The plan isn't ready to export yet.");
@@ -60,6 +68,7 @@ export async function exportPresentationPng() {
   const b = worldToScreen(viewport, { x: area.maxX + margin, y: area.minY - margin });
   const crop = { x: a.x, y: a.y, width: b.x - a.x, height: b.y - a.y };
   const pixelRatio = Math.min(4, Math.max(1, PRESENTATION_SIZE / Math.max(crop.width, crop.height)));
+  await planPicturesReady();
   const url = crop.width > 0 && crop.height > 0 ? exportPlanImage({ crop, pixelRatio, presentation: true }) : null;
   if (!url) {
     editor.notify("error", "The plan isn't ready to export yet.");
@@ -92,7 +101,11 @@ export async function exportPresentationPng() {
 /** Shows the 3D view if it isn't on show, and says whether it's ready. */
 async function ready3d(): Promise<boolean> {
   if (!in3d(editorStores.session.getState())) editor.setShow3d(true);
-  if (await whenViewerReady()) return true;
+  if (await whenViewerReady()) {
+    // The furniture models, so the picture or model has them rather than boxes.
+    await whenFurnitureReady();
+    return true;
+  }
   editor.notify("error", "The 3D view isn't ready to export yet.");
   return false;
 }

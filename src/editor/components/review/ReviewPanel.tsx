@@ -131,7 +131,7 @@ function Review() {
           <DownloadIcon width={18} height={18} /> Download presentation image
         </button>
         <div className="review-downloads">
-          <button type="button" className="btn btn-secondary btn-sm" onClick={exportPlanPng} data-testid="review-export-png">
+          <button type="button" className="btn btn-secondary btn-sm" onClick={() => void exportPlanPng()} data-testid="review-export-png">
             Plan image
           </button>
           <button type="button" className="btn btn-secondary btn-sm" onClick={exportProjectFile} data-testid="review-export-json">

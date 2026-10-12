@@ -6,7 +6,7 @@ import type { Rect } from "@/domain/geometry/vector";
 import { floorThicknessOf, floorToFloor, levelIndex } from "@/domain/plan/levels";
 import { CURRENT_SCHEMA_VERSION } from "@/domain/plan/schema";
 import type { Id, Level, PlanDocument } from "@/domain/plan/types";
-import { buildHouseModel, CUTAWAY_HEIGHT, parapets, ROOF_SLAB, type Box, type DimensionLabel, type FloorPiece, type HouseModel, type HouseModelOptions } from "./houseModel";
+import { buildHouseModel, CUTAWAY_HEIGHT, parapets, ROOF_SLAB, type Box, type DimensionLabel, type FloorPiece, type FurniturePlacement, type HouseModel, type HouseModelOptions } from "./houseModel";
 
 /**
  * The whole house in 3D: every floor's model from `buildHouseModel`, raised
@@ -140,6 +140,7 @@ function build(doc: PlanDocument, base: HouseModelOptions, top: number): HouseMo
   const floors: FloorPiece[] = [];
   const labels: DimensionLabel[] = [];
   const ceilings: Array<{ rect: Rect; z: number }> = [];
+  const furniture: FurniturePlacement[] = [];
   let ground: HouseModel | null = null;
   let height = 0;
   const wallTops: number[] = [];
@@ -152,6 +153,7 @@ function build(doc: PlanDocument, base: HouseModelOptions, top: number): HouseMo
     const m = buildHouseModel(level, { ...base, cutaway: cut, roof: false, dimensions: false, landscape: base.landscape && i === 0, roomLabels: base.roomLabels && isTop });
     if (i === 0) ground = m;
     for (const b of m.boxes) boxes.push(z ? { ...b, z0: b.z0 + z } : b);
+    for (const f of m.furniture ?? []) furniture.push({ ...f, z: f.z + z });
     const holes = i > 0 ? openings(i) : [];
     for (const f of m.floors) {
       if (i === 0) {
@@ -211,5 +213,5 @@ function build(doc: PlanDocument, base: HouseModelOptions, top: number): HouseMo
       );
     }
   }
-  return { boxes, floors, outside: g.outside, outline: g.outline, slabs: [], wallHeight: height, labels, site: g.site, ceilings };
+  return { boxes, floors, outside: g.outside, outline: g.outline, slabs: [], wallHeight: height, labels, site: g.site, ceilings, furniture };
 }

@@ -5,6 +5,7 @@ import type { Id, Level, PlanDocument } from "@/domain/plan/types";
 import type { Appearance } from "@/domain/project/schema";
 import { aerialCameraPose, exteriorCameraPose, roomCameraPose, type CameraPose } from "../scene/roomCamera";
 import { buildBuildingModel, planOf } from "./buildingModel";
+import { ensureFurnitureModels, furnitureModels, furnitureModelsGeneration } from "./furnitureAssets";
 import type { HouseModel } from "./houseModel";
 import { applyLighting, buildHouse, clearGroup, TextureCache, type LightTarget } from "./sceneBuilder";
 
@@ -50,6 +51,7 @@ function getRenderer(): THREE.WebGLRenderer | null {
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.localClippingEnabled = true;
     canvas.addEventListener("webglcontextlost", () => disposeStills());
     return renderer;
   } catch {
@@ -60,7 +62,8 @@ function getRenderer(): THREE.WebGLRenderer | null {
 
 function prepare(plan: PlanDocument, appearance: Appearance, mode: StillView["kind"], r: THREE.WebGLRenderer): Prepared {
   const interior = mode === "room";
-  const key = JSON.stringify([appearance, mode]);
+  // Scenes built while furniture models were still loading are built again once they've come.
+  const key = JSON.stringify([appearance, mode, furnitureModelsGeneration()]);
   const hit = prepared.find((p) => p.plan === plan && p.key === key);
   if (hit) {
     // Most recently used last.
@@ -80,7 +83,7 @@ function prepare(plan: PlanDocument, appearance: Appearance, mode: StillView["ki
   // A roof gives rooms a ceiling; dimensions and cutaways are for the interactive view.
   // From above the roof comes off, to see into the rooms.
   const model = buildBuildingModel(plan, { cutaway: false, roof: mode !== "aerial", dimensions: false, landscape: true, furniture: true });
-  buildHouse(group, model, { appearance, ground: "lawn", landscape: true, labels: false }, textures);
+  buildHouse(group, model, { appearance, ground: "lawn", landscape: true, labels: false }, textures, furnitureModels);
   if (interior) {
     // A plain white ceiling on every floor, as rooms have, and none over the garden.
     const paint = new THREE.MeshStandardMaterial({ color: "#f4f2ee", roughness: 0.95 });
@@ -162,15 +165,25 @@ function draw(source: Level | PlanDocument, view: StillView, opts: StillOptions)
   }
 }
 
+/** Loads the furniture models a plan's stills will show; render after it resolves to get models rather than boxes. Never rejects. */
+export function prepareStillModels(source: Level | PlanDocument, appearance: Appearance): Promise<void> {
+  const plan = planOf(source);
+  return ensureFurnitureModels(
+    plan.levels.flatMap((level) => Object.values(level.furniture)),
+    appearance.interiorStyle,
+  );
+}
+
 /** A still of a plan (or one floor) as a JPEG data URL, or null where WebGL isn't available or the room is gone. */
 export function renderStill(plan: Level | PlanDocument, view: StillView, opts: StillOptions): string | null {
   return draw(plan, view, opts)?.toDataURL("image/jpeg", opts.quality ?? 0.85) ?? null;
 }
 
 /** A still as a JPEG blob, for uploading. */
-export function renderStillBlob(plan: Level | PlanDocument, view: StillView, opts: StillOptions): Promise<Blob | null> {
+export async function renderStillBlob(plan: Level | PlanDocument, view: StillView, opts: StillOptions): Promise<Blob | null> {
+  await prepareStillModels(plan, opts.appearance);
   const canvas = draw(plan, view, opts);
-  if (!canvas) return Promise.resolve(null);
+  if (!canvas) return null;
   return new Promise((resolve) => canvas.toBlob((blob) => resolve(blob), "image/jpeg", opts.quality ?? 0.88));
 }
 

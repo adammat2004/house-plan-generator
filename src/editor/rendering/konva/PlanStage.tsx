@@ -3,7 +3,7 @@
 import type { Context } from "konva/lib/Context";
 import type { Shape as KonvaShape } from "konva/lib/Shape";
 import { memo, useEffect, useMemo, useState } from "react";
-import { Circle, Group, Layer, Line, Path, Rect, Shape, Stage, Text } from "react-konva";
+import { Circle, Group, Image as KonvaImage, Layer, Line, Path, Rect, Shape, Stage, Text } from "react-konva";
 import { deriveLevelGeometry, deriveWallMass, deriveWallMassCut } from "@/domain/geometry/derive";
 import { analyzeEnvelope } from "@/domain/geometry/envelope";
 import type { MultiPolygon, Ring } from "@/domain/geometry/polygons";
@@ -13,6 +13,7 @@ import { levelIndex } from "@/domain/plan/levels";
 import { roomEdgeHandles } from "@/domain/design/analysis";
 import { furnitureRect } from "@/domain/furniture/geometry";
 import type { Level, Point2 } from "@/domain/plan/types";
+import type { InteriorStyle } from "@/domain/project/schema";
 import { useActiveLevel, useDocumentState, useProjectState, useSessionState } from "../../state/editor";
 import { displayedDocument, inRefine, type OutlineDraft, type Selection, type SnapIndicator } from "../../state/stores";
 import { worldToScreen, type Viewport } from "../../viewport/viewport";
@@ -23,6 +24,7 @@ import { GardenLayer } from "./GardenLayer";
 import { buildGarden } from "../scene/garden";
 import { buildableRect, sitePlot, type Site } from "@/domain/project/site";
 import { registerStage } from "./stageRegistry";
+import { spriteFor, useFurnitureSprites } from "./sprites";
 import { FINISH_TONE, roomFinish } from "../scene/finishes";
 import { finishPattern, patternDensity } from "./patterns";
 import { Poly, ringsOf } from "./Poly";
@@ -124,6 +126,7 @@ const PlanContent = memo(function PlanContent({
   scene,
   showFurniture,
   fills,
+  style,
   stairs,
   underlay,
   density,
@@ -132,6 +135,10 @@ const PlanContent = memo(function PlanContent({
   showFurniture: boolean;
   /** Furniture colours for the interior style. */
   fills: Record<FurnitureMaterial, string>;
+  /** The interior style, which picks the furniture pictures. */
+  style: InteriorStyle | undefined;
+  /** Changes as furniture pictures arrive, so the plan redraws with them. */
+  sprites: number;
   stairs: StairPrimitive[];
   /** The walls of the floor below, faded; left out of exports. */
   underlay: MultiPolygon | null;
@@ -157,7 +164,12 @@ const PlanContent = memo(function PlanContent({
         <StairShape key={stair.id} stair={stair} />
       ))}
       {showFurniture && scene.rugs.length > 0 && <Poly rings={ringsOf(scene.rugs)} fill={fills.rug} stroke={T.rugStroke} strokeWidth={0.8} />}
-      {showFurniture && scene.furniture.map((f) => <FurnitureShape key={f.id} parts={f.parts} fills={fills} />)}
+      {showFurniture &&
+        scene.furniture.map((f) => {
+          // The library's picture of the piece from above where there is one; else its drawn symbol.
+          const sprite = spriteFor(f.item, style);
+          return sprite ? <KonvaImage key={f.id} name="furniture-sprite" listening={false} perfectDrawEnabled={false} {...sprite} /> : <FurnitureShape key={f.id} parts={f.parts} fills={fills} />;
+        })}
       {/* The walls, with a soft shadow at their feet that lifts them off the floor. */}
       <Poly rings={ringsOf(scene.wallMass)} fill={T.wallFill} stroke={T.wallStroke} strokeWidth={1} glow={{ color: T.wallShadow, blur: 0.16 }} />
       {scene.openings.map((o) => (
@@ -710,6 +722,9 @@ export function PlanStage({ width, height }: { width: number; height: number }) 
   }, [above]);
   const stairs = buildStairScene(doc, level.id);
   const scene = useMemo(() => buildPlanScene(level), [level]);
+  const interiorStyle = useProjectState((s) => s.appearance?.interiorStyle);
+  const furnitureItems = useMemo(() => Object.values(level.furniture), [level.furniture]);
+  const sprites = useFurnitureSprites(furnitureItems, interiorStyle, furnished || !refining);
   // The garden and the house's shadow go round the ground floor, which holds every floor above.
   const groundScene = buildPlanScene(doc.levels[0]);
   const site = useProjectState((s) => s.site);
@@ -794,7 +809,7 @@ export function PlanStage({ width, height }: { width: number; height: number }) 
   const showProblems = furnished && refining;
   const furnitureDraft = useSessionState((s) => s.furnitureDraft);
   const draftSymbol = furnitureDraft ? furnitureSymbol(furnitureDraft.item) : null;
-  const fills = planFurnitureFill(useProjectState((s) => s.appearance?.interiorStyle));
+  const fills = planFurnitureFill(interiorStyle);
   const ghostLevel = staged ? staged.source.levels.find((l) => l.id === level.id) : undefined;
   const ghost = useMemo(() => (ghostLevel ? deriveWallMassCut(ghostLevel) : null), [ghostLevel]);
   const changedRooms = staged ? scene.rooms.filter((r) => staged.roomIds.includes(r.id)) : [];
@@ -818,7 +833,7 @@ export function PlanStage({ width, height }: { width: number; height: number }) 
       </Layer>
       <Layer listening={false}>
         <Group {...transform}>
-          <PlanContent scene={scene} showFurniture={showFurniture} fills={fills} stairs={stairs} underlay={underlay} density={density} />
+          <PlanContent scene={scene} showFurniture={showFurniture} fills={fills} style={interiorStyle} sprites={sprites} stairs={stairs} underlay={underlay} density={density} />
         </Group>
       </Layer>
       <Layer listening={false}>

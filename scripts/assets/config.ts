@@ -74,12 +74,13 @@ const list = (value: string | undefined) =>
 export function runOptions() {
   const styles = (list(process.env.ASSETS_STYLES) ?? ["warm_minimal"]) as InteriorStyle[];
   for (const s of styles) if (!INTERIOR_STYLES.includes(s)) throw new Error(`Unknown style ${s}`);
-  const kinds = (list(process.env.ASSETS_KINDS) ?? SPIKE_KINDS) as FurnitureKind[];
+  const asked = list(process.env.ASSETS_KINDS);
+  const kinds = (asked?.[0] === "all" ? MODELLED : (asked ?? SPIKE_KINDS)) as FurnitureKind[];
   for (const k of kinds) if (!(k in FURNITURE_CATALOG)) throw new Error(`Unknown kind ${k}`);
   return {
     styles,
     kinds,
-    vendors: list(process.env.ASSETS_VENDOR) ?? ["trellis", "trellis2", "tripo", "meshy", "rodin"],
+    vendors: list(process.env.ASSETS_VENDOR) ?? ["tripo"],
     /** Stages to make again even though they're cached. */
     force: new Set(list(process.env.ASSETS_FORCE) ?? []),
     /** Print what would be made, and make nothing paid. */

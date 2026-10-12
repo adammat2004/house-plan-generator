@@ -4,7 +4,7 @@ import { outlineEdges, reflexVertices, SIDE_NORMAL, slabPartition } from "@/doma
 import type { PolygonWithHoles, Ring } from "@/domain/geometry/polygons";
 import type { Rect } from "@/domain/geometry/vector";
 import { pointAtParam, type WallAxis } from "@/domain/geometry/walls";
-import type { FloorMaterial, Id, Level, Point2, RoomType } from "@/domain/plan/types";
+import type { FloorMaterial, Furniture, Id, Level, Point2, RoomType } from "@/domain/plan/types";
 import type { Site } from "@/domain/project/site";
 import { buildGarden, type Garden } from "../scene/garden";
 import { furnitureBoxes, type FurnitureTone } from "./furnitureModel";
@@ -73,6 +73,16 @@ export interface HouseModel {
   site: Garden | null;
   /** For a house of several floors: each floor's ceiling, at its height (absent otherwise: ceilings sit under `slabs` at `wallHeight`). */
   ceilings?: Array<{ rect: Rect; z: number }>;
+  /** Each piece of furniture, for drawing from its 3D model where there is one; its boxes above are the fallback. */
+  furniture?: FurniturePlacement[];
+}
+
+export interface FurniturePlacement {
+  item: Furniture;
+  /** The floor it stands on, m. */
+  z: number;
+  /** In a cutaway, nothing rises more than this above its floor. */
+  cap: number;
 }
 
 export interface HouseModelOptions {
@@ -146,8 +156,13 @@ function build(level: Level, options: HouseModelOptions): HouseModel {
     });
   }
 
+  const furniture: FurniturePlacement[] = [];
   if (options.furniture) {
-    for (const item of Object.values(level.furniture)) boxes.push(...furnitureBoxes(item, options.cutaway ? CUTAWAY_HEIGHT : Infinity));
+    const cap = options.cutaway ? CUTAWAY_HEIGHT : Infinity;
+    for (const item of Object.values(level.furniture)) {
+      boxes.push(...furnitureBoxes(item, cap));
+      furniture.push({ item, z: 0, cap });
+    }
   }
 
   // A flat roof with a parapet, sitting on the walls.
@@ -201,7 +216,7 @@ function build(level: Level, options: HouseModelOptions): HouseModel {
     }
   }
 
-  return { boxes, floors, outside, outline, slabs, wallHeight, labels, site: options.landscape && outside ? buildGarden(level, options.site) : null };
+  return { boxes, floors, outside, outline, slabs, wallHeight, labels, site: options.landscape && outside ? buildGarden(level, options.site) : null, furniture };
 }
 
 /**

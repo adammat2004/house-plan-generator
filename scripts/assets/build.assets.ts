@@ -23,7 +23,7 @@ import { fetchModel, submitModel, uploadPicture, vendor } from "./vendors";
  *
  * Then it writes a contact sheet to test-results/assets/index.html.
  *
- *   npm run assets:build                                    the spike: warm_minimal × 5 kinds × 5 services
+ *   npm run assets:build                                    warm_minimal spike kinds with Tripo (ASSETS_KINDS=all for every modelled kind)
  *   ASSETS_KINDS=sofa_3 ASSETS_VENDOR=tripo npm run assets:build
  *   ASSETS_FORCE=mesh …                                     make a stage again (ref, mesh, normalise, sprite)
  *   ASSETS_DRY=1 …                                          say what would be made and what it costs
@@ -38,7 +38,7 @@ if (existsSync(".env.local")) process.loadEnvFile(".env.local");
 const options = runOptions();
 const SMOKE = process.env.ASSETS_SMOKE === "1";
 const REVIEW_FILE = "scripts/assets/review.json";
-const HARNESS_VERSION = 1;
+const HARNESS_VERSION = 3;
 
 type Review = Record<string, { vendor?: string; status?: "approved" | "rejected"; turns?: Turns; yawDeg?: number; note?: string }>;
 const review: Review = existsSync(REVIEW_FILE) ? JSON.parse(readFileSync(REVIEW_FILE, "utf8")) : {};
@@ -149,12 +149,13 @@ async function normalise(vendorId: string, kind: FurnitureKind, style: string, d
   const target = targetOf(kind);
   const budget = { tris: triangleBudget(kind), textureSize: textureSize(kind) };
   const facing = vendorId === "smoke" ? 0 : vendor(vendorId).facing;
-  const h = hash(raw.hash, target, budget, override, facing, "normalise-3");
+  const colour = vendorId === "smoke" ? undefined : vendor(vendorId).colour;
+  const h = hash(raw.hash, target, budget, override, facing, colour, "normalise-3");
   const file = join(dir, `norm.${vendorId}.glb`);
   const metaFile = join(dir, `norm.${vendorId}.json`);
   const meta = readJson<NormaliseResult & { hash: string; bytes: number }>(metaFile);
   if (existsSync(file) && meta?.hash === h && !options.force.has("normalise")) return { glb: readFileSync(file), hash: h, result: meta };
-  const { glb, result } = await normaliseGlb(raw.glb, target, budget, override, facing);
+  const { glb, result } = await normaliseGlb(raw.glb, target, budget, override, facing, colour);
   writeFileSync(file, glb);
   const full = { ...result, bytes: glb.byteLength, hash: h };
   writeJson(metaFile, full);

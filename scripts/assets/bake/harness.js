@@ -21,7 +21,7 @@ function renderer(width, height, alpha) {
   r.setSize(width, height, false);
   r.outputColorSpace = THREE.SRGBColorSpace;
   r.toneMapping = THREE.ACESFilmicToneMapping;
-  r.toneMappingExposure = 1.0;
+  r.toneMappingExposure = 1.1;
   r.shadowMap.enabled = true;
   r.shadowMap.type = THREE.PCFSoftShadowMap;
   r.setClearColor(0x000000, 0);
@@ -32,10 +32,10 @@ function lightScene(r, size) {
   const scene = new THREE.Scene();
   const pmrem = new THREE.PMREMGenerator(r);
   scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
-  scene.environmentIntensity = 0.45;
-  scene.add(new THREE.HemisphereLight(0xffffff, 0xb9b2a6, 0.8));
+  scene.environmentIntensity = 0.3;
+  scene.add(new THREE.HemisphereLight(0xffffff, 0x8f877a, 0.55));
   // Key light from the north-west (the plan's -x, +y, which is three's -X, -Z), high up.
-  const sun = new THREE.DirectionalLight(0xfff6ea, 1.7);
+  const sun = new THREE.DirectionalLight(0xfff4e6, 2.4);
   const reach = Math.max(size.x, size.z) + 2;
   sun.position.set(-reach * 0.6, reach * 1.6, -reach * 0.6);
   sun.castShadow = true;

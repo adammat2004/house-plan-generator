@@ -1,5 +1,5 @@
 import { createFalClient, type FalClient } from "@fal-ai/client";
-import type { Turns } from "./normalise";
+import type { ColourCorrection, Turns } from "./normalise";
 
 /**
  * Image-to-3D services, all reached through fal.ai with one key. Each turns
@@ -13,6 +13,8 @@ export interface MeshVendor {
   licence: string;
   /** Quarter turns that square the service's own facing up to ours, used when a piece has no back to go by. */
   facing: Turns;
+  /** Undoes the service's colour habit in its textures, if it has one. */
+  colour?: ColourCorrection;
   /** Rough price of one model, USD, for the run's cost estimate. */
   costUsd: number;
   input(imageUrl: string): Record<string, unknown>;
@@ -44,6 +46,8 @@ export const VENDORS: Record<string, MeshVendor> = {
   tripo: {
     id: "tripo",
     facing: 3,
+    // Its oak comes out orange next to the reference pictures.
+    colour: { saturation: 0.8, brightness: 1.04 },
     endpoint: "tripo3d/tripo/v2.5/image-to-3d",
     licence: "Tripo API output, commercial use on paid plans",
     costUsd: 0.3,
@@ -88,13 +92,28 @@ function fal(): FalClient {
 
 /** Uploads a reference picture to fal's storage and returns its URL. */
 export async function uploadPicture(png: Buffer): Promise<string> {
-  return fal().storage.upload(new Blob([new Uint8Array(png)], { type: "image/png" }));
+  try {
+    return await fal().storage.upload(new Blob([new Uint8Array(png)], { type: "image/png" }));
+  } catch (error) {
+    throw falError("upload", error);
+  }
+}
+
+/** fal's errors carry the reason (an empty balance, a bad input) in the body, not the message. */
+function falError(what: string, error: unknown): Error {
+  const body = (error as { body?: { detail?: unknown } }).body;
+  const detail = body?.detail ?? body;
+  return new Error(`${what}: ${error instanceof Error ? error.message : String(error)}${detail ? ` — ${typeof detail === "string" ? detail : JSON.stringify(detail).slice(0, 300)}` : ""}`);
 }
 
 /** Queues a model. The request id is saved by the caller, so a run that stops can pick it up again. */
 export async function submitModel(v: MeshVendor, imageUrl: string): Promise<string> {
-  const queued = await fal().queue.submit(v.endpoint, { input: v.input(imageUrl) });
-  return queued.request_id;
+  try {
+    const queued = await fal().queue.submit(v.endpoint, { input: v.input(imageUrl) });
+    return queued.request_id;
+  } catch (error) {
+    throw falError("submit", error);
+  }
 }
 
 /** Waits for a queued model and downloads its GLB. */

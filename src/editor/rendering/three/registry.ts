@@ -33,6 +33,16 @@ export function whenViewerReady(timeout = 8000): Promise<boolean> {
   });
 }
 
+/** Resolves once the viewer's furniture models are drawn (at once if there's no viewer). */
+export function whenFurnitureReady(): Promise<void> {
+  return current?.furnitureReady() ?? Promise.resolve();
+}
+
+/** How many pieces the viewer draws from library models and from boxes, or null with no viewer. */
+export function furnitureStats3d(): { models: number; boxes: number } | null {
+  return current?.furnitureStats() ?? null;
+}
+
 export function snapshot3d(): string | null {
   return current?.snapshot() ?? null;
 }

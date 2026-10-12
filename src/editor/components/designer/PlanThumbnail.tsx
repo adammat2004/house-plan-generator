@@ -9,6 +9,8 @@ import { FINISH_TONE, finishTile, roomFinish, type FinishId } from "../../render
 import { buildPlanScene, type PlanScene } from "../../rendering/scene/planScene";
 import { buildStairScene, type StairPrimitive } from "../../rendering/scene/stairScene";
 import { planFurnitureFill } from "../../rendering/scene/style";
+import { assetForItem } from "../../rendering/assets/manifest";
+import { spriteTransform } from "../../rendering/konva/sprites";
 
 /** Pictures of plans use the default style's furniture colours. */
 const FURNITURE = planFurnitureFill();
@@ -22,6 +24,26 @@ const pt = (p: { x: number; y: number }) => `${Math.round(p.x * 1000) / 1000} ${
 export const svgLine = (points: ReadonlyArray<{ x: number; y: number }>, closed = false) => `M${points.map(pt).join("L")}${closed ? "Z" : ""}`;
 const path = (rings: Ring[]) => rings.map((ring) => svgLine(ring, true)).join("");
 const rectPath = (r: Rect) => svgLine([{ x: r.minX, y: r.minY }, { x: r.maxX, y: r.minY }, { x: r.maxX, y: r.maxY }, { x: r.minX, y: r.maxY }], true);
+
+const mm = (v: number) => Math.round(v * 1000) / 1000;
+
+/** A piece from the asset library's picture of it seen from above, placed and turned like the item (the drawing is flipped, y up). */
+function FurniturePicture({ item }: { item: PlanScene["furniture"][number]["item"] }) {
+  const asset = assetForItem(item, undefined);
+  if (!asset) return null;
+  const t = spriteTransform(item, asset);
+  return (
+    <image
+      href={asset.sprite.url}
+      x={mm(-t.offsetX)}
+      y={mm(-t.offsetY)}
+      width={mm(t.width)}
+      height={mm(t.height)}
+      preserveAspectRatio="none"
+      transform={`translate(${mm(t.x)} ${mm(t.y)}) rotate(${t.rotation}) scale(1 -1)`}
+    />
+  );
+}
 
 /** A floor's stairs, for drawings that have the whole house: none for a floor drawn on its own. */
 export const stairsOn = (plan: PlanDocument | undefined, level: Level | undefined): readonly StairPrimitive[] | undefined =>
@@ -131,12 +153,15 @@ export function PlanDrawing({
       {detail && scene.furniture.length > 0 && (
         <g stroke={T.furnitureStroke} strokeWidth={0.018} strokeLinejoin="round" opacity={0.85}>
           {scene.furniture.flatMap((f) =>
-            f.parts.map((part, i) => (
-              <path key={`${f.id}-${i}`} d={svgLine(part.ring, part.closed)} fill={part.closed && part.tone !== "none" ? FURNITURE[part.tone] : "none"} />
-            )),
+            assetForItem(f.item, undefined)
+              ? []
+              : f.parts.map((part, i) => (
+                  <path key={`${f.id}-${i}`} d={svgLine(part.ring, part.closed)} fill={part.closed && part.tone !== "none" ? FURNITURE[part.tone] : "none"} />
+                )),
           )}
         </g>
       )}
+      {detail && scene.furniture.map((f) => <FurniturePicture key={f.id} item={f.item} />)}
       {/* A hairline keeps thin internal walls legible at thumbnail size. */}
       <path d={path(scene.wallMass.flatMap((p) => [p.outer, ...p.holes]))} fill={T.wallFill} stroke={T.wallFill} strokeWidth={0.04} fillRule="evenodd" />
       {/* Doors and windows are gaps in the walls: the floor runs through a doorway, and a window is its frame. */}

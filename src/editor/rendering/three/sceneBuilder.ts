@@ -8,6 +8,7 @@ import { FINISH_TONE, finishTile, roomFinish, type FinishId, type OutdoorId } fr
 import { finishCanvas } from "../scene/paintFinish";
 import type { FurnitureTone } from "./furnitureModel";
 import { modelFurnitureColour } from "../scene/style";
+import type { FurnitureModels } from "./furnitureAssets";
 import type { Box, HouseModel } from "./houseModel";
 
 /**
@@ -203,7 +204,7 @@ function extrude(shapes: MultiPolygon, height: number, material: THREE.Material,
   return mesh;
 }
 
-export function buildHouse(group: THREE.Group, model: HouseModel, opts: BuildOptions, textures: TextureCache): THREE.Mesh[] {
+export function buildHouse(group: THREE.Group, model: HouseModel, opts: BuildOptions, textures: TextureCache, models?: FurnitureModels): THREE.Mesh[] {
   const floors: THREE.Mesh[] = [];
   const { appearance } = opts;
   const std = (color: string, extra: THREE.MeshStandardMaterialParameters = {}) => new THREE.MeshStandardMaterial({ color, roughness: 0.92, metalness: 0, ...extra });
@@ -226,7 +227,18 @@ export function buildHouse(group: THREE.Group, model: HouseModel, opts: BuildOpt
     }
     return furniture.get(tone)!;
   };
+  // Furniture from the asset library where its model has loaded; the rest stays boxes.
+  const modelled = new Set<string>();
+  for (const { item, z, cap } of models ? (model.furniture ?? []) : []) {
+    const object = models!.instance(item, appearance.interiorStyle);
+    if (!object) continue;
+    object.position.y = z;
+    if (Number.isFinite(cap)) cutModel(object, z + cap);
+    group.add(object);
+    modelled.add(item.id);
+  }
   for (const box of model.boxes) {
+    if (box.furnitureId && modelled.has(box.furnitureId)) continue;
     group.add(boxMesh(box, { interior, top, exterior, exteriorTiled: !!exteriorMap, frame, glass, door, roof, stair, furniture: furnitureMaterial }));
   }
 
@@ -374,12 +386,39 @@ function boxMesh(
   return mesh;
 }
 
+/** Cuts a model off at a height for the cutaway: its materials are copied with a clipping plane (the renderer needs localClippingEnabled). */
+function cutModel(object: THREE.Object3D, height: number) {
+  const plane = new THREE.Plane(new THREE.Vector3(0, -1, 0), height);
+  const copies = new Map<THREE.Material, THREE.Material>();
+  const cut = (m: THREE.Material) => {
+    let copy = copies.get(m);
+    if (!copy) {
+      copy = m.clone();
+      // The copy is this scene's to free; its textures still belong to the shared model.
+      copy.userData = { assetCopy: true };
+      copy.clippingPlanes = [plane];
+      copy.side = THREE.DoubleSide;
+      copies.set(m, copy);
+    }
+    return copy;
+  };
+  object.traverse((o) => {
+    if (o instanceof THREE.Mesh) o.material = Array.isArray(o.material) ? o.material.map(cut) : cut(o.material);
+  });
+}
+
 export function clearGroup(group: THREE.Group, textures: TextureCache) {
   group.traverse((o) => {
     if (o instanceof THREE.Mesh) {
-      o.geometry.dispose();
+      // Library models are shared by every scene: free only this scene's copies of their materials.
+      if (!o.userData.sharedAsset) o.geometry.dispose();
       const mats = Array.isArray(o.material) ? o.material : [o.material];
       for (const mat of mats) {
+        if (mat.userData.sharedAsset) continue;
+        if (mat.userData.assetCopy) {
+          mat.dispose();
+          continue;
+        }
         // Shared pattern textures are kept; cloned ones (floors) go with their material.
         const map = (mat as THREE.MeshStandardMaterial).map;
         if (map && !textures.owns(map)) map.dispose();
