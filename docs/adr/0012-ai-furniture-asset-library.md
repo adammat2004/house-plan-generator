@@ -39,9 +39,27 @@ The user's choices:
 
   **Hunyuan3D is excluded** because its licence excludes the EU and UK. Stable Fast 3D is excluded too.
 
+## Spike results (2026-10-12)
+
+The spike compared five services on warm_minimal × sofa, armchair, double bed, coffee table and chest of drawers: 24 paid calls, about $7. Every service gave usable shapes. All the sizes came within 10% of the catalog once beds kept their own height.
+
+| Service | Seen in the spike |
+|---|---|
+| TRELLIS ($0.02) | Very good for the price. Colours drift darker than the reference (the oak chest came out walnut). |
+| TRELLIS.2 | Greyer colours. The bed's throw came out torn. The bed is heavy (42k triangles, 1.3 MB). |
+| Tripo v2.5 | The cleanest and most consistent across all five. Wood comes out a little orange. Fast (~90–150 s). Its models face a quarter turn off ours, handled by `facing: 3`. |
+| Meshy 7.1 | Good sofa and table. Blotchy marks on the armchair. The fal queue took 13–15 minutes. |
+| Rodin | Good shapes, but the colours wash out pale against the reference even when matte. The most expensive. |
+
+**Normaliser changes from the spike:**
+- **Beds keep their natural height,** because the catalog's 0.5 m is the mattress, not the headboard.
+- **Each service has a `facing`,** used when a piece has no tall back to go by.
+- **Every model is made matte:** the roughness map is dropped, metalness is set to 0 and roughness to 0.8. The services' glossy maps washed colours out under the studio light.
+- **The simplifier may lose more detail** (error 0.01) to stay near the triangle budgets.
+
 ## Still to decide
 
-- **Which service.** A spike compares them on warm_minimal × sofa, armchair, double bed, coffee table and chest of drawers, looking at shape, textures, lighting baked into the textures, orientation, size and cost.
+- **Which service:** see the spike results above.
 - **Where the files live.** About 125 assets come to roughly 40–70 MB. They could go in plain git, in Git LFS, or in external storage.
 - **The runtime:**
   - 3D: an `AssetLibrary` with clone-per-item, box fallbacks, and a clipping-plane cutaway; `clearGroup` must not free shared models; GLB export must use world transforms.

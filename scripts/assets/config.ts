@@ -79,7 +79,7 @@ export function runOptions() {
   return {
     styles,
     kinds,
-    vendors: list(process.env.ASSETS_VENDOR) ?? ["trellis", "trellis2", "tripo"],
+    vendors: list(process.env.ASSETS_VENDOR) ?? ["trellis", "trellis2", "tripo", "meshy", "rodin"],
     /** Stages to make again even though they're cached. */
     force: new Set(list(process.env.ASSETS_FORCE) ?? []),
     /** Print what would be made, and make nothing paid. */

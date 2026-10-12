@@ -16,6 +16,8 @@ import sharp from "sharp";
 
 export type Turns = 0 | 1 | 2 | 3;
 
+const MATTE_ROUGHNESS = 0.8;
+
 export interface Orientation {
   /** Small turn about the vertical that squares the footprint up, degrees. */
   yawDeg: number;
@@ -41,6 +43,8 @@ export interface Target {
   width: number;
   depth: number;
   height: number;
+  /** Ignore the catalog height and keep the model's own proportions upright: a bed's catalog height is the mattress, not the headboard. */
+  naturalHeight?: boolean;
   /** "stretch" fits each axis to the catalog; "fit" scales evenly to fit inside it (cars, plants). */
   fit: "stretch" | "fit";
   /** Pieces with their back to a wall have a tall back (sofa, headboard, cistern) that shows which way they face. */
@@ -124,7 +128,7 @@ function percentile(values: number[], p: number): number {
  * depth decide between sideways and not when they differ; the side where the
  * height is (the back of a sofa, a headboard) decides front from back.
  */
-export function chooseTurns(points: Points, target: Target): { turns: Turns; confidence: number } {
+export function chooseTurns(points: Points, target: Target, facing: Turns = 0): { turns: Turns; confidence: number } {
   const elongated = Math.abs(target.width - target.depth) / Math.max(target.width, target.depth) > 0.15;
   const candidates: Array<{ turns: Turns; score: number }> = [];
   for (const turns of [0, 1, 2, 3] as Turns[]) {
@@ -143,9 +147,10 @@ export function chooseTurns(points: Points, target: Target): { turns: Turns; con
   }
   candidates.sort((a, b) => b.score - a.score);
   const best = candidates[0];
-  // Free pieces like tables have no back; trust the service's own facing then.
+  // Pieces like tables and chests have no tall back; trust the service's own facing then, or the turn nearest it.
   if (!best || best.score < 0.08) {
-    const fallback = candidates.map((c) => c.turns).sort((a, b) => a - b)[0] ?? 0;
+    const away = (t: Turns) => Math.min((t - facing + 4) % 4, (facing - t + 4) % 4);
+    const fallback = candidates.map((c) => c.turns).sort((a, b) => away(a) - away(b) || a - b)[0] ?? facing;
     return { turns: fallback, confidence: 0 };
   }
   return { turns: best.turns, confidence: Math.min(1, best.score) };
@@ -173,14 +178,15 @@ export function applyMatrix(points: Points, m: number[]): Points {
 }
 
 /** Works out the matrix that squares a model up to the target, from its points. */
-export function solvePlacement(points: Points, target: Target, override?: { yawDeg?: number; turns?: Turns }) {
+export function solvePlacement(points: Points, target: Target, override?: { yawDeg?: number; turns?: Turns }, facing: Turns = 0) {
   const yaw = override?.yawDeg !== undefined ? (override.yawDeg * Math.PI) / 180 : footprintYaw(points);
   const yawed = rotateY(points, yaw);
-  const chosen = override?.turns !== undefined ? { turns: override.turns, confidence: 1 } : chooseTurns(yawed, target);
+  const chosen = override?.turns !== undefined ? { turns: override.turns, confidence: 1 } : chooseTurns(yawed, target, facing);
   const angle = yaw + (chosen.turns * Math.PI) / 2;
   const { min, max, size } = bounds(rotateY(points, angle));
   const [ex, ey, ez] = size.map((v) => Math.max(v, 1e-9));
   const per: [number, number, number] = [target.width / ex, target.height / ey, target.depth / ez];
+  if (target.naturalHeight) per[1] = Math.sqrt(per[0] * per[2]);
   const even = target.fit === "fit" ? Math.min(...per) : Math.cbrt(per[0] * per[1] * per[2]);
   const scale: [number, number, number] = target.fit === "fit" ? [even, even, even] : per;
   const translate: [number, number, number] = [-(min[0] + max[0]) / 2, -min[1], -(min[2] + max[2]) / 2];
@@ -251,13 +257,14 @@ export async function normaliseGlb(
   target: Target,
   budget: { tris: number; textureSize: number },
   override?: { yawDeg?: number; turns?: Turns },
+  facing: Turns = 0,
 ): Promise<{ glb: Uint8Array; result: NormaliseResult }> {
   const io = await gltfIO();
   const doc = await io.readBinary(glb);
   await doc.transform(flatten());
   for (const node of doc.getRoot().listNodes()) if (node.getMesh()) clearNodeTransform(node);
 
-  const placement = solvePlacement(collectPoints(doc), target, override);
+  const placement = solvePlacement(collectPoints(doc), target, override, facing);
   const done = new Set<Mesh>();
   for (const node of doc.getRoot().listNodes()) {
     const mesh = node.getMesh();
@@ -267,16 +274,19 @@ export async function normaliseGlb(
     }
   }
 
+  // Matte everywhere: services ship glossy roughness maps that catch the light and wash colours out,
+  // and furniture seen across a room or from above reads as matte anyway.
   for (const material of doc.getRoot().listMaterials()) {
-    material.setMetallicFactor(Math.min(material.getMetallicFactor(), 0.15));
-    material.setRoughnessFactor(Math.max(material.getRoughnessFactor(), 0.45));
+    material.setMetallicRoughnessTexture(null);
+    material.setMetallicFactor(0);
+    material.setRoughnessFactor(MATTE_ROUGHNESS);
     material.setEmissiveFactor([0, 0, 0]);
     material.setEmissiveTexture(null);
   }
 
   await doc.transform(weld(), dedup(), join(), prune());
   const before = triangleCount(doc);
-  if (before > budget.tris) await doc.transform(simplify({ simplifier: MeshoptSimplifier, ratio: budget.tris / before, error: 0.002 }));
+  if (before > budget.tris) await doc.transform(simplify({ simplifier: MeshoptSimplifier, ratio: budget.tris / before, error: 0.01 }));
   await doc.transform(
     prune(),
     textureCompress({ encoder: sharp, targetFormat: "webp", resize: [budget.textureSize, budget.textureSize], quality: 82 }),

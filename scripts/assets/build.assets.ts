@@ -23,7 +23,7 @@ import { fetchModel, submitModel, uploadPicture, vendor } from "./vendors";
  *
  * Then it writes a contact sheet to test-results/assets/index.html.
  *
- *   npm run assets:build                                    the spike: warm_minimal × 5 kinds × 3 services
+ *   npm run assets:build                                    the spike: warm_minimal × 5 kinds × 5 services
  *   ASSETS_KINDS=sofa_3 ASSETS_VENDOR=tripo npm run assets:build
  *   ASSETS_FORCE=mesh …                                     make a stage again (ref, mesh, normalise, sprite)
  *   ASSETS_DRY=1 …                                          say what would be made and what it costs
@@ -48,10 +48,12 @@ const readJson = <T>(path: string): T | null => (existsSync(path) ? (JSON.parse(
 const writeJson = (path: string, value: unknown) => writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`);
 
 const FIT: Partial<Record<FurnitureKind, Target["fit"]>> = { car: "fit", toilet: "fit", plant: "fit" };
+/** The catalog height of a bed is the mattress; the headboard stands higher. */
+const NATURAL_HEIGHT: FurnitureKind[] = ["bed_single", "bed_double", "bed_king"];
 
 function targetOf(kind: FurnitureKind): Target {
   const s = FURNITURE_CATALOG[kind];
-  return { width: s.width, depth: s.depth, height: s.height, fit: FIT[kind] ?? "stretch", placement: s.placement };
+  return { width: s.width, depth: s.depth, height: s.height, fit: FIT[kind] ?? "stretch", placement: s.placement, naturalHeight: NATURAL_HEIGHT.includes(kind) };
 }
 
 interface Row {
@@ -146,12 +148,13 @@ async function normalise(vendorId: string, kind: FurnitureKind, style: string, d
   const override = r && (r.vendor ?? vendorId) === vendorId && (r.turns !== undefined || r.yawDeg !== undefined) ? { turns: r.turns, yawDeg: r.yawDeg } : undefined;
   const target = targetOf(kind);
   const budget = { tris: triangleBudget(kind), textureSize: textureSize(kind) };
-  const h = hash(raw.hash, target, budget, override, "normalise-1");
+  const facing = vendorId === "smoke" ? 0 : vendor(vendorId).facing;
+  const h = hash(raw.hash, target, budget, override, facing, "normalise-3");
   const file = join(dir, `norm.${vendorId}.glb`);
   const metaFile = join(dir, `norm.${vendorId}.json`);
   const meta = readJson<NormaliseResult & { hash: string; bytes: number }>(metaFile);
   if (existsSync(file) && meta?.hash === h && !options.force.has("normalise")) return { glb: readFileSync(file), hash: h, result: meta };
-  const { glb, result } = await normaliseGlb(raw.glb, target, budget, override);
+  const { glb, result } = await normaliseGlb(raw.glb, target, budget, override, facing);
   writeFileSync(file, glb);
   const full = { ...result, bytes: glb.byteLength, hash: h };
   writeJson(metaFile, full);
@@ -186,7 +189,7 @@ describe.skipIf(!SMOKE && !options.dry && !keysPresent)("furniture assets", () =
     if (options.dry) return;
     writeSheet();
     const total = spent.reduce((sum, s) => sum + s.usd, 0);
-    console.log(`\nPaid calls this run: ${spent.length}, about $${total.toFixed(2)}. Sheet: ${join(SHEET, "index.html")}`);
+    process.stdout.write(`\nPaid calls this run: ${spent.length}, about $${total.toFixed(2)}. Sheet: ${join(SHEET, "index.html")}\n`);
   });
 
   const jobs = options.styles.flatMap((style) =>
@@ -202,9 +205,9 @@ describe.skipIf(!SMOKE && !options.dry && !keysPresent)("furniture assets", () =
         const refCached = existsSync(join(cacheDir(style, kind), "ref.png"));
         const missing = vendors.filter((v) => !existsSync(join(cacheDir(style, kind), `mesh.${v}.glb`)));
         usd += (refCached ? 0 : 0.07) + missing.reduce((sum, v) => sum + vendor(v).costUsd, 0);
-        console.log(`${style}/${kind}: reference ${refCached ? "cached" : "to make"}; models to make: ${missing.join(", ") || "none"}`);
+        process.stdout.write(`${style}/${kind}: reference ${refCached ? "cached" : "to make"}; models to make: ${missing.join(", ") || "none"}\n`);
       }
-      console.log(`About $${usd.toFixed(2)} of paid calls.`);
+      process.stdout.write(`About $${usd.toFixed(2)} of paid calls.\n`);
     });
     return;
   }

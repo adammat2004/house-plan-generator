@@ -79,6 +79,22 @@ describe("squaring a model up", () => {
     expect(chosen.turns).toBe(0);
   });
 
+  it("falls back on the service's own facing when there's no back to go by", () => {
+    // A chest the service sends turned a quarter (Tripo's habit): its width runs along Z.
+    const chest = rotateY(Float64Array.from(box([-0.45, 0.45, 0, 0.85, -0.22, 0.22])), Math.PI / 2);
+    const target: Target = { width: 0.9, depth: 0.45, height: 0.85, fit: "stretch", placement: "wall" };
+    expect(chooseTurns(chest, target, 3)).toEqual({ turns: 3, confidence: 0 });
+    expect(chooseTurns(chest, target, 0).turns).toBe(1);
+  });
+
+  it("keeps a bed's own height: the catalog's is the mattress, not the headboard", () => {
+    const bed = Float64Array.from([...box([-0.7, 0.7, 0, 0.5, -1, 1]), ...box([-0.7, 0.7, 0.5, 1.1, -1, -0.9])]);
+    const placed = solvePlacement(bed, { width: 1.45, depth: 2.05, height: 0.5, fit: "stretch", placement: "wall", naturalHeight: true });
+    expect(placed.dims[0]).toBeCloseTo(1.45, 2);
+    expect(placed.dims[1]).toBeCloseTo(2.05, 2);
+    expect(placed.dims[2]).toBeGreaterThan(1.05);
+  });
+
   it("keeps a long piece long: width goes across X", () => {
     const sideways = rotateY(Float64Array.from(box([-0.55, 0.55, 0, 0.42, -0.3, 0.3])), Math.PI / 2);
     const placed = solvePlacement(sideways, { width: 1.1, depth: 0.6, height: 0.42, fit: "stretch", placement: "free" });

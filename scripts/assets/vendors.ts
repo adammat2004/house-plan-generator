@@ -1,4 +1,5 @@
 import { createFalClient, type FalClient } from "@fal-ai/client";
+import type { Turns } from "./normalise";
 
 /**
  * Image-to-3D services, all reached through fal.ai with one key. Each turns
@@ -10,6 +11,8 @@ export interface MeshVendor {
   id: string;
   endpoint: string;
   licence: string;
+  /** Quarter turns that square the service's own facing up to ours, used when a piece has no back to go by. */
+  facing: Turns;
   /** Rough price of one model, USD, for the run's cost estimate. */
   costUsd: number;
   input(imageUrl: string): Record<string, unknown>;
@@ -22,6 +25,7 @@ const fileUrl = (value: unknown) => (value && typeof value === "object" && "url"
 export const VENDORS: Record<string, MeshVendor> = {
   trellis: {
     id: "trellis",
+    facing: 0,
     endpoint: "fal-ai/trellis",
     licence: "MIT (Microsoft TRELLIS); fal output, commercial use",
     costUsd: 0.02,
@@ -30,6 +34,7 @@ export const VENDORS: Record<string, MeshVendor> = {
   },
   trellis2: {
     id: "trellis2",
+    facing: 0,
     endpoint: "fal-ai/trellis-2",
     licence: "MIT (Microsoft TRELLIS.2); fal output, commercial use",
     costUsd: 0.3,
@@ -38,12 +43,31 @@ export const VENDORS: Record<string, MeshVendor> = {
   },
   tripo: {
     id: "tripo",
+    facing: 3,
     endpoint: "tripo3d/tripo/v2.5/image-to-3d",
     licence: "Tripo API output, commercial use on paid plans",
     costUsd: 0.3,
     // "default" orientation asks for the model squared up, not turned as in the picture.
     input: (image_url) => ({ image_url, texture: "HD", pbr: true, orientation: "default", face_limit: 60_000, seed: 7 }),
     glbUrl: (o) => fileUrl(o.pbr_model) ?? fileUrl(o.model_mesh),
+  },
+  meshy: {
+    id: "meshy",
+    facing: 0,
+    endpoint: "meshy/v7.1/image-to-3d",
+    licence: "Meshy API output, commercial use on paid plans",
+    costUsd: 0.4,
+    input: (image_url) => ({ image_url, model_type: "standard", topology: "triangle", target_polycount: 30_000, symmetry_mode: "auto", should_remesh: true, should_texture: true, enable_pbr: true }),
+    glbUrl: (o) => fileUrl(o.model_glb),
+  },
+  rodin: {
+    id: "rodin",
+    facing: 0,
+    endpoint: "fal-ai/hyper3d/rodin",
+    licence: "Hyper3D Rodin API output, commercial use",
+    costUsd: 0.4,
+    input: (image_url) => ({ input_image_urls: [image_url], geometry_file_format: "glb", material: "PBR", quality: "medium", tier: "Regular", seed: 7 }),
+    glbUrl: (o) => fileUrl(o.model_mesh),
   },
 };
 
