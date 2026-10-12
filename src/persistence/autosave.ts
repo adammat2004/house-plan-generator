@@ -50,6 +50,7 @@ export function startAutosave(source: AutosaveSource, storage: PlanStorage, onSt
         onStatus({ state: "saved", at: Date.now() });
       })
       .catch((error: Error) => {
+        console.error("Autosave failed:", error);
         onStatus({ state: "error", message: error?.message || "Saving failed" });
       })
       .finally(() => {
@@ -85,6 +86,9 @@ export function markForSave(storage: PlanStorage, project: ProjectDocument, onSt
   onStatus({ state: "saving" });
   return storage.save(project).then(
     () => onStatus({ state: "saved", at: Date.now() }),
-    (error: Error) => onStatus({ state: "error", message: error?.message || "Saving failed" }),
+    (error: Error) => {
+      console.error("Saving failed:", error);
+      onStatus({ state: "error", message: error?.message || "Saving failed" });
+    },
   );
 }

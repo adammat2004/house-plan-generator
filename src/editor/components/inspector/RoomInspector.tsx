@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { connectionSummary, neighbourRooms, roomBounds, roomResizeCommand } from "@/domain/design/analysis";
-import { ROOM_GOAL_LABEL, suggestedGoals } from "@/domain/design/intent";
+import { suggestedGoals, type RoomGoal } from "@/domain/design/intent";
+import { DEFAULT_INTERIOR_STYLE } from "@/domain/design/renderRequest";
 import { deriveRoomRegions, roomFaceIndices } from "@/domain/geometry/derive";
 import { formatArea } from "@/domain/geometry/numeric";
 import { isGeneratedRoomName, ROOM_TYPE_LABEL, suggestRoomName } from "@/domain/plan/rooms";
@@ -13,7 +14,9 @@ import { ROOM_FURNITURE } from "@/domain/furniture/catalog";
 import { canFurnish } from "@/domain/furniture/furnish";
 import { furnitureIssues } from "@/domain/furniture/issues";
 import { furnitureInRoom } from "@/domain/furniture/layout";
+import { INTERIOR_STYLE_LABEL, INTERIOR_STYLES, type InteriorStyle } from "@/domain/project/schema";
 import { Button, IconButton, Menu, MenuItem, NumberField, OptionalNumberField, SelectField, TextField } from "@/components/ui/controls";
+import { useAreaText } from "@/components/units";
 import {
   ArmchairIcon,
   BathIcon,
@@ -29,12 +32,13 @@ import {
   SofaIcon,
   SparkleIcon,
   SwapIcon,
-  VariationsIcon,
   WindowIcon,
 } from "@/components/ui/icons";
 import { MATERIAL_SWATCH } from "../../rendering/konva/theme";
-import { design, editor, useSessionState } from "../../state/editor";
+import { design, editor, useDocumentState, useProjectState, useSessionState } from "../../state/editor";
+import type { InspectorTab } from "../../state/stores";
 import { FurnitureArt } from "../furniture/FurnitureArt";
+import { AiOptions, QuickActions } from "./RoomOptions";
 import { pickFurniture } from "../shell/tools";
 import { InspectorFrame, MoreSettings, run, Section } from "./frame";
 
@@ -45,6 +49,7 @@ export const ROOM_TYPE_OPTIONS: ReadonlyArray<{ value: RoomType; label: string }
 
 export const MATERIAL_LABEL: Record<FloorMaterial, string> = {
   timber: "Herringbone wood",
+  boards: "Wood boards",
   tile: "Porcelain tile",
   stone: "Natural stone",
   carpet: "Carpet",
@@ -70,18 +75,39 @@ export function RoomTypeIcon({ type, size = 22 }: { type: RoomType; size?: numbe
   return <SofaIcon {...p} />;
 }
 
-type Tab = "details" | "furniture" | "materials" | "ai";
+const TABS: ReadonlyArray<{ value: InspectorTab; label: string }> = [
+  { value: "design", label: "Design" },
+  { value: "furniture", label: "Furniture" },
+  { value: "dimensions", label: "Dimensions" },
+  { value: "connections", label: "Connections" },
+];
 
-/** A room is a whole object: its walls give it shape, this card gives it purpose. */
+/**
+ * A room is a whole object: its walls give it shape, this card gives it
+ * purpose. Design comes first, with what people do to a room (make it
+ * bigger, add an island, give it more light), its look and its name;
+ * the exact sizes wait under Dimensions.
+ */
 export function RoomInspector({ level, roomId, focusKey }: { level: Level; roomId: string; focusKey: number | null }) {
   const room = level.rooms[roomId];
-  const workspace = useSessionState((s) => s.workspace);
-  const [tab, setTab] = useState<Tab>("details");
+  const requested = useSessionState((s) => s.panels.inspectorTab);
+  const [tab, setTab] = useState<InspectorTab>(requested ?? "design");
+  const areaText = useAreaText();
   const region = deriveRoomRegions(level)[roomFaceIndices(level).get(roomId) ?? -1];
   const area = region?.clearArea ?? null;
-  const designing = workspace === "design";
-  const tabs: Tab[] = designing ? ["details", "furniture", "materials", "ai"] : ["details", "materials"];
   const pinned = room.locked === true;
+  const floors = useDocumentState((s) => s.history.present.levels.length);
+
+  // A tab asked for from outside (the toolbar's Edit) opens once; the Rooms tool names the room it picks, so its name field must be on show.
+  const [seen, setSeen] = useState({ requested, focusKey });
+  if (requested !== seen.requested || focusKey !== seen.focusKey) {
+    setSeen({ requested, focusKey });
+    if (requested) setTab(requested);
+    else if (focusKey && focusKey !== seen.focusKey) setTab("design");
+  }
+  useEffect(() => {
+    if (requested) editor.setPanels({ inspectorTab: null });
+  }, [requested]);
 
   return (
     <InspectorFrame
@@ -101,41 +127,64 @@ export function RoomInspector({ level, roomId, focusKey }: { level: Level; roomI
       summary={
         <>
           <span className="card-area" data-testid="room-area">
-            {area !== null ? formatArea(area) : "—"}
+            {area !== null ? areaText(area, 1) : "—"}
           </span>
-          <span className="card-subtitle">{room.type === "unspecified" ? "Room" : ROOM_TYPE_LABEL[room.type]}</span>
+          <span className="card-subtitle">{floors > 1 ? level.name : room.type === "unspecified" ? "Room" : ROOM_TYPE_LABEL[room.type]}</span>
         </>
       }
     >
       <div className="panel-tabs is-inset" role="tablist">
-        {tabs.map((t) => (
-          <button key={t} type="button" role="tab" aria-selected={tab === t} className={tab === t ? "is-active" : undefined} onClick={() => setTab(t)} data-testid={`room-tab-${t}`}>
-            {t === "ai" ? "AI" : t[0].toUpperCase() + t.slice(1)}
+        {TABS.map((t) => (
+          <button key={t.value} type="button" role="tab" aria-selected={tab === t.value} className={tab === t.value ? "is-active" : undefined} onClick={() => setTab(t.value)} data-testid={`room-tab-${t.value}`}>
+            {t.label}
           </button>
         ))}
       </div>
-      {tab === "details" && <Details level={level} roomId={roomId} area={area} focusKey={focusKey} designing={designing} />}
+      {tab === "design" && <DesignTab level={level} roomId={roomId} focusKey={focusKey} />}
       {tab === "furniture" && <RoomFurniture level={level} roomId={roomId} />}
-      {tab === "materials" && <Materials roomId={roomId} value={room.floorMaterial ?? null} />}
-      {tab === "ai" && (
-        <>
-          <RoomSuggestions roomId={roomId} type={room.type} />
-          <RegenerateArea level={level} roomId={roomId} />
-        </>
+      {tab === "dimensions" && <Dimensions level={level} roomId={roomId} area={area} />}
+      {tab === "connections" && (
+        <Section>
+          <Connections level={level} roomId={roomId} />
+        </Section>
       )}
     </InspectorFrame>
   );
 }
 
-function Details({ level, roomId, area, focusKey, designing }: { level: Level; roomId: string; area: number | null; focusKey: number | null; designing: boolean }) {
+/** What people do with a room, its look, and what it is. */
+function DesignTab({ level, roomId, focusKey }: { level: Level; roomId: string; focusKey: number | null }) {
   const room = level.rooms[roomId];
-  const [targeting, setTargeting] = useState(false);
-  const bounds = roomBounds(level, roomId);
+  // The quick action picked, whose options the AI Designer shows.
+  const [picked, setPicked] = useState<RoomGoal | null>(null);
   const setType = (type: RoomType) => {
     // Generated names follow the type ("Room 2" → "Bedroom 2"); names the user chose are kept.
     const rename = isGeneratedRoomName(room.name, room.type);
     run({ type: "updateRoom", roomId, changes: rename ? { type, name: suggestRoomName(level, roomId, type) } : { type } });
   };
+  return (
+    <>
+      <QuickActions roomId={roomId} type={room.type} picked={picked} onPick={setPicked} />
+      <AiOptions level={level} roomId={roomId} picked={picked} onPick={setPicked} />
+      <RoomActions level={level} roomId={roomId} />
+      <RegenerateArea level={level} roomId={roomId} />
+      <StyleAndFinishes roomId={roomId} value={room.floorMaterial ?? null} />
+      <Section title="This room">
+        <div className="field-row">
+          <SelectField label="Used as" value={room.type} options={ROOM_TYPE_OPTIONS} testId="room-type" onChange={setType} />
+          <TextField label="Name" value={room.name} autoFocusKey={focusKey} testId="room-name" onCommit={(name) => run({ type: "updateRoom", roomId, changes: { name } })} />
+        </div>
+      </Section>
+    </>
+  );
+}
+
+/** The room's exact sizes: area and target, width and depth, and the planner's limits. */
+function Dimensions({ level, roomId, area }: { level: Level; roomId: string; area: number | null }) {
+  const room = level.rooms[roomId];
+  const [targeting, setTargeting] = useState(false);
+  const areaText = useAreaText();
+  const bounds = roomBounds(level, roomId);
   const resize = (dimension: "width" | "depth", size: number): true | string => {
     const command = roomResizeCommand(level, roomId, dimension, size);
     if (command === null) return true;
@@ -145,14 +194,12 @@ function Details({ level, roomId, area, focusKey, designing }: { level: Level; r
   return (
     <>
       <Section>
-        <SelectField label="Room type" value={room.type} options={ROOM_TYPE_OPTIONS} testId="room-type" onChange={setType} />
-        <TextField label="Name" value={room.name} autoFocusKey={focusKey} testId="room-name" onCommit={(name) => run({ type: "updateRoom", roomId, changes: { name } })} />
         <div className="field">
           <span className="field-label">Area</span>
           <div className="area-row">
-            <span className="area-readout">{area !== null ? formatArea(area) : "—"}</span>
+            <span className="area-readout">{area !== null ? areaText(area, 2) : "—"}</span>
             {!showTarget && (
-              <button type="button" className="btn btn-outline" onClick={() => setTargeting(true)} data-testid="set-target-area">
+              <button type="button" className="btn btn-secondary" onClick={() => setTargeting(true)} data-testid="set-target-area">
                 Set target area
               </button>
             )}
@@ -177,13 +224,8 @@ function Details({ level, roomId, area, focusKey, designing }: { level: Level; r
             <NumberField label="Depth" value={bounds.maxY - bounds.minY} testId="room-depth" onCommit={(v) => resize("depth", v)} />
           </div>
         )}
-        <p className="field-hint">Changing the size moves a wall; the room next door gives or takes the space.</p>
-        <MaterialSelect roomId={roomId} value={room.floorMaterial ?? null} />
+        <p className="field-hint">Changing the size moves a wall; the room next door gives or takes the space. You can also drag the walls on the plan.</p>
       </Section>
-      <Section title="Connections">
-        <Connections level={level} roomId={roomId} />
-      </Section>
-      {designing && <RoomActions level={level} roomId={roomId} />}
       <MoreSettings>
         <div className="field-row">
           <OptionalNumberField label="Min area" value={room.minArea ?? null} unit="m²" testId="room-min-area" onCommit={(minArea) => run({ type: "updateRoom", roomId, changes: { minArea } })} />
@@ -249,39 +291,23 @@ function RoomFurniture({ level, roomId }: { level: Level; roomId: string }) {
   );
 }
 
-/** Floor finish with a swatch of the material. */
-function MaterialSelect({ roomId, value }: { roomId: string; value: FloorMaterial | null }) {
+/** How the room looks: the house's interior style, and this room's floor. */
+function StyleAndFinishes({ roomId, value }: { roomId: string; value: FloorMaterial | null }) {
+  const style = useProjectState((s) => s.appearance?.interiorStyle) ?? DEFAULT_INTERIOR_STYLE;
   return (
-    <div className="field">
-      <label htmlFor={`finish-${roomId}`}>Floor finish</label>
-      <div className="swatch-select">
-        <span className="swatch" style={{ background: value ? MATERIAL_SWATCH[value] : undefined }} aria-hidden />
-        <select
-          id={`finish-${roomId}`}
-          value={value ?? NOT_SET}
-          data-testid="room-floor"
-          onChange={(e) => {
-            const v = e.currentTarget.value;
-            run({ type: "updateRoom", roomId, changes: { floorMaterial: v === NOT_SET ? null : (v as FloorMaterial) } });
-          }}
-        >
-          <option value={NOT_SET}>Not set</option>
-          {FLOOR_MATERIALS.map((m) => (
-            <option key={m} value={m}>
-              {MATERIAL_LABEL[m]}
-            </option>
-          ))}
-        </select>
-        <ChevronDownIcon width={16} height={16} aria-hidden />
-      </div>
-    </div>
-  );
-}
-
-function Materials({ roomId, value }: { roomId: string; value: FloorMaterial | null }) {
-  return (
-    <Section title="Floor finish">
-      <div className="swatch-grid" role="radiogroup" aria-label="Floor finish">
+    <Section title="Style and finishes">
+      <SelectField
+        label="Style"
+        value={style}
+        options={INTERIOR_STYLES.map((v) => ({ value: v, label: INTERIOR_STYLE_LABEL[v] }))}
+        testId="room-style"
+        onChange={(interiorStyle: InteriorStyle) => editor.setAppearance({ interiorStyle })}
+      />
+      <p className="field-hint">For the whole house: its furniture, floors and photos.</p>
+      <span className="field-label" id={`floor-${roomId}`}>
+        Flooring
+      </span>
+      <div className="swatch-grid" role="radiogroup" aria-labelledby={`floor-${roomId}`} data-testid="room-floor">
         {FLOOR_MATERIALS.map((m) => (
           <button
             key={m}
@@ -297,7 +323,7 @@ function Materials({ roomId, value }: { roomId: string; value: FloorMaterial | n
           </button>
         ))}
       </div>
-      <p className="field-hint">Shown on the plan in Designs and on the floor in 3D.</p>
+      {!value && <p className="field-hint">Not chosen yet: the plan shows the floor this kind of room usually has.</p>}
     </Section>
   );
 }
@@ -325,18 +351,17 @@ function Connections({ level, roomId }: { level: Level; roomId: string }) {
   );
 }
 
+/** Bigger changes: the room redesigned from scratch, or swapped with another. */
 function RoomActions({ level, roomId }: { level: Level; roomId: string }) {
   const running = useSessionState((s) => s.designer.status === "running");
   const room = level.rooms[roomId];
   const others = Object.values(level.rooms).filter((r) => r.id !== roomId);
   return (
     <div className="card-section room-actions" data-testid="room-ai-actions">
-      <h3>Room actions</h3>
+      <h3>Rework the room</h3>
       <button type="button" className="action-row" disabled={running} onClick={() => void design.openRoomVariations(roomId, suggestedGoals(room.type))} data-testid="redesign-room">
         <SparkleIcon width={18} height={18} /> Redesign this room
-      </button>
-      <button type="button" className="action-row" disabled={running} onClick={() => void design.openRoomVariations(roomId)} data-testid="room-variations">
-        <VariationsIcon width={18} height={18} /> Generate variations
+        <ChevronRightIcon width={16} height={16} className="action-row-end" />
       </button>
       <Menu
         label="Swap with another room"
@@ -345,6 +370,7 @@ function RoomActions({ level, roomId }: { level: Level; roomId: string }) {
         summary={
           <span className="action-row">
             <SwapIcon width={18} height={18} /> Swap with another room
+            <ChevronDownIcon width={16} height={16} className="action-row-end" />
           </span>
         }
       >
@@ -355,27 +381,6 @@ function RoomActions({ level, roomId }: { level: Level; roomId: string }) {
         ))}
       </Menu>
     </div>
-  );
-}
-
-/** Goals that suit the room, each a request to the room planner. */
-function RoomSuggestions({ roomId, type }: { roomId: string; type: RoomType }) {
-  const running = useSessionState((s) => s.designer.status === "running");
-  return (
-    <Section title="Suggestions">
-      <div className="suggestion-list">
-        {suggestedGoals(type).map((goal) => (
-          <button key={goal} type="button" className="suggestion-row" disabled={running} onClick={() => void design.redesignRoom(roomId, [goal])} data-testid={`suggest-${goal}`}>
-            {ROOM_GOAL_LABEL[goal]}
-            <ChevronRightIcon width={16} height={16} />
-          </button>
-        ))}
-      </div>
-      <p className="field-hint">Options appear in the AI Designer. Nothing changes until you apply one.</p>
-      <button type="button" className="link-btn" onClick={() => editor.setDesigner({ panelOpen: true })}>
-        Open the AI Designer
-      </button>
-    </Section>
   );
 }
 

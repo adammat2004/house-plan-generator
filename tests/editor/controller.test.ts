@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { roomEdgeHandles } from "@/domain/design/analysis";
 import { analyzeEnvelope } from "@/domain/geometry/envelope";
 import type { Point2 } from "@/domain/plan/types";
 import { createToolController } from "@/editor/tools/controller";
@@ -79,24 +80,19 @@ describe("opening direct manipulation", () => {
 });
 
 describe("workspaces", () => {
-  it("picks whole rooms in Design and keeps shell tools in Structure", () => {
-    const { stores, actions, controller, drag } = setup();
-    actions.setWorkspace("design");
-    // Designs refines rooms with walls and doors; windows belong to the shell.
-    actions.setTool("window");
-    expect(stores.session.getState().tool).toBe("select");
-    actions.setTool("wall");
-    expect(stores.session.getState().tool).toBe("wall");
-    actions.setTool("select");
-
-    // Clicks pick the room as a whole.
+  it("edits everything in Refine and nothing on the layouts board", () => {
+    const { stores, actions, drag } = setup();
+    for (const tool of ["window", "outline", "wall", "door", "stairs", "select"] as const) {
+      actions.setTool(tool);
+      expect(stores.session.getState().tool).toBe(tool);
+    }
+    // Clicks inside a room pick the room as a whole.
     drag({ x: 2, y: 5 }, { x: 2, y: 5 });
     expect(stores.session.getState().selection?.kind).toBe("room");
-    controller.cancel();
 
-    actions.setWorkspace("structure");
-    actions.setTool("window");
-    expect(stores.session.getState().tool).toBe("window");
+    actions.setDesignView("board");
+    actions.setTool("wall");
+    expect(stores.session.getState().tool).toBe("select");
   });
 
   it("shows the plan for reference in the brief: drags pan and nothing is selected", () => {
@@ -112,11 +108,33 @@ describe("workspaces", () => {
     expect(stores.session.getState().viewport.offsetX).not.toBe(before.offsetX);
   });
 
-  it("drops non-room selections when entering Design", () => {
-    const { stores, actions } = setup();
-    actions.select({ kind: "opening", id: "w1" });
-    actions.setWorkspace("design");
+  it("picks furniture only in the furnished view, and switching to the plan view drops it", () => {
+    const { stores, actions, drag, doc } = setup();
+    actions.dispatch({ type: "addFurniture", item: { id: "f1", kind: "armchair", position: { x: 2, y: 5 }, rotation: 0, width: 0.8, depth: 0.8, height: 0.8 } });
+    actions.setView("plan");
+    drag({ x: 2, y: 5 }, { x: 2, y: 5 });
+    expect(stores.session.getState().selection?.kind).toBe("room");
+    actions.setView("furnished");
+    drag({ x: 2, y: 5 }, { x: 2, y: 5 });
+    expect(stores.session.getState().selection).toEqual({ kind: "furniture", id: "f1" });
+    actions.setView("plan");
     expect(stores.session.getState().selection).toBeNull();
+    // Picking a piece from a list shows the furnished view again.
+    actions.select({ kind: "furniture", id: "f1" });
+    expect(stores.session.getState().view).toBe("furnished");
+    expect(level(doc()).furniture.f1).toBeDefined();
+  });
+
+  it("keeps a room picked going to Review and back, and through the 3D view", () => {
+    const { stores, actions, doc } = setup();
+    const room = { kind: "room" as const, id: Object.keys(level(doc()).rooms)[0] };
+    actions.select(room);
+    actions.setShow3d(true);
+    expect(stores.session.getState().selection).toEqual(room);
+    actions.setShow3d(false);
+    actions.setWorkspace("review");
+    actions.setWorkspace("design");
+    expect(stores.session.getState().selection).toEqual(room);
   });
 });
 
@@ -138,8 +156,13 @@ describe("reshaping the outline on the canvas", () => {
     return env.ok ? env.info : null;
   };
 
-  it("drags an outside wall out as one undoable step", () => {
+  it("drags a selected outside wall out as one undoable step", () => {
     const ctx = setup();
+    // The first press picks the wall, so a stray drag can't move a side of the house.
+    const original = ctx.doc();
+    ctx.drag({ x: AXIS.east, y: 5 }, { x: AXIS.east + 1, y: 5 });
+    expect(ctx.doc()).toBe(original);
+    expect(ctx.stores.session.getState().selection?.kind).toBe("wall");
     const before = ctx.stores.documents.getState().history.past.length;
     ctx.drag({ x: AXIS.east, y: 5 }, { x: AXIS.east + 1, y: 5 });
     expect(outside(ctx)?.width).toBeCloseTo(9, 9);
@@ -242,8 +265,8 @@ describe("drawing an outline", () => {
   });
 });
 
-describe("dragging walls, doors and windows in Design", () => {
-  /** The test house split by an internal wall at x = 3, with a door in it, in Design. */
+describe("dragging walls, doors and windows in Refine", () => {
+  /** The test house split by an internal wall at x = 3, with a door in it. */
   function designing() {
     const ctx = setup();
     ctx.actions.dispatch({ type: "addWall", wallId: "v", start: { x: 3, y: AXIS.south }, end: { x: 3, y: AXIS.north }, thickness: 0.1, idPrefix: "v" });
@@ -251,7 +274,6 @@ describe("dragging walls, doors and windows in Design", () => {
       type: "addOpening",
       opening: { id: "d1", wallId: "v", kind: "door", offset: 2, width: 0.9, height: 2.1, hinge: "start", swingSide: "left" },
     });
-    ctx.actions.setWorkspace("design");
     ctx.actions.setTool("select");
     return ctx;
   }
@@ -264,8 +286,7 @@ describe("dragging walls, doors and windows in Design", () => {
     ctx.drag({ x: 3.02, y: 7 }, { x: 3.52, y: 7 });
     expect(wallX(ctx)).toBeCloseTo(3.5, 9);
     expect(ctx.stores.documents.getState().history.past.length).toBe(before + 1);
-    // The room on the side grabbed stays selected.
-    expect(ctx.stores.session.getState().selection?.kind).toBe("room");
+    expect(ctx.stores.session.getState().selection).toEqual({ kind: "wall", id: "v" });
     ctx.actions.undo();
     expect(wallX(ctx)).toBe(3);
 
@@ -294,11 +315,13 @@ describe("dragging walls, doors and windows in Design", () => {
     expect(areas()).toEqual(during);
   });
 
-  it("selects the room on the side clicked when a wall is clicked without dragging", () => {
+  it("picks the wall when clicked on it, and the room when clicked just beside it", () => {
     const ctx = designing();
-    ctx.drag({ x: 2.98, y: 7 }, { x: 2.98, y: 7 });
-    expect(ctx.stores.session.getState().selection).toEqual({ kind: "room", id: roomOn(ctx, true).id });
     ctx.drag({ x: 3.02, y: 7 }, { x: 3.02, y: 7 });
+    expect(ctx.stores.session.getState().selection).toEqual({ kind: "wall", id: "v" });
+    ctx.drag({ x: 2.9, y: 7 }, { x: 2.9, y: 7 });
+    expect(ctx.stores.session.getState().selection).toEqual({ kind: "room", id: roomOn(ctx, true).id });
+    ctx.drag({ x: 3.1, y: 7 }, { x: 3.1, y: 7 });
     expect(ctx.stores.session.getState().selection).toEqual({ kind: "room", id: roomOn(ctx, false).id });
     expect(wallX(ctx)).toBe(3);
   });
@@ -310,11 +333,13 @@ describe("dragging walls, doors and windows in Design", () => {
     expect(wallX(ctx)).toBe(3);
   });
 
-  it("leaves outside walls to Structure", () => {
+  it("looks without editing outside Refine: clicks pick rooms and drags move nothing", () => {
     const ctx = designing();
+    ctx.actions.setWorkspace("review");
     const original = ctx.doc();
-    ctx.drag({ x: AXIS.west, y: 7 }, { x: AXIS.west - 1, y: 7 });
+    ctx.drag({ x: 3.02, y: 7 }, { x: 3.52, y: 7 });
     expect(ctx.doc()).toBe(original);
+    expect(ctx.stores.session.getState().selection?.kind).toBe("room");
     expect(ctx.stores.documents.getState().preview).toBeNull();
   });
 
@@ -331,5 +356,55 @@ describe("dragging walls, doors and windows in Design", () => {
     unsubscribe();
     expect(ctx.doc()).toBe(original);
     expect(issue).toBe(`${west.name} is pinned. Unpin it to change it.`);
+  });
+});
+
+describe("moving round the plan and handling things directly", () => {
+  it("pans with a plain scroll, and zooms about the pointer with Control or a pinch", () => {
+    const { stores, controller } = setup();
+    const v0 = stores.session.getState().viewport;
+    controller.wheel({ x: 300, y: 300 }, 20, 50, false);
+    const v1 = stores.session.getState().viewport;
+    expect(v1.scale).toBe(v0.scale);
+    expect(v1.offsetX).toBe(v0.offsetX - 20);
+    expect(v1.offsetY).toBe(v0.offsetY - 50);
+    const under = { x: (300 - v1.offsetX) / v1.scale, y: -(300 - v1.offsetY) / v1.scale };
+    controller.wheel({ x: 300, y: 300 }, 0, -100, true);
+    const v2 = stores.session.getState().viewport;
+    expect(v2.scale).toBeGreaterThan(v1.scale);
+    // The point under the pointer stays put.
+    expect(under.x * v2.scale + v2.offsetX).toBeCloseTo(300, 6);
+    expect(-under.y * v2.scale + v2.offsetY).toBeCloseTo(300, 6);
+  });
+
+  it("drags a picked room's side by its grip as one undoable step, keeping the room picked", () => {
+    const { stores, actions, controller, doc, drag } = setup();
+    actions.dispatch({ type: "addWall", wallId: "v", start: { x: 3, y: AXIS.south }, end: { x: 3, y: AXIS.north }, thickness: 0.1, idPrefix: "v" });
+    const west = Object.values(level(doc()).rooms).find((r) => r.seed.x < 3)!;
+    actions.select({ kind: "room", id: west.id });
+    const grip = roomEdgeHandles(level(doc()), west.id).find((h) => h.side === "east")!;
+    expect(grip.wallId).toBe("v");
+    const before = stores.documents.getState().history.past.length;
+    drag(grip.point, { x: grip.point.x + 0.5, y: grip.point.y });
+    const x = level(doc()).vertices[level(doc()).walls.v.startVertexId].x;
+    expect(x).toBeCloseTo(3.5, 9);
+    expect(stores.documents.getState().history.past.length).toBe(before + 1);
+    expect(stores.session.getState().selection).toEqual({ kind: "room", id: west.id });
+    controller.cancel();
+  });
+
+  it("resizes a picked piece of furniture from a corner, its opposite corner staying put", () => {
+    const { stores, actions, doc, drag } = setup();
+    actions.dispatch({ type: "addFurniture", item: { id: "t", kind: "dining_set_6", position: { x: 4, y: 5 }, rotation: 0, width: 1.6, depth: 0.9, height: 0.75 } });
+    actions.setView("furnished");
+    actions.select({ kind: "furniture", id: "t" });
+    drag({ x: 4.8, y: 5.45 }, { x: 5.2, y: 5.65 });
+    const t = level(doc()).furniture.t;
+    expect(t.width).toBeCloseTo(2, 2);
+    expect(t.depth).toBeCloseTo(1.1, 2);
+    // The south-west corner (3.2, 4.55) didn't move.
+    expect(t.position.x - t.width / 2).toBeCloseTo(3.2, 6);
+    expect(t.position.y - t.depth / 2).toBeCloseTo(4.55, 6);
+    expect(stores.session.getState().selection).toEqual({ kind: "furniture", id: "t" });
   });
 });

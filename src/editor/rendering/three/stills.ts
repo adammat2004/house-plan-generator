@@ -1,8 +1,11 @@
 import * as THREE from "three";
-import type { Id, Level } from "@/domain/plan/types";
+import { groundLevel, levelOf } from "@/domain/plan/levels";
+import type { Rect } from "@/domain/geometry/vector";
+import type { Id, Level, PlanDocument } from "@/domain/plan/types";
 import type { Appearance } from "@/domain/project/schema";
 import { aerialCameraPose, exteriorCameraPose, roomCameraPose, type CameraPose } from "../scene/roomCamera";
-import { buildHouseModel } from "./houseModel";
+import { buildBuildingModel, planOf } from "./buildingModel";
+import type { HouseModel } from "./houseModel";
 import { applyLighting, buildHouse, clearGroup, TextureCache, type LightTarget } from "./sceneBuilder";
 
 /**
@@ -23,7 +26,8 @@ export interface StillOptions {
 }
 
 interface Prepared extends LightTarget {
-  level: Level;
+  plan: PlanDocument;
+  model: HouseModel;
   key: string;
   group: THREE.Group;
   exposure: number;
@@ -54,10 +58,10 @@ function getRenderer(): THREE.WebGLRenderer | null {
   }
 }
 
-function prepare(level: Level, appearance: Appearance, mode: StillView["kind"], r: THREE.WebGLRenderer): Prepared {
+function prepare(plan: PlanDocument, appearance: Appearance, mode: StillView["kind"], r: THREE.WebGLRenderer): Prepared {
   const interior = mode === "room";
   const key = JSON.stringify([appearance, mode]);
-  const hit = prepared.find((p) => p.level === level && p.key === key);
+  const hit = prepared.find((p) => p.plan === plan && p.key === key);
   if (hit) {
     // Most recently used last.
     prepared = [...prepared.filter((p) => p !== hit), hit];
@@ -75,19 +79,19 @@ function prepare(level: Level, appearance: Appearance, mode: StillView["kind"], 
   scene.add(hemi, sun, sun.target, group, nightLights);
   // A roof gives rooms a ceiling; dimensions and cutaways are for the interactive view.
   // From above the roof comes off, to see into the rooms.
-  const model = buildHouseModel(level, { cutaway: false, roof: mode !== "aerial", dimensions: false, landscape: true, furniture: true });
+  const model = buildBuildingModel(plan, { cutaway: false, roof: mode !== "aerial", dimensions: false, landscape: true, furniture: true });
   buildHouse(group, model, { appearance, ground: "lawn", landscape: true, labels: false }, textures);
   if (interior) {
-    // A plain white ceiling under the roof slabs, as rooms have, and none over the garden.
+    // A plain white ceiling on every floor, as rooms have, and none over the garden.
     const paint = new THREE.MeshStandardMaterial({ color: "#f4f2ee", roughness: 0.95 });
-    for (const o of model.slabs) {
+    for (const { rect: o, z } of model.ceilings ?? model.slabs.map((rect) => ({ rect, z: model.wallHeight }))) {
       const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(o.maxX - o.minX, o.maxY - o.minY), paint);
       ceiling.rotation.x = Math.PI / 2;
-      ceiling.position.set((o.minX + o.maxX) / 2, model.wallHeight - 0.002, -(o.minY + o.maxY) / 2);
+      ceiling.position.set((o.minX + o.maxX) / 2, z - 0.002, -(o.minY + o.maxY) / 2);
       group.add(ceiling);
     }
   }
-  const entry: Prepared = { level, key, group, scene, renderer: r, hemi, sun, nightLights, exposure: 1 };
+  const entry: Prepared = { plan, model, key, group, scene, renderer: r, hemi, sun, nightLights, exposure: 1 };
   // Inside, the roof would shade every room from the sun; light rooms evenly instead.
   applyLighting(entry, model, { lighting: "midday", sky: "clear", shadows: !interior, sunAzimuth: 0 }, textures);
   if (interior) {
@@ -104,18 +108,48 @@ function prepare(level: Level, appearance: Appearance, mode: StillView["kind"], 
   return entry;
 }
 
-function poseFor(level: Level, view: StillView, aspect: number): CameraPose | null {
-  if (view.kind === "room") return roomCameraPose(level, view.roomId, aspect);
-  return view.kind === "aerial" ? aerialCameraPose(level, aspect) : exteriorCameraPose(level, aspect);
+/** Where the camera stands; a room upstairs is seen from its own floor, and the house from outside is framed to its full height. */
+function poseFor(plan: PlanDocument, model: HouseModel, view: StillView, aspect: number): CameraPose | null {
+  const raise = (pose: CameraPose | null, eye: number, target: number): CameraPose | null =>
+    pose && { ...pose, eye: { ...pose.eye, z: pose.eye.z + eye }, target: { ...pose.target, z: pose.target.z + target } };
+  if (view.kind === "room") {
+    const level = levelOf(plan, view.roomId);
+    const z = level?.elevation ?? 0;
+    return level ? raise(roomCameraPose(level, view.roomId, aspect), z, z) : null;
+  }
+  const ground = groundLevel(plan);
+  const extra = Math.max(0, model.wallHeight - 3);
+  if (view.kind === "aerial") return raise(aerialCameraPose(ground, aspect), extra, 0);
+  const pose = raise(exteriorCameraPose(ground, aspect), extra * 0.6, extra / 2);
+  return pose && extra > 0 && model.outside ? backedOff(pose, model.outside, model.wallHeight + PARAPET_TOP) : pose;
 }
 
-function draw(level: Level, view: StillView, opts: StillOptions): HTMLCanvasElement | null {
+/** Roof slab and parapet above the tallest wall. */
+const PARAPET_TOP = 0.55;
+
+/**
+ * Steps the camera back from a tall house until its full height fits the
+ * frame with a margin: the single-storey framing goes by width alone, which
+ * puts a compact two-storey house's wall across the whole picture.
+ */
+function backedOff(pose: CameraPose, outside: Rect, top: number): CameraPose {
+  const dx = pose.eye.x - pose.target.x;
+  const dy = pose.eye.y - pose.target.y;
+  const distance = Math.hypot(dx, dy);
+  const reach = Math.max(outside.maxX - outside.minX, outside.maxY - outside.minY) / 2;
+  const needed = reach + (0.75 * top) / Math.tan((pose.vfov * Math.PI) / 360);
+  const k = Math.max(1, needed / distance);
+  return { ...pose, eye: { ...pose.eye, x: pose.target.x + dx * k, y: pose.target.y + dy * k } };
+}
+
+function draw(source: Level | PlanDocument, view: StillView, opts: StillOptions): HTMLCanvasElement | null {
   const r = getRenderer();
   if (!r) return null;
-  const pose = poseFor(level, view, opts.width / opts.height);
-  if (!pose) return null;
+  const plan = planOf(source);
   try {
-    const { scene, exposure } = prepare(level, opts.appearance, view.kind, r);
+    const { scene, exposure, model } = prepare(plan, opts.appearance, view.kind, r);
+    const pose = poseFor(plan, model, view, opts.width / opts.height);
+    if (!pose) return null;
     r.toneMappingExposure = exposure;
     const camera = new THREE.PerspectiveCamera(pose.vfov, opts.width / opts.height, 0.05, 400);
     camera.position.set(pose.eye.x, pose.eye.z, -pose.eye.y);
@@ -128,14 +162,14 @@ function draw(level: Level, view: StillView, opts: StillOptions): HTMLCanvasElem
   }
 }
 
-/** A still as a JPEG data URL, or null where WebGL isn't available or the room is gone. */
-export function renderStill(level: Level, view: StillView, opts: StillOptions): string | null {
-  return draw(level, view, opts)?.toDataURL("image/jpeg", opts.quality ?? 0.85) ?? null;
+/** A still of a plan (or one floor) as a JPEG data URL, or null where WebGL isn't available or the room is gone. */
+export function renderStill(plan: Level | PlanDocument, view: StillView, opts: StillOptions): string | null {
+  return draw(plan, view, opts)?.toDataURL("image/jpeg", opts.quality ?? 0.85) ?? null;
 }
 
 /** A still as a JPEG blob, for uploading. */
-export function renderStillBlob(level: Level, view: StillView, opts: StillOptions): Promise<Blob | null> {
-  const canvas = draw(level, view, opts);
+export function renderStillBlob(plan: Level | PlanDocument, view: StillView, opts: StillOptions): Promise<Blob | null> {
+  const canvas = draw(plan, view, opts);
   if (!canvas) return Promise.resolve(null);
   return new Promise((resolve) => canvas.toBlob((blob) => resolve(blob), "image/jpeg", opts.quality ?? 0.88));
 }

@@ -1,4 +1,4 @@
-import type { Door, ExternalWallPreference, FloorMaterial, Furniture, Id, Opening, PlanDocument, Point2, RoomType, Window } from "../plan/types";
+import type { Door, ExternalWallPreference, FloorMaterial, Furniture, Id, Opening, PlanDocument, Point2, RoomType, Staircase, Window } from "../plan/types";
 
 export type IssueCode =
   | "not-found"
@@ -25,7 +25,13 @@ export type IssueCode =
   | "room-unmatched"
   | "room-duplicate"
   | "rear-wall-invalid"
-  | "room-pinned";
+  | "room-pinned"
+  | "read-only"
+  | "level-limit"
+  | "level-overhang"
+  | "level-stack"
+  | "stairs-blocked"
+  | "stairs-invalid";
 
 /** A structured validation or command failure. */
 export interface PlanIssue {
@@ -59,14 +65,24 @@ export interface RoomChanges {
 
 export type FurnitureChanges = Partial<Pick<Furniture, "position" | "rotation" | "width" | "depth" | "height">>;
 
+/** Stairs edits. `turn: null` goes back to the default (right). */
+export type StairChanges = Partial<Pick<Staircase, "foot" | "rotation" | "shape" | "width" | "going" | "fromLevelId" | "toLevelId">> & {
+  turn?: Staircase["turn"] | null;
+};
+
 /**
  * Optional `idPrefix` lets the caller supply entropy for any IDs a command
  * creates (vertices, rooms after a split). IDs are generated outside the
  * transformation; without a prefix a deterministic, collision-free scheme
  * based on the document's existing IDs is used.
+ *
+ * `levelId` names the floor a command acts on. Without it, a command acts on
+ * the floor holding the wall, opening, room or piece it names, and otherwise
+ * on the ground floor.
  */
 interface CommandBase {
   idPrefix?: string;
+  levelId?: Id;
 }
 
 export type PlanCommand = CommandBase &
@@ -122,6 +138,25 @@ export type PlanCommand = CommandBase &
     | { type: "deleteFurniture"; furnitureId: Id }
     | { type: "replaceFurniture"; remove: Id[]; add: Furniture[] }
     | { type: "setRearWall"; wallId: Id | null }
+    | {
+        /** A new top floor whose outline copies the floor below's, with nothing inside yet. */
+        type: "addLevel";
+        name?: string;
+        /** Ceiling height; the floor below's by default. */
+        wallHeight?: number;
+        floorThickness?: number;
+      }
+    | { type: "removeLevel"; levelId: Id }
+    | { type: "addStairs"; staircase: Staircase }
+    | { type: "updateStairs"; staircaseId: Id; changes: StairChanges }
+    | { type: "deleteStairs"; staircaseId: Id }
+    | {
+        /** Renames the floor, or sets its ceiling height (every wall on it) or the depth of the floor it stands on. */
+        type: "updateLevel";
+        name?: string;
+        wallHeight?: number;
+        floorThickness?: number;
+      }
     | { type: "renameDocument"; name: string }
     | { type: "replaceDocument"; document: unknown }
   );

@@ -4,7 +4,8 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, type ReactNode } from "react";
 import { Menu, MenuItem } from "@/components/ui/controls";
-import { ChevronDownIcon, CloseIcon, FolderIcon, HelpIcon, HouseMark, PlusIcon, SearchIcon, SettingsIcon, TemplateIcon } from "@/components/ui/icons";
+import { BRAND, Logo } from "@/components/brand";
+import { ChevronDownIcon, CloseIcon, FolderIcon, HelpIcon, PlusIcon, SearchIcon, SettingsIcon, TemplateIcon } from "@/components/ui/icons";
 import { refreshLibrary } from "../library";
 import { initials, useProfileName } from "../profile";
 import { homeUi, newProjectHref, useHomeUi } from "../ui";
@@ -31,11 +32,16 @@ export function HomeShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="home-shell">
+      <a href="#content" className="skip-link">
+        Skip to content
+      </a>
       <Sidebar />
       <div className="home-main">
         {/* The new-project page has its own breadcrumb and close button instead. */}
         {!pathname.startsWith("/new") && <HomeHeader />}
-        <main className="home-content">{children}</main>
+        <main id="content" className="home-content" tabIndex={-1}>
+          {children}
+        </main>
       </div>
       <HomeNotice />
     </div>
@@ -47,8 +53,7 @@ function Sidebar() {
   return (
     <aside className="home-sidebar">
       <Link href="/" className="home-brand">
-        <HouseMark width={26} height={26} />
-        <span>HomeDesign</span>
+        <Logo withName />
       </Link>
       <nav className="home-nav" aria-label="Main">
         {NAV.map(({ href, label, Icon, match }) => {
@@ -76,7 +81,7 @@ function ProfileMenu() {
       summary={
         <span className="home-profile-chip">
           <span className="avatar" aria-hidden>
-            {initials(name) || <HouseMark width={16} height={16} />}
+            {initials(name) || <Logo size={16} />}
           </span>
           <span className="home-profile-name">{name || "Your workspace"}</span>
           <ChevronDownIcon width={16} height={16} />
@@ -96,8 +101,8 @@ function HomeHeader() {
   const searchable = pathname === "/" || pathname.startsWith("/projects");
   return (
     <header className="home-header">
-      <Link href="/" className="home-brand home-brand-compact" aria-label="HomeDesign home">
-        <HouseMark width={24} height={24} />
+      <Link href="/" className="home-brand home-brand-compact" aria-label={`${BRAND.name} home`}>
+        <Logo size={24} />
       </Link>
       <div className="home-search">
         <SearchIcon width={18} height={18} />
@@ -116,7 +121,7 @@ function HomeHeader() {
           }}
         />
       </div>
-      <Link href={newProjectHref()} className="home-btn home-btn-primary" data-testid="new-project">
+      <Link href={newProjectHref()} className="btn btn-primary btn-md" data-testid="new-project">
         <PlusIcon width={18} height={18} />
         New project
       </Link>

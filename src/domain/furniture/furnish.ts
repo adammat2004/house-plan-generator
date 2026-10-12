@@ -1,6 +1,8 @@
 import { applyCommand } from "../commands/apply";
 import type { PlanCommand } from "../commands/types";
+import { levelKeepOut, type KeepOut } from "../geometry/stairs";
 import type { Rect } from "../geometry/vector";
+import { groundLevel, levelById } from "../plan/levels";
 import type { Furniture, FurnitureKind, FurnitureRotation, Id, Level, PlanDocument, Point2, RoomType } from "../plan/types";
 import { FURNITURE_CATALOG } from "./catalog";
 import { backDirection, rectOverlapArea, rotationFacing } from "./geometry";
@@ -38,6 +40,8 @@ export interface FurnishResult {
 export interface FurnishOptions {
   /** Keep what is already in the room and add around it. */
   keepExisting?: boolean;
+  /** Stairs on the floor (`levelKeepOut`), kept clear. */
+  keepOut?: KeepOut;
 }
 
 /** Where along a wall face an item stands. */
@@ -292,7 +296,7 @@ export function furnishRoom(level: Level, roomId: Id, idPrefix: string, options:
   const room = level.rooms[roomId];
   if (!room) return null;
   const existing = furnitureInRoom(level, roomId).map((f) => f.id);
-  const ctx = roomContext(level, roomId, options.keepExisting ? new Set() : new Set(existing));
+  const ctx = roomContext(level, roomId, options.keepExisting ? new Set() : new Set(existing), options.keepOut);
   if (!ctx) return null;
   const layout = new Layout(ctx);
   RECIPES[room.type]?.(layout);
@@ -310,28 +314,35 @@ export function withLayout<T>(level: Level, roomId: Id, run: (l: Layout) => T): 
 }
 
 /**
- * Furnishes every room of a plan as one command. Rooms that already hold
- * furniture are left as they are unless `replace`; pinned rooms always are.
+ * Furnishes every room of a floor (the ground floor by default) as one
+ * command, keeping clear of the stairs. Rooms that already hold furniture are
+ * left as they are unless `replace`; pinned rooms always are.
  */
-export function furnishPlanCommand(document: PlanDocument, idPrefix: string, replace = false): PlanCommand | null {
-  const level = document.levels[0];
+export function furnishPlanCommand(document: PlanDocument, idPrefix: string, replace = false, levelId?: Id): PlanCommand | null {
+  const level = (levelId && levelById(document, levelId)) || groundLevel(document);
+  const keepOut = levelKeepOut(document, level.id);
   const remove: Id[] = [];
   const add: Furniture[] = [];
   for (const room of Object.values(level.rooms)) {
     if (!canFurnish(room.type) || room.locked) continue;
     if (!replace && furnitureInRoom(level, room.id).length) continue;
-    const result = furnishRoom(level, room.id, `${idPrefix}-${room.id}`);
+    const result = furnishRoom(level, room.id, `${idPrefix}-${room.id}`, { keepOut });
     if (!result) continue;
     remove.push(...result.remove);
     add.push(...result.items);
   }
-  return remove.length || add.length ? { type: "replaceFurniture", remove, add } : null;
+  if (!remove.length && !add.length) return null;
+  return document.levels.length > 1 ? { type: "replaceFurniture", levelId: level.id, remove, add } : { type: "replaceFurniture", remove, add };
 }
 
-/** The plan with every room furnished; the plan unchanged if that fails. */
+/** The plan with every room on every floor furnished; a floor stays as it was if that fails. */
 export function furnishPlan(document: PlanDocument, idPrefix: string): PlanDocument {
-  const command = furnishPlanCommand(document, idPrefix);
-  if (!command) return document;
-  const result = applyCommand(document, command);
-  return result.ok ? result.document : document;
+  let doc = document;
+  for (const level of document.levels) {
+    const command = furnishPlanCommand(doc, idPrefix, false, level.id);
+    if (!command) continue;
+    const result = applyCommand(doc, command);
+    if (result.ok) doc = result.document;
+  }
+  return doc;
 }

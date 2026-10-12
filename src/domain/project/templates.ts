@@ -12,7 +12,7 @@ import { projectFromPlan, type ProjectDocument } from "./schema";
  * exactly as editable as anything the user draws.
  */
 
-export type TemplateStyle = "bungalow" | "detached" | "semi" | "annexe";
+export type TemplateStyle = "bungalow" | "detached" | "semi" | "annexe" | "twostorey";
 
 export interface ProjectTemplate {
   id: string;
@@ -70,6 +70,15 @@ export const PROJECT_TEMPLATES: readonly ProjectTemplate[] = [
     depth: 6.5,
     brief: { bedrooms: 1, bathrooms: 1, requiredSpaces: ["kitchen", "living"], preferences: ["open_plan"], additionalInstructions: "" },
     style: "annexe",
+  },
+  {
+    id: "two-storey-3",
+    name: "3 Bed Two-Storey",
+    description: "Living spaces and a WC downstairs; three bedrooms, an ensuite and the bathroom upstairs.",
+    width: 7.5,
+    depth: 9.5,
+    brief: { bedrooms: 3, bathrooms: 2, requiredSpaces: ["kitchen", "living", "dining"], preferences: [], additionalInstructions: "", storeys: 2 },
+    style: "twostorey",
   },
   {
     id: "l-bungalow-3",

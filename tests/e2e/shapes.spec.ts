@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { AXIS, clickAt, createHouse, drag, drawWall, freshEditor, getDoc, getProject, historySize, level } from "./support";
+import { AXIS, clickAt, createHouse, drag, drawWall, freshEditor, freshHome, getDoc, getProject, historySize, level } from "./support";
 
 test.describe("House shapes", () => {
   test.beforeEach(async ({ page }) => {
@@ -24,8 +24,9 @@ test.describe("House shapes", () => {
     expect(Object.values(lvl.walls).every((w) => w.role === "external")).toBe(true);
     expect((await getProject(page)).name).toBe("Corner house");
 
-    await page.keyboard.press("4");
+    await page.keyboard.press("Shift+Digit2");
     await expect(page.getByTestId("three-view").locator("canvas")).toBeVisible();
+    await page.getByTestId("present-tab-show").click();
     await page.getByTestId("display-roof").click();
     await page.waitForTimeout(500);
     expect(errors).toEqual([]);
@@ -54,12 +55,12 @@ test.describe("House shapes", () => {
   test("generates layouts inside an L-shaped house, keeping its shape", async ({ page }) => {
     await page.getByTestId("shape-L").click();
     await createHouse(page);
-    await page.getByTestId("workspace-brief").click();
+    await page.getByTestId("step-requirements").click();
     await page.getByTestId("generate-layouts").click();
-    await expect(page.getByTestId("notice")).toContainText("3 layouts generated");
     const board = page.getByTestId("concept-board");
-    await expect(board.locator(".concept-card")).toHaveCount(3);
-    await expect(page.getByTestId("shell-My plan")).toContainText("L-shaped");
+    // Three new layouts beside the user's own L-shaped house.
+    await expect(board.locator(".layout-card:not(.is-loading)")).toHaveCount(4);
+    await expect(board.getByTestId("concept-My plan")).toBeVisible();
     const project = await getProject(page);
     for (const plan of project.plans.slice(1)) {
       const lvl = level(plan.document);
@@ -69,15 +70,15 @@ test.describe("House shapes", () => {
   });
 
   test("lets the planner shape the house when starting from rooms", async ({ page }) => {
-    await page.goto("/new?method=rooms");
-    await expect(page.getByTestId("rooms-shape-any")).toHaveAttribute("aria-checked", "true");
-    await page.getByTestId("rooms-shape-L").click();
-    await page.getByTestId("new-project-submit").click();
+    await freshHome(page);
+    await page.getByTestId("start-rooms").click();
     await expect(page.getByTestId("room-picker")).toBeVisible();
+    await expect(page.getByTestId("brief-shape-any")).toHaveAttribute("aria-checked", "true");
+    await page.getByTestId("brief-shape-L").click();
     await expect(page.getByTestId("brief-shape-L")).toHaveAttribute("aria-checked", "true");
-    await page.getByTestId("next-step").click();
+    await page.getByTestId("generate-layouts").click();
     const board = page.getByTestId("concept-board");
-    await expect(board.locator(".concept-card")).toHaveCount(3);
+    await expect(board.locator(".layout-card:not(.is-loading)")).toHaveCount(3);
     const project = await getProject(page);
     expect((project.brief as unknown as { houseShape?: string }).houseShape).toBe("L");
     for (const plan of project.plans.slice(1)) expect(level(plan.document).envelope.wallIds).toHaveLength(6);
@@ -88,7 +89,8 @@ test.describe("House shapes", () => {
     await page.getByTestId("tool-select").click();
     const start = await getDoc(page);
     const past = (await historySize(page)).past;
-    // Drag the east wall out by a metre.
+    // Pick the east wall (a stray drag never moves a side of the house), then drag it out by a metre.
+    await clickAt(page, { x: AXIS.east, y: 5 });
     await drag(page, { x: AXIS.east, y: 5 }, { x: AXIS.east + 1, y: 5 });
     let lvl = level(await getDoc(page));
     expect(lvl.vertices[lvl.walls[lvl.envelope.wallIds[1]].startVertexId].x).toBeCloseTo(AXIS.east + 1, 6);
@@ -112,8 +114,9 @@ test.describe("House shapes", () => {
 
   test("draws a new outline, asking first when it would replace the rooms", async ({ page }) => {
     await createHouse(page);
+    // Drawing a new outline lives under More (and on O).
     await page.keyboard.press("o");
-    await expect(page.getByTestId("tool-outline")).toHaveAttribute("aria-pressed", "true");
+    await expect(page.getByTestId("tool-outline")).toHaveAttribute("aria-checked", "true");
     const corners = [
       { x: 0, y: 0 },
       { x: 9, y: 0 },
@@ -131,6 +134,7 @@ test.describe("House shapes", () => {
     // With a wall inside, drawing again asks before replacing the house.
     await drawWall(page, { x: 2.5, y: 0.15 }, { x: 2.5, y: 8.85 });
     const withWall = await getDoc(page);
+    await page.getByTestId("tool-more").click();
     await page.getByTestId("tool-outline").click();
     for (const p of [{ x: 0, y: 0 }, { x: 8, y: 0 }, { x: 8, y: 8 }, { x: 0, y: 8 }]) await clickAt(page, p);
     await clickAt(page, { x: 0, y: 0 });

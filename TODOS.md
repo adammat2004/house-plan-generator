@@ -89,13 +89,13 @@ Deferred from the Drafted-parity engineering review (2026-10-09). The work in sc
 
 ## Site
 
-### Lot polygon, setbacks, street side and north
+### Lot outlines, and planning with north
 
-**What:** Replace "plot max width/depth" with a lot outline, setbacks, which side the street is on, and a north arrow. The planner then fits the buildable area, puts the entrance on the street, and turns the garden and living rooms to the sun.
+**What:** Let the plot be any outline (not only a rectangle), and have the planners use north: turn the garden and living rooms to the sun, and put the entrance on the street.
 
-**Why:** Drafted's canvas stands for your lot. We always assume the street is to the south (`geometry/outlinePresets.ts`), and the north badge only means "up" (`CanvasControls.tsx`).
+**Why:** Drafted's canvas stands for your lot. The Map step now has a rectangular plot, the gaps to leave and north (`src/domain/project/site.ts`), and layouts fit what the gaps leave, but a corner or wedge plot can't be described, and north only turns the 3D sun and the compass.
 
-**Context:** `ProjectDocument.sizing.plot` holds only `maxWidth`/`maxDepth` (`src/domain/project/schema.ts`). The plan-sense rule "front door on the street side" needs a real street side to mean anything.
+**Context:** `ProjectDocument.site` holds `plot` (width along the street, depth back from it), `setbacks` and `north`; the street is always opposite the garden side, so plans never turn. `generationPlot` turns the site into the planners' `PlotLimits`. The plan-sense rule "front door on the street side" already uses the garden side.
 
 **Effort:** L
 **Priority:** P2
@@ -107,7 +107,7 @@ Deferred from the Drafted-parity engineering review (2026-10-09). The work in sc
 
 **What:** Sign-in, projects stored on a server, and Share links with view, comment and edit permissions.
 
-**Why:** The Share button is disabled ("coming soon", `TopBar.tsx`). Clearing browser data loses every project. Accounts also give real per-user AI quotas, replacing today's per-instance caps.
+**Why:** There's no way to share a project: the Share button was removed rather than left disabled (premium pass, 2026-10-10), and "Send to my computer" only copies one layout. Clearing browser data loses every project. Accounts also give real per-user AI quotas, replacing today's per-instance caps.
 
 **Context:**
 - Persistence is IndexedDB v3 (`src/persistence/planStorage.ts`) plus JSON files. There's no backend.
@@ -123,38 +123,130 @@ Deferred from the Drafted-parity engineering review (2026-10-09). The work in sc
 
 **What:** Hip or gable roofs per wing with a pitch setting, instead of the flat roof with a parapet.
 
-**Why:** A flat parapet roof on a family bungalow looks like a commercial unit, and Gemini photos keep that shape. Drafted shows gabled roofs.
+**Why:** A flat parapet roof on a family bungalow looks like a commercial unit, and Gemini photos keep that shape. Drafted shows gabled roofs. Needed for launch: the Layouts page's 3D still and every room photo show the roof.
 
 **Context:** `houseModel.ts` builds the flat roof. The wing partition (`geometry/partition.ts`) already gives the per-wing rectangles a roof needs. ADR 0007 lists this as open.
 
 **Effort:** M
-**Priority:** P3
+**Priority:** P1
 **Depends on:** None.
+
+## Touch and phones
+
+### Touch editing on tablets
+
+**What:** Edit plans with touch on tablets: drag walls and furniture, pinch to zoom, long-press for the room menu.
+
+**Why:** Phones and touch-only tablets under 1024px get a read-only Refine and 3D today; landscape iPads keep the mouse-style editor, which works but isn't designed for fingers.
+
+**Context:** Read-only is one gate in `stores.ts` (`session.readOnly`). Hit targets are 44px under `pointer: coarse`, but drag handles and snapping are sized for a mouse.
+
+**Effort:** L
+**Priority:** P2
+**Depends on:** None.
+
+### Phone editor
+
+**What:** Editing on phones: a bottom-sheet room panel, one tool at a time, and larger handles.
+
+**Why:** Phones can pick rooms and compare layouts, then "Send to my computer" to edit. Some people only have a phone.
+
+**Context:** Builds on touch editing. The phone layout for Rooms and Layouts already exists.
+
+**Effort:** L
+**Priority:** P3
+**Depends on:** Touch editing on tablets.
+
+### Phone tests in WebKit
+
+**What:** Run the phone Playwright project in WebKit as well as Chromium.
+
+**Why:** Most UK and Irish phone visitors use Safari; the phone project only runs Chromium.
+
+**Context:** `playwright.config.ts` has a `phone` project at 390 × 844 with touch. WebKit needs its own WebGL check for the 3D still.
+
+**Effort:** S
+**Priority:** P2
+**Depends on:** The phone Playwright project.
 
 ## Units and storeys
 
 ### Imperial units
 
-**What:** Feet and inches, and square feet, for display and input.
+**What:** Feet and inches for dimensions and input.
 
-**Why:** Drafted switches between imperial and metric. The Units select is disabled until this exists.
+**Why:** Drafted switches between imperial and metric. Square feet beside areas have shipped (en-GB browsers by default, a Settings toggle otherwise; `domain/geometry/units.ts`), but lengths and inputs are metric only.
 
-**Context:** Everything inside stays in metres. This is a formatting and parsing layer over the inspectors, dimensions, room areas and the new-project form.
+**Context:** Everything inside stays in metres. This is a formatting and parsing layer over the inspectors, dimension lines and the new-project form; the area preference in `components/units.ts` shows where a units setting lives.
 
 **Effort:** M
 **Priority:** P2
 **Depends on:** None.
 
-### More than one storey
+### Three-storey generation
 
-**What:** Upper floors and basements, with stairs.
+**What:** Generate townhouses of three floors from the brief.
 
-**Why:** Drafted lists it as in progress too. The Floors select is hidden until this exists.
+**Why:** The editor and 3D already take three floors (ADR 0010), but the generator stops at two, and the AI interpreter sends "three storeys" to unclear.
 
-**Context:** `PlanDocument.levels` is already an array, but every planner, scene and render uses `levels[0]`. This also needs stairs, stacking wet rooms, and 3D.
+**Context:** It needs:
+- a townhouse room split (living on the middle floor is common);
+- stairs lined up through every floor;
+- landings on the middle floor that wrap round the stairwell;
+- a protected escape route.
 
-**Effort:** XL
+`storeyPlanner.ts` builds one flight between two floors. A third floor needs `stairLine` repeated and the cross arrangement's middle band kept free on every floor.
+
+**Effort:** L
+**Priority:** P3
+**Depends on:** None.
+
+### Two-storey layouts in L, T and U houses
+
+**What:** Generate two-storey layouts in houses that aren't rectangles, and with setback upper floors.
+
+**Why:** Today a drawn L, T or U house gets "two-storey layouts work in rectangular houses for now", and the Rooms step hides the shape choice when Two storeys is picked.
+
+**Context:**
+- The storey planner frames one rectangle. A wing house could stack the main body and leave a wing single-storey, which is the setback the editor already allows by pulling an upper floor in.
+- Very wide drawn houses need a third column of rooms or a wider landing than the spine (a 7 m column beside the hall) and cross arrangements give.
+
+**Effort:** L
+**Priority:** P3
+**Depends on:** None.
+
+### Regenerating one floor
+
+**What:** Lay out the first floor again while keeping the ground floor, or the other way round.
+
+**Why:** A user happy with one floor can only regenerate the whole house.
+
+**Context:** The stairs are fixed by the floor that's kept. Planning one floor means `storeyPlanner` with the stair position given, emitting into a `levelView` and splicing it back, as `buildStoreys` does.
+
+**Effort:** M
+**Priority:** P3
+**Depends on:** None.
+
+### Floors: what's still open
+
+**What:** The smaller gaps left by ADR 0010.
+
+**Why:** Each one is a place where a two-storey house still acts as if it were single-storey.
+
+**Context:**
+- **Walk** stays on the ground floor; climbing the stairs needs a ramp collider along the flight.
+- **Pitched roofs** over the upper floor. Exposed lower roofs are flat by choice.
+- **Inserting a floor** between two others. `addLevel` only adds at the top.
+- **Window and door note.** Every generated two-storey plan carries "1 door or window didn't fit": a side-wall window overlaps a door. The emitter should skip that window, not report it.
+- **Room areas** count a stairwell's floor as the landing's area on the upper floor.
+- **Basements**, which the user left out of scope.
+
+**Effort:** M
 **Priority:** P4
-**Depends on:** pins and region regeneration.
+**Depends on:** None.
 
 ## Completed
+
+### One Refine mode instead of Edit walls (2026-10-12)
+
+Refine has one editing mode. The Rooms / Walls switch became a view switch, 2D Plan / Furnished: every tool works in both, and furniture shows (and can be picked) only when furnished. The `structure` workspace is gone; `hitRefine` picks furniture, then doors and windows, then walls, then rooms. An outside wall drags only once it's selected, so a stray drag can't move a side of the house.

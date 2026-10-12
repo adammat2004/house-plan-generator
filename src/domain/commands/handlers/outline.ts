@@ -40,6 +40,7 @@ export function outlineLevel(previous: Level | null, axisRing: Ring, thickness: 
     name: previous?.name ?? "Ground floor",
     elevation: previous?.elevation ?? 0,
     defaultWallHeight: height,
+    ...(previous?.floorThickness === undefined ? {} : { floorThickness: previous.floorThickness }),
     vertices,
     walls,
     openings: {},
@@ -53,9 +54,10 @@ export function outlineLevel(previous: Level | null, axisRing: Ring, thickness: 
 /**
  * Builds a new level from an outline drawn on the outside faces, in any
  * orientation and from any corner. The outline's bounding box is moved to
- * the origin and wall centrelines are inset by half the external thickness.
+ * the origin, unless it is an upper floor's (`asDrawn`), which stays over
+ * the floor below; wall centrelines are inset by half the external thickness.
  */
-export function createOutline(previous: Level | null, cmd: CreateOutline, ids: IdSource): Level {
+export function createOutline(previous: Level | null, cmd: CreateOutline, ids: IdSource, opts: { asDrawn?: boolean } = {}): Level {
   const thickness = requireLength(cmd.externalThickness, "External wall thickness", LIMITS.minWallThickness, LIMITS.maxWallThickness);
   const height = requireLength(cmd.wallHeight, "Wall height", 1, LIMITS.maxWallHeight);
   if (!Array.isArray(cmd.outline) || cmd.outline.length < 4) fail("envelope-invalid", "The house outline needs at least four corners.");
@@ -66,7 +68,7 @@ export function createOutline(previous: Level | null, cmd: CreateOutline, ids: I
   const box = rectFromPoints(outside);
   if (box.maxX - box.minX > LIMITS.maxHouseSize + 1e-9) fail("invalid-value", `House width must be at most ${LIMITS.maxHouseSize} m.`);
   if (box.maxY - box.minY > LIMITS.maxHouseSize + 1e-9) fail("invalid-value", `House depth must be at most ${LIMITS.maxHouseSize} m.`);
-  const placed = outside.map((p) => ({ x: p.x - box.minX, y: p.y - box.minY }));
+  const placed = opts.asDrawn ? outside : outside.map((p) => ({ x: p.x - box.minX, y: p.y - box.minY }));
   const axis = outsideToAxis(placed, thickness).map((p) => ({ x: roundToPrecision(p.x), y: roundToPrecision(p.y) }));
   const problem = checkOutlineRing(axis, thickness);
   if (problem) fail("envelope-invalid", problem.message);

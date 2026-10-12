@@ -9,6 +9,7 @@ import { Button, MenuItem, NumberField, ReadoutRow } from "@/components/ui/contr
 import { ChevronDownIcon, FlipHingeIcon, FlipSwingIcon, TrashIcon } from "@/components/ui/icons";
 import { editor } from "../../state/editor";
 import { InspectorFrame, lowerFirst, MoreSettings, mm, run, Section } from "./frame";
+import { friendlyName } from "./names";
 import { DoorArt, WindowArt } from "./openingArt";
 
 const M_FIELD = { unit: "m", decimals: 3 } as const;
@@ -27,8 +28,8 @@ export function OpeningInspector({ level, opening }: { level: Level; opening: Op
   const centre = () => update({ offset: roundToPrecision((lo + hi - opening.width) / 2) });
   return (
     <InspectorFrame
-      title={describeEntity(level, id)}
-      summary={`On ${lowerFirst(describeEntity(level, opening.wallId))}`}
+      title={friendlyName(level, id)}
+      summary={`On ${lowerFirst(friendlyName(level, opening.wallId))}`}
       menu={<MenuItem onSelect={centre}>Centre on wall</MenuItem>}
     >
       <div className="product-row">
@@ -40,18 +41,8 @@ export function OpeningInspector({ level, opening }: { level: Level; opening: Op
           <PresetPicker opening={opening} onPick={update} />
         </div>
       </div>
-      <Section>
-        <NumberField label="Width" value={opening.width} {...M_FIELD} testId="opening-width" onCommit={(width) => update({ width })} />
-        <NumberField label="Height" value={opening.height} {...M_FIELD} testId="opening-height" onCommit={(height) => update({ height })} />
-        {opening.kind === "window" && (
-          <NumberField label="Sill height" value={opening.sillHeight} {...M_FIELD} testId="opening-sill" onCommit={(sillHeight) => update({ sillHeight })} />
-        )}
-      </Section>
-      <Section>
-        <PositionControl level={level} opening={opening} />
-      </Section>
       {opening.kind === "door" && (
-        <Section title="Swing">
+        <Section title="Which way it opens">
           <div className="button-row">
             <Button onClick={() => update({ hinge: opening.hinge === "start" ? "end" : "start" })} data-testid="flip-hinge">
               <FlipHingeIcon width={16} height={16} /> Flip hinge
@@ -62,6 +53,16 @@ export function OpeningInspector({ level, opening }: { level: Level; opening: Op
           </div>
         </Section>
       )}
+      <Section title="Size">
+        <NumberField label="Width" value={opening.width} {...M_FIELD} testId="opening-width" onCommit={(width) => update({ width })} />
+        <NumberField label="Height" value={opening.height} {...M_FIELD} testId="opening-height" onCommit={(height) => update({ height })} />
+        {opening.kind === "window" && (
+          <NumberField label="Sill height" value={opening.sillHeight} {...M_FIELD} testId="opening-sill" onCommit={(sillHeight) => update({ sillHeight })} />
+        )}
+      </Section>
+      <Section>
+        <PositionControl level={level} opening={opening} />
+      </Section>
       <MoreSettings>
         <NumberField
           label="Offset from wall start"

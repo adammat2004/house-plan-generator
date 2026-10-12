@@ -57,18 +57,6 @@ export const WindowIcon = (p: IconProps) => (
   </svg>
 );
 
-export const StairsIcon = (p: IconProps) => (
-  <svg {...base} {...p}>
-    <path d="M4 20v-5h5v-5h5V5h6v5h-5v5h-5v5z" />
-  </svg>
-);
-
-export const ColumnIcon = (p: IconProps) => (
-  <svg {...base} {...p}>
-    <rect x="5" y="5" width="14" height="14" rx="1" />
-  </svg>
-);
-
 export const CloudIcon = (p: IconProps) => (
   <svg {...base} {...p}>
     <path d="M7.5 18.5h10a4 4 0 0 0 .6-7.95A6 6 0 0 0 6.6 9.2 4.7 4.7 0 0 0 7.5 18.5z" />
@@ -84,25 +72,6 @@ export const UsersIcon = (p: IconProps) => (
 );
 
 /** Filled arrowhead pointing up: plan north. */
-export const NorthArrowIcon = (p: IconProps) => (
-  <svg {...base} {...p}>
-    <path d="M12 3 19 20l-7-3.5L5 20z" fill="currentColor" strokeWidth={1.2} />
-  </svg>
-);
-
-export const ExpandIcon = (p: IconProps) => (
-  <svg {...base} {...p}>
-    <path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5" />
-  </svg>
-);
-
-export const ShrinkIcon = (p: IconProps) => (
-  <svg {...base} {...p}>
-    <path d="M9 4v5H4M20 9h-5V4M15 20v-5h5M4 15h5v5" />
-  </svg>
-);
-
-/** Frame with a centred target: fit the plan to the view. */
 export const FitIcon = (p: IconProps) => (
   <svg {...base} {...p}>
     <path d="M4 8V4h4M16 4h4v4M20 16v4h-4M8 20H4v-4" />
@@ -510,13 +479,6 @@ export const OrbitIcon = (p: IconProps) => (
   </svg>
 );
 
-export const PanIcon = (p: IconProps) => (
-  <svg {...base} {...p}>
-    <path d="M12 3v18M3 12h18" />
-    <path d="m9 6 3-3 3 3M9 18l3 3 3-3M6 9l-3 3 3 3M18 9l3 3-3 3" />
-  </svg>
-);
-
 export const WalkIcon = (p: IconProps) => (
   <svg {...base} {...p}>
     <circle cx="13" cy="4.5" r="1.8" />
@@ -546,27 +508,24 @@ export const EyeIcon = (p: IconProps) => (
   </svg>
 );
 
-export const BulbIcon = (p: IconProps) => (
+export const StairsIcon = (p: IconProps) => (
   <svg {...base} {...p}>
-    <path d="M9 18h6M10 21h4" />
-    <path d="M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z" />
+    <path d="M4 20v-5h5v-5h5V5h6v5h-5v5h-5v5z" />
   </svg>
 );
 
-export const PaletteIcon = (p: IconProps) => (
+/** Two panes side by side: the plan beside the 3D view. */
+export const SplitIcon = (p: IconProps) => (
   <svg {...base} {...p}>
-    <path d="M12 3a9 9 0 1 0 0 18c1.1 0 1.6-.9 1.2-1.8-.5-1.1.2-2.2 1.4-2.2H17a4 4 0 0 0 4-4c0-5.5-4-10-9-10z" />
-    <circle cx="7.5" cy="11" r="1.2" fill="currentColor" stroke="none" />
-    <circle cx="10.5" cy="7" r="1.2" fill="currentColor" stroke="none" />
-    <circle cx="15" cy="7.5" r="1.2" fill="currentColor" stroke="none" />
+    <rect x="3" y="4.5" width="18" height="15" rx="2" />
+    <path d="M12 4.5v15" />
   </svg>
 );
 
-export const ExteriorIcon = (p: IconProps) => (
+/** A box in perspective: the house in 3D. */
+export const CubeIcon = (p: IconProps) => (
   <svg {...base} {...p}>
-    <path d="M3 11 12 4l9 7" />
-    <path d="M5.5 9.5V20h13V9.5" />
-    <path d="M10 20v-5h4v5" />
-    <path d="M2 20h20" />
+    <path d="M12 3 20 7.5v9L12 21l-8-4.5v-9z" />
+    <path d="M4 7.5 12 12l8-4.5M12 12v9" />
   </svg>
 );

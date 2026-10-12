@@ -15,10 +15,11 @@ const SEED_CLEARANCE = 0.01;
  * room claims the new region it overlaps most (ties: lower region index).
  * Where several rooms claim one region (a merge), the largest-overlap room
  * survives (ties: lower room id). Regions left unclaimed (e.g. the smaller
- * children of a split) receive new rooms with default names. Seeds are kept
- * when still inside their region and moved to an interior point otherwise.
+ * children of a split) receive new rooms with default names, skipping names
+ * used on other floors. Seeds are kept when still inside their region and
+ * moved to an interior point otherwise.
  */
-export function reconcileRooms(previous: Level | null, next: Level, ids: IdSource): Level {
+export function reconcileRooms(previous: Level | null, next: Level, ids: IdSource, namesElsewhere: readonly string[] = []): Level {
   const nextFaces = deriveLevelGeometry(next).faces;
   const labelPoint = (f: number) => roundSeed(deriveRoomRegions(next)[f].labelPoint);
   const oldRooms = previous ? Object.values(previous.rooms) : [];
@@ -64,7 +65,7 @@ export function reconcileRooms(previous: Level | null, next: Level, ids: IdSourc
   }
 
   const result: Record<Id, Room> = {};
-  const usedNames = new Set<string>();
+  const usedNames = new Set<string>(namesElsewhere);
   const roomForFace = new Map<number, Room>();
   for (const [f, r] of survivors) {
     const room = oldRooms[r];

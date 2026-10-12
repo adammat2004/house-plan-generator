@@ -5,7 +5,7 @@ import { analyzeEnvelope } from "../geometry/envelope";
 import { findFaceIndexContaining } from "../geometry/faces";
 import type { Rect } from "../geometry/vector";
 import { pointAtParam } from "../geometry/walls";
-import type { Id, Level, Point2, RoomType } from "../plan/types";
+import type { Id, Level, PlanDocument, Point2, RoomType } from "../plan/types";
 
 /**
  * Read-only facts about a plan for presenting and comparing designs: which
@@ -205,6 +205,8 @@ export interface AssessedRoom {
 }
 
 export interface PlanAssessment {
+  /** Floors, when the house has more than one. */
+  storeys?: number;
   /** Clear floor area of all rooms, m². */
   totalArea: number;
   /** Living, kitchen, dining and office floor area, m². */
@@ -222,31 +224,56 @@ export interface PlanAssessment {
 
 const assessCache = new WeakMap<Level, PlanAssessment>();
 
+/** One floor's rooms, light and features. */
 export function assessPlan(level: Level): PlanAssessment {
   const cached = assessCache.get(level);
   if (cached) return cached;
-  const regions = deriveRoomRegions(level);
-  const faceOf = roomFaceIndices(level);
+  const result = assessLevels([level]);
+  assessCache.set(level, result);
+  return result;
+}
+
+const houseCache = new WeakMap<PlanDocument, PlanAssessment>();
+
+/** The whole house, every floor together; for one floor, exactly `assessPlan`. */
+export function assessHouse(doc: PlanDocument): PlanAssessment {
+  if (doc.levels.length === 1) return assessPlan(doc.levels[0]);
+  const cached = houseCache.get(doc);
+  if (cached) return cached;
+  const result = { storeys: doc.levels.length, ...assessLevels(doc.levels) };
+  houseCache.set(doc, result);
+  return result;
+}
+
+function assessLevels(levels: readonly Level[]): PlanAssessment {
+  const ground = levels[0];
   const rooms: AssessedRoom[] = [];
-  for (const room of Object.values(level.rooms)) {
-    const region = regions[faceOf.get(room.id) ?? -1];
-    if (region) rooms.push({ id: room.id, name: room.name, type: room.type, area: region.clearArea });
+  const levelOfRoom = new Map<Id, Level>();
+  for (const level of levels) {
+    const regions = deriveRoomRegions(level);
+    const faceOf = roomFaceIndices(level);
+    for (const room of Object.values(level.rooms)) {
+      const region = regions[faceOf.get(room.id) ?? -1];
+      if (!region) continue;
+      rooms.push({ id: room.id, name: room.name, type: room.type, area: region.clearArea });
+      levelOfRoom.set(room.id, level);
+    }
   }
   rooms.sort((a, b) => b.area - a.area);
   const sum = (filter: (r: AssessedRoom) => boolean) => rooms.filter(filter).reduce((acc, r) => acc + r.area, 0);
   const totalArea = sum(() => true);
   const has = (type: RoomType) => rooms.some((r) => r.type === type);
-  const glazing = Object.values(level.openings).reduce((acc, o) => acc + (o.kind === "window" ? o.width * o.height : 0), 0);
+  const glazing = levels.flatMap((l) => Object.values(l.openings)).reduce((acc, o) => acc + (o.kind === "window" ? o.width * o.height : 0), 0);
   const glazingRatio = totalArea > 0 ? glazing / totalArea : 0;
-  const garden = gardenWallIds(level);
-  const rearDoor = Object.values(level.openings).some((o) => o.kind === "door" && garden.has(o.wallId));
-  const env = analyzeEnvelope(level);
+  const garden = gardenWallIds(ground);
+  const rearDoor = Object.values(ground.openings).some((o) => o.kind === "door" && garden.has(o.wallId));
+  const env = analyzeEnvelope(ground);
 
   const features: PlanFeature[] = [];
   if (has("kitchen_dining") && !has("living")) features.push("open_plan");
   if (has("kitchen_dining") && has("living")) features.push("kitchen_diner");
   if (has("living") && (has("kitchen") || has("kitchen_dining"))) features.push("separate_living");
-  if (rooms.some((r) => KITCHEN.has(r.type) && touchesRear(level, r.id))) features.push("kitchen_faces_garden");
+  if (rooms.some((r) => KITCHEN.has(r.type) && touchesRear(levelOfRoom.get(r.id)!, r.id))) features.push("kitchen_faces_garden");
   if (rearDoor) features.push("garden_access");
   if (glazingRatio >= LIGHT_RATIO) features.push("natural_light");
   if (has("utility")) features.push("utility_room");
@@ -265,7 +292,6 @@ export function assessPlan(level: Level): PlanAssessment {
     outside: env.ok ? { width: env.info.width, depth: env.info.depth } : null,
     features,
   };
-  assessCache.set(level, result);
   return result;
 }
 
@@ -321,6 +347,37 @@ export function roomResizeCommand(level: Level, roomId: Id, dimension: "width" |
   }
   const outward = wall.side === "east" || wall.side === "north" ? 1 : -1;
   return { type: "moveWall", wallId: wall.wallId, delta: Math.round(outward * delta * 1e6) / 1e6 };
+}
+
+/** A grip in the middle of one side of a room, which moves the one wall that side is. */
+export interface RoomEdgeHandle {
+  side: Side;
+  wallId: Id;
+  /** Outside walls move a side of the house; inside walls give or take space from the room next door. */
+  external: boolean;
+  /** The middle of the room's side, on the wall's face. */
+  point: Point2;
+}
+
+/**
+ * The room's sides that a single wall runs the whole length of: each can be
+ * dragged to make the room bigger or smaller (as the inspector's width and
+ * depth do). A side made of several walls has no grip; dragging one of
+ * those walls still works.
+ */
+export function roomEdgeHandles(level: Level, roomId: Id): RoomEdgeHandle[] {
+  const b = roomBounds(level, roomId);
+  if (!b) return [];
+  const handles: RoomEdgeHandle[] = [];
+  for (const side of ["north", "east", "south", "west"] as const) {
+    const vertical = side === "east" || side === "west";
+    const span = vertical ? b.maxY - b.minY : b.maxX - b.minX;
+    const walls = roomWalls(level, roomId).filter((w) => w.side === side && w.to - w.from >= span - 0.05);
+    if (walls.length !== 1) continue;
+    const point = vertical ? { x: side === "east" ? b.maxX : b.minX, y: (b.minY + b.maxY) / 2 } : { x: (b.minX + b.maxX) / 2, y: side === "north" ? b.maxY : b.minY };
+    handles.push({ side, wallId: walls[0].wallId, external: walls[0].external, point });
+  }
+  return handles;
 }
 
 // ── Room comparisons ─────────────────────────────────────────────────────

@@ -8,8 +8,9 @@ describe("project templates", () => {
     const plan = buildTemplatePlan(template, "t1");
     expect(plan).not.toBeNull();
     expect(validateDocument(plan!)).toEqual([]);
-    const rooms = Object.values(plan!.levels[0].rooms);
+    const rooms = plan!.levels.flatMap((l) => Object.values(l.rooms));
     expect(rooms.filter((r) => r.type === "bedroom" || r.type === "primary_bedroom")).toHaveLength(template.brief.bedrooms);
+    expect(plan!.levels).toHaveLength(template.brief.storeys ?? 1);
   });
 
   it("creates independent projects that pass full project validation", () => {

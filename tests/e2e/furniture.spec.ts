@@ -14,8 +14,8 @@ test.describe("Furniture", () => {
     await createHouse(page);
     await drawWall(page, { x: 4, y: AXIS.south }, { x: 4, y: AXIS.north });
 
-    // The Furniture tool opens the plan in Designs with the catalog beside it.
-    await page.keyboard.press("3");
+    // The Furniture tool works in Refine, showing the furnished view, with the catalog beside the plan.
+    await page.keyboard.press("4");
     await page.keyboard.press("u");
     await expect(page.getByTestId("tool-furniture")).toHaveAttribute("aria-pressed", "true");
     const catalog = page.getByTestId("furniture-catalog");
@@ -24,7 +24,8 @@ test.describe("Furniture", () => {
     await catalog.getByTestId("catalog-item-bed_double").click();
 
     // Near the north wall the bed turns its head to the wall and sits flush, centred.
-    await clickAt(page, { x: 2.1, y: 9.2 });
+    // (Clicked within the 0.4 m wall reach, which holds at any zoom.)
+    await clickAt(page, { x: 2.1, y: 8.9 });
     let items = await furniture(page);
     expect(items).toHaveLength(1);
     const bed = items[0];
@@ -66,11 +67,12 @@ test.describe("Furniture", () => {
     expect((await furniture(page)).map((f) => f.kind)).not.toContain("wardrobe");
 
     // In 3D, furniture shows by default and can be hidden.
-    await page.keyboard.press("4");
+    await page.keyboard.press("Shift+Digit2");
     await expect(page.getByTestId("three-view").locator("canvas")).toBeVisible();
     const shown = () => page.evaluate(() => (window.__floorPlanEditor!.getSession() as { view3d: { display: { furniture: boolean } } }).view3d.display.furniture);
     expect(await shown()).toBe(true);
-    await page.getByTestId("rail-furniture").click();
+    await page.getByTestId("present-tab-show").click();
+    await page.getByTestId("display-furniture").click();
     expect(await shown()).toBe(false);
 
     // Furniture is saved with the plan.
@@ -93,18 +95,21 @@ test.describe("Furniture", () => {
     await page.keyboard.press("Escape");
     await page.keyboard.press("2");
     await page.getByTestId("generate-layouts").click();
-    await expect(page.getByTestId("concept-board")).toBeVisible();
+    await expect(page.getByTestId("concept-board").getByTestId("concept-Plan A")).toBeVisible();
     await page.waitForTimeout(300);
     await page.screenshot({ path: "test-results/visual/furniture-concepts.png" });
+    await page.getByTestId("concept-board").getByTestId("concept-Plan A").click();
     await page.getByTestId("open-concept-Plan A").click();
     await page.waitForTimeout(300);
     expect((await furniture(page)).length).toBeGreaterThan(10);
     await page.screenshot({ path: "test-results/visual/furniture-concept-plan.png" });
-    await page.keyboard.press("1");
+    // The 2D plan view leaves the furniture out.
+    await page.getByTestId("view-plan").click();
     await page.waitForTimeout(200);
-    await page.screenshot({ path: "test-results/visual/furniture-structure.png" });
-    await page.keyboard.press("4");
+    await page.screenshot({ path: "test-results/visual/furniture-plan-view.png" });
+    await page.keyboard.press("Shift+Digit2");
     await expect(page.getByTestId("three-view").locator("canvas")).toBeVisible();
+    await page.getByTestId("present-tab-show").click();
     await page.getByTestId("display-cutaway").click();
     await page.waitForTimeout(1500);
     await page.screenshot({ path: "test-results/visual/furniture-3d.png" });

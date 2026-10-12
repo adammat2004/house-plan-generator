@@ -5,16 +5,17 @@ import { createStore } from "zustand/vanilla";
 import { createPlanDocument } from "@/domain/commands";
 import type { Point2 } from "@/domain/plan/types";
 import { projectFromPlan, type ProjectDetails, type ProjectDocument } from "@/domain/project/schema";
-import { BRIEF_PRESETS } from "@/domain/brief/rooms";
-import { DEFAULT_BRIEF, withPicks, type HouseShape } from "@/domain/brief/schema";
+import type { HouseShape } from "@/domain/brief/schema";
 import type { PlotLimits } from "@/domain/design/footprint";
 import { projectFromRooms } from "@/domain/project/fromRooms";
+import { decodeSnapshot, projectFromSnapshot, snapshotProjectId } from "@/domain/project/startLink";
 import { projectFromTemplate, type ProjectTemplate } from "@/domain/project/templates";
 import { editorStores } from "@/editor/state/editor";
 import type { CreateHouseValues } from "@/editor/components/CreateHouseDialog";
 import { newDocumentId, newIdPrefix } from "@/editor/state/ids";
 import { browserLibrary } from "@/persistence/browserLibrary";
 import type { ProjectSummary } from "@/persistence/planStorage";
+import { DRAFT_NAME, isUntouchedDraft, STARTING_BRIEF } from "./drafts";
 
 /**
  * The home screen's view of the project library, plus the actions that add
@@ -39,14 +40,15 @@ export async function refreshLibrary(): Promise<void> {
     const projects = await browserLibrary().list();
     libraryStore.setState({ status: "ready", projects, error: null });
   } catch (error) {
+    console.error("Couldn't list projects:", error);
     libraryStore.setState({ status: "error", error: (error as Error).message || "Browser storage is unavailable." });
   }
 }
 
 const now = () => new Date().toISOString();
 
-/** The editor URL for a project; "rooms" opens on the room picker, "concepts" on generated layouts. */
-export const editorHref = (id: string, start?: "draw" | "concepts" | "rooms") => `/editor?project=${encodeURIComponent(id)}${start ? `&start=${start}` : ""}`;
+/** The editor URL for a project; "rooms" opens on the room picker, "concepts" on generated layouts, "refine" on the active plan. */
+export const editorHref = (id: string, start?: "draw" | "concepts" | "rooms" | "refine") => `/editor?project=${encodeURIComponent(id)}${start ? `&start=${start}` : ""}`;
 
 async function add(project: ProjectDocument): Promise<string> {
   await browserLibrary().create(project);
@@ -84,10 +86,43 @@ export async function createBlankProject(name = "Untitled house", details?: Proj
  */
 export async function createRoomsProject(options: { name: string; plot?: PlotLimits; details?: ProjectDetails; houseShape?: HouseShape }): Promise<string> {
   const { houseShape, ...rest } = options;
-  const brief = { ...withPicks(DEFAULT_BRIEF, BRIEF_PRESETS.find((p) => p.id === "family-3")!.picks), ...(houseShape ? { houseShape } : {}) };
+  const brief = { ...STARTING_BRIEF, ...(houseShape ? { houseShape } : {}) };
   const result = projectFromRooms(brief, { id: newDocumentId(), idPrefix: newIdPrefix(), now: now(), count: 0, ...rest });
   if (!result.ok) throw new Error(result.message);
   return add(result.project);
+}
+
+/**
+ * Home's "Start designing": reopens the newest rooms-first project nobody has
+ * touched yet, or starts one with a typical family home picked. Clicking it
+ * twice never leaves two empty projects behind.
+ */
+export async function startDesigning(): Promise<string> {
+  const projects = await browserLibrary().list();
+  const draft = projects.find((p) => p.project && isUntouchedDraft(p.project));
+  return draft ? draft.id : createRoomsProject({ name: DRAFT_NAME });
+}
+
+/**
+ * Opens a "Send to my computer" link (see domain/project/startLink.ts): the
+ * project it made before if that's still here, otherwise a new one. Null
+ * when the link is damaged or its plan doesn't check out.
+ */
+export async function openSentLink(payload: string): Promise<string | null> {
+  const snapshot = await decodeSnapshot(payload);
+  if (!snapshot) return null;
+  const id = await snapshotProjectId(payload);
+  const exists = async () => (await browserLibrary().list()).some((p) => p.id === id);
+  if (await exists()) return id;
+  const project = projectFromSnapshot(snapshot, { id, idPrefix: newIdPrefix(), now: now() });
+  if (!project) return null;
+  try {
+    return await add(project);
+  } catch (error) {
+    // Opened twice at once (a re-run effect): the other open made it.
+    if (await exists()) return id;
+    throw error;
+  }
 }
 
 export async function createProjectFromTemplate(template: ProjectTemplate): Promise<string> {

@@ -48,6 +48,23 @@ export function HouseShapeChips({ value, onChange, testPrefix = "brief" }: { val
   );
 }
 
+/** One storey, or two with the bedrooms upstairs. */
+export function StoreyChips({ value, onChange, testPrefix = "brief" }: { value: 1 | 2 | undefined; onChange: (storeys: 1 | 2) => void; testPrefix?: string }) {
+  const current = value ?? 1;
+  return (
+    <div className="chips" role="radiogroup" aria-label="Storeys">
+      {([1, 2] as const).map((n) => {
+        const on = n === current;
+        return (
+          <button key={n} type="button" role="radio" aria-checked={on} className={`chip${on ? " is-on" : ""}`} data-testid={`${testPrefix}-storeys-${n}`} onClick={() => onChange(n)}>
+            {n === 1 ? "One storey" : "Two storeys"}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 /** Approximate sizes of the living space, kitchen and bedrooms. */
 export function BriefSizeFields({ brief, onChange, testPrefix = "brief" }: { brief: HouseBrief; onChange: (patch: Partial<HouseBrief>) => void; testPrefix?: string }) {
   const applies: Record<SizedRoom, boolean> = { living: brief.requiredSpaces.includes("living"), kitchen: brief.requiredSpaces.includes("kitchen"), bedrooms: brief.bedrooms > 0 };

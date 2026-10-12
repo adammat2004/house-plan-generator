@@ -50,6 +50,10 @@ const STEPS: Record<number, (raw: Record<string, unknown>) => Record<string, unk
         })
       : raw.levels,
   }),
+  // v4 → v5: houses may have several floors. Every v4 house has one, so only the version changes.
+  4: (raw) => ({ ...raw, schemaVersion: 5 }),
+  // v5 → v6: wood boards joined the floor finishes ("timber" stays herringbone). Every v5 file is a valid v6 one.
+  5: (raw) => ({ ...raw, schemaVersion: 6 }),
 };
 
 /** Brings a raw parsed file up to the current schema version. */

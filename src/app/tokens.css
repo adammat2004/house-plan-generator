@@ -1,0 +1,123 @@
+/*
+ * Design tokens: the one source for colour, type, space, shape, depth,
+ * layers and motion across the home screen and the editor. DESIGN.md says
+ * how to use them. Canvas and 3D colours mirror these in
+ * src/design/tokens.ts (a test keeps the two in step).
+ */
+:root {
+  /* Type. next/font sets --font-inter and --font-newsreader on <html>. */
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-serif: var(--font-newsreader), Georgia, serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --fs-display-xl: 56px;
+  --fs-display-l: 40px;
+  --fs-display-m: 32px;
+  --fs-display-s: 24px;
+  --fs-title: 16px;
+  --fs-body: 14px;
+  --fs-small: 13px;
+  --fs-caption: 12px;
+
+  /* Colour. */
+  --bg: #f8f7f3;
+  --canvas: #f2f0ea;
+  --surface: #ffffff;
+  --surface-2: #f4f3ef;
+  --surface-3: #ecebe5;
+  --line: #e6e3db;
+  --line-strong: #d4d0c6;
+  --ink: #1e2420;
+  --ink-2: #525852;
+  --ink-3: #646962;
+  --ink-disabled: #a4a8a1;
+  --on-brand: #ffffff;
+  --brand: #1f3a32;
+  --brand-hover: #2a4a40;
+  --brand-soft: #edf2ef;
+  --accent: #2f6f5e;
+  --accent-ink: #245848;
+  --accent-soft: #e5efeb;
+  --accent-line: #c5dcd4;
+  --accent-ring: rgba(47, 111, 94, 0.22);
+  --danger: #b8432f;
+  --danger-soft: #f6e3df;
+  --danger-line: #e9c4bb;
+  --danger-ink: #86301f;
+  --warning: #9a5a10;
+  --warning-soft: #fbf5ea;
+  --warning-line: #eedcbc;
+  --warning-ink: #6b4a12;
+  /* Behind photos and 3D stills while they load. */
+  --media: #e7e0d2;
+  /* The 3D scene's daylight sky, also shown before it draws. */
+  --sky: #e9eef1;
+  --scrim: rgba(30, 36, 32, 0.24);
+  --scrim-strong: rgba(20, 22, 20, 0.82);
+  /* Labels and controls over pictures. */
+  --glass: rgba(255, 255, 255, 0.92);
+  /* Drafting grid on plan paper. */
+  --grid-line: rgba(30, 36, 32, 0.05);
+  --room-day: #f3e7cf;
+  --room-night: #dfe7ef;
+  --room-wet: #d9ebe6;
+  --room-service: #ece8e0;
+  --room-hall: #f1eee8;
+
+  /* Space: a 4px scale. */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 32px;
+  --space-8: 40px;
+  --space-9: 48px;
+  --space-10: 64px;
+
+  /* Shape and depth. */
+  --r-xs: 3px;
+  --r-sm: 6px;
+  --r-md: 10px;
+  --r-lg: 14px;
+  --r-xl: 20px;
+  --r-pill: 999px;
+  --shadow-1: 0 1px 2px rgba(30, 36, 32, 0.06);
+  --shadow-2: 0 1px 2px rgba(30, 36, 32, 0.05), 0 8px 24px rgba(30, 36, 32, 0.08);
+  --shadow-3: 0 2px 4px rgba(30, 36, 32, 0.06), 0 16px 40px rgba(30, 36, 32, 0.14);
+
+  /* Layers. */
+  --z-chrome: 10;
+  --z-panel: 20;
+  --z-popover: 30;
+  --z-toast: 40;
+  --z-modal: 50;
+  --z-tooltip: 60;
+
+  /* Motion. */
+  --dur-fast: 120ms;
+  --dur-base: 200ms;
+  --dur-slow: 320ms;
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  /* Space between the canvas edge and floating panels. */
+  --gutter: var(--space-6);
+
+  color-scheme: light;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-fast: 0ms;
+    --dur-base: 0ms;
+    --dur-slow: 0ms;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

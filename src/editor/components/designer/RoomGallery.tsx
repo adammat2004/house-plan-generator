@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import { DEFAULT_INTERIOR_STYLE, photoTargets, renderKey, targetKey, type StillTarget } from "@/domain/design/renderRequest";
 import { roomRegion } from "@/domain/design/analysis";
 import { formatArea } from "@/domain/geometry/numeric";
-import type { Level } from "@/domain/plan/types";
+import type { Level, PlanDocument } from "@/domain/plan/types";
 import { DEFAULT_APPEARANCE, INTERIOR_STYLE_LABEL, INTERIOR_STYLES, type Appearance, type InteriorStyle } from "@/domain/project/schema";
 import { IconButton } from "@/components/ui/controls";
 import { ChevronLeftIcon, ChevronRightIcon, CloseIcon, DownloadIcon, ImageIcon, SparkleIcon } from "@/components/ui/icons";
@@ -16,10 +16,12 @@ import { useStill } from "./useStill";
 /**
  * A concept's rooms as pictures: a photo where one has been rendered, else
  * an instant 3D view. "Render rooms" sends each 3D view to the image model
- * (a paid call each) and keeps the photos with the project.
+ * (a paid call each) and keeps the photos with the project. Without the
+ * image service, production shows the 3D views alone.
  */
 
 const TILE = { width: 320, height: 240 };
+const DEV = process.env.NODE_ENV === "development";
 const LARGE = { width: 1024, height: 768 };
 
 export function useLook(): { appearance: Appearance; style: InteriorStyle } {
@@ -28,15 +30,19 @@ export function useLook(): { appearance: Appearance; style: InteriorStyle } {
   return { appearance, style: appearance.interiorStyle ?? DEFAULT_INTERIOR_STYLE };
 }
 
-const nameOf = (level: Level, t: StillTarget) => (t.kind === "room" ? (level.rooms[t.roomId]?.name ?? "Room") : t.kind === "aerial" ? "From above" : "Exterior");
+/** The floor holding a room, in a whole house or a single floor. */
+const floorOf = (source: Level | PlanDocument, roomId: string): Level | undefined => ("levels" in source ? source.levels.find((l) => roomId in l.rooms) : source);
+const nameOf = (level: Level | PlanDocument | PlanDocument, t: StillTarget) => (t.kind === "room" ? (floorOf(level, t.roomId)?.rooms[t.roomId]?.name ?? "Room") : t.kind === "aerial" ? "From above" : "Exterior");
 
-export function RoomGallery({ planId, level }: { planId: string; level: Level }) {
+export function RoomGallery({ planId, level }: { planId: string; level: Level | PlanDocument }) {
   const { appearance, style } = useLook();
   const photos = useRenders((s) => s.byPlan[planId]);
   const batch = useRenders((s) => s.batch);
   const available = useRenders((s) => s.available);
   const error = useRenders((s) => s.error);
   const [open, setOpen] = useState<number | null>(null);
+  // Without the image service, production shows the 3D views only; development keeps the button to explain the setup.
+  const canRender = available !== "no" || DEV;
   const targets = photoTargets(level);
   const running = !!batch;
   const mine = batch?.planId === planId;
@@ -66,7 +72,7 @@ export function RoomGallery({ planId, level }: { planId: string; level: Level })
               Cancel
             </button>
           </div>
-        ) : (
+        ) : canRender ? (
           <button
             type="button"
             className="btn btn-primary"
@@ -76,14 +82,16 @@ export function RoomGallery({ planId, level }: { planId: string; level: Level })
           >
             <SparkleIcon width={16} height={16} /> {missing === targets.length ? "Render rooms" : missing || stale ? `Render ${missing + stale} more` : "Render again"}
           </button>
-        )}
+        ) : null}
       </div>
       {available === "no" ? (
-        <p className="field-hint" data-testid="render-setup">
-          Photo renders need a Google Gemini key: add GEMINI_API_KEY to .env.local and restart the app. The 3D views below work without it.
-        </p>
+        DEV && (
+          <p className="field-hint" data-testid="render-setup">
+            Photos need GEMINI_API_KEY in .env.local, then a restart. This note shows in development only.
+          </p>
+        )
       ) : (
-        <p className="field-hint">Each photo is a paid call to Google&rsquo;s Gemini image model, made from the 3D view of the room. Photos are kept with the project.</p>
+        <p className="field-hint">Each photo takes about ten seconds and is kept with the project.</p>
       )}
       {error && !mine && (
         <p className="gallery-error" role="alert" data-testid="render-error">
@@ -111,10 +119,11 @@ export function RoomGallery({ planId, level }: { planId: string; level: Level })
   );
 }
 
-function PhotoTile({ level, target, appearance, style, photo, onOpen }: { level: Level; target: StillTarget; appearance: Appearance; style: InteriorStyle; photo?: PhotoEntry; onOpen: () => void }) {
+function PhotoTile({ level, target, appearance, style, photo, onOpen }: { level: Level | PlanDocument; target: StillTarget; appearance: Appearance; style: InteriorStyle; photo?: PhotoEntry; onOpen: () => void }) {
   const { ref, url } = useStill(level, target, TILE, appearance);
   const name = nameOf(level, target);
-  const area = target.kind === "room" ? roomRegion(level, target.roomId)?.clearArea : undefined;
+  const floor = target.kind === "room" ? floorOf(level, target.roomId) : undefined;
+  const area = target.kind === "room" && floor ? roomRegion(floor, target.roomId)?.clearArea : undefined;
   const outdated = photo && photo.sourceHash !== renderKey(level, target, appearance, style);
   const src = photo?.url ?? url;
   return (
@@ -141,7 +150,7 @@ function PhotoTile({ level, target, appearance, style, photo, onOpen }: { level:
   );
 }
 
-function Lightbox({ level, target, appearance, photo, onClose, onStep }: { level: Level; target: StillTarget; appearance: Appearance; photo?: PhotoEntry; onClose: () => void; onStep: (d: 1 | -1) => void }) {
+function Lightbox({ level, target, appearance, photo, onClose, onStep }: { level: Level | PlanDocument; target: StillTarget; appearance: Appearance; photo?: PhotoEntry; onClose: () => void; onStep: (d: 1 | -1) => void }) {
   const { ref, url } = useStill(level, target, LARGE, appearance);
   const name = nameOf(level, target);
   const src = photo?.url ?? url;
@@ -170,7 +179,7 @@ function Lightbox({ level, target, appearance, photo, onClose, onStep }: { level
           <strong>{name}</strong>
           <span>{photo ? `Photo render · ${new Date(photo.createdAt).toLocaleDateString()}` : "3D view"}</span>
           {src && (
-            <a className="btn btn-outline btn-sm" href={src} download={`${name}.jpg`}>
+            <a className="btn btn-secondary btn-sm" href={src} download={`${name}.jpg`}>
               <DownloadIcon width={15} height={15} /> Download
             </a>
           )}
@@ -191,7 +200,7 @@ function Lightbox({ level, target, appearance, photo, onClose, onStep }: { level
 }
 
 /** Up to three small pictures of a concept's rooms for its card: photos where there are some, else 3D views. */
-export function CardPhotos({ planId, level }: { planId: string; level: Level }) {
+export function CardPhotos({ planId, level }: { planId: string; level: Level | PlanDocument }) {
   const { appearance } = useLook();
   const photos = useRenders((s) => s.byPlan[planId]);
   const targets = photoTargets(level, 4).slice(1, 4);
@@ -204,7 +213,7 @@ export function CardPhotos({ planId, level }: { planId: string; level: Level }) 
   );
 }
 
-function CardPhoto({ level, target, appearance, photo }: { level: Level; target: StillTarget; appearance: Appearance; photo?: PhotoEntry }) {
+function CardPhoto({ level, target, appearance, photo }: { level: Level | PlanDocument; target: StillTarget; appearance: Appearance; photo?: PhotoEntry }) {
   const { ref, url } = useStill(level, target, { width: 200, height: 150 }, appearance);
   const src = photo?.url ?? url;
   return (

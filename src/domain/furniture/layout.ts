@@ -3,6 +3,7 @@ import { deriveLevelGeometry } from "../geometry/derive";
 import { EPS, roundToPrecision } from "../geometry/numeric";
 import { asAxisRect, pointInPolygon, type MultiPolygon } from "../geometry/polygons";
 import type { Rect } from "../geometry/vector";
+import { NO_KEEP_OUT, type KeepOut } from "../geometry/stairs";
 import { pointAtParam } from "../geometry/walls";
 import type { Furniture, FurnitureKind, FurnitureRotation, Id, Level, Point2 } from "../plan/types";
 import { FURNITURE_CATALOG, type FurnitureSpec } from "./catalog";
@@ -58,7 +59,8 @@ export function furnitureInRoom(level: Level, roomId: Id): Furniture[] {
   return Object.values(level.furniture).filter((f) => roomAtPoint(level, f.position) === roomId);
 }
 
-export function roomContext(level: Level, roomId: Id, ignore: ReadonlySet<Id> = new Set()): RoomContext | null {
+/** A room's context; `keepOut` adds stairs on the floor, which furniture stays off and clear of. */
+export function roomContext(level: Level, roomId: Id, ignore: ReadonlySet<Id> = new Set(), keepOut: KeepOut = NO_KEEP_OUT): RoomContext | null {
   const region = roomRegion(level, roomId);
   if (!region || !region.clear.length) return null;
   const clear = region.clear;
@@ -137,6 +139,10 @@ export function roomContext(level: Level, roomId: Id, ignore: ReadonlySet<Id> = 
     const front = clearanceRect(item, Math.min(FURNITURE_CATALOG[item.kind].clearance, 0.6));
     if (front) fronts.push(front);
   }
+
+  const near = (r: Rect) => r.maxX > bounds.minX && r.minX < bounds.maxX && r.maxY > bounds.minY && r.minY < bounds.maxY;
+  bodies.push(...keepOut.bodies.filter(near));
+  doorZones.push(...keepOut.zones.filter(near));
 
   return { roomId, clear, rect, bounds, area: region.clearArea, edges, doorZones, windows, bodies, fronts };
 }

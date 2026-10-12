@@ -2,6 +2,7 @@ import { normaliseBrief, type HouseBrief } from "../brief/schema";
 import { createPlanDocument } from "../commands/factory";
 import { footprintsFor, type PlotLimits } from "../design/footprint";
 import { programFromBrief } from "../design/program";
+import { layoutNames } from "../design/layoutNames";
 import { planLayouts } from "../design/stripPlanner";
 import { ARRANGEMENTS, hallWidthFor } from "../design/zoning";
 import { DEFAULT_HOUSE } from "../plan/defaults";
@@ -46,6 +47,7 @@ export function projectFromRooms(
   });
   if (!result.candidates.length) return { ok: false, message: result.issues[0]?.message ?? "No layout fits these rooms." };
 
+  const titles = layoutNames(result.candidates.map((c) => c.document.levels[0]));
   const labels = ["Shell"];
   const plans: PlanVariant[] = result.candidates.map((c, i) => {
     const label = nextPlanLabel(labels);
@@ -63,6 +65,7 @@ export function projectFromRooms(
         notes: c.notes,
         ...(c.arrangement ? { arrangement: c.arrangement } : {}),
         ...(c.variant ? { variant: c.variant } : {}),
+        title: titles[i],
       },
       scope: { kind: "plan" },
       createdAt: options.now,

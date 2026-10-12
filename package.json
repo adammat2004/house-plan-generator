@@ -11,7 +11,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "plans:render": "vitest run --config vitest.plans.config.mts",
-    "test:e2e": "next build && playwright test",
+    "test:e2e": "next build && playwright test --project=desktop --project=phone",
+    "test:screens": "bash scripts/screens.sh",
+    "test:screens:update": "bash scripts/screens.sh --update-snapshots",
     "eval": "vitest run --config vitest.eval.config.mts",
     "check": "npm run typecheck && npm run lint && npm test && npm run test:e2e"
   },
@@ -30,6 +32,7 @@
     "zustand": "5.0.15"
   },
   "devDependencies": {
+    "@axe-core/playwright": "4.13.0",
     "@playwright/test": "1.63.0",
     "@types/node": "24.19.1",
     "@types/react": "19.3.0",

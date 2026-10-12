@@ -1,10 +1,17 @@
 "use client";
 
-import { memo } from "react";
+import { memo, useId } from "react";
 import type { Ring } from "@/domain/geometry/polygons";
-import type { Level, RoomType } from "@/domain/plan/types";
-import { FURNITURE_FILL, PLAN_THEME as T, ROOM_FILL, ZONE_FILL } from "../../rendering/konva/theme";
+import type { Rect } from "@/domain/geometry/vector";
+import type { Level, PlanDocument, RoomType } from "@/domain/plan/types";
+import { PLAN_THEME as T, ROOM_FILL, ZONE_FILL } from "../../rendering/konva/theme";
+import { FINISH_TONE, finishTile, roomFinish, type FinishId } from "../../rendering/scene/finishes";
 import { buildPlanScene, type PlanScene } from "../../rendering/scene/planScene";
+import { buildStairScene, type StairPrimitive } from "../../rendering/scene/stairScene";
+import { planFurnitureFill } from "../../rendering/scene/style";
+
+/** Pictures of plans use the default style's furniture colours. */
+const FURNITURE = planFurnitureFill();
 
 /**
  * Coordinates rounded to the millimetre. Drawings are rendered on the server
@@ -14,30 +21,101 @@ import { buildPlanScene, type PlanScene } from "../../rendering/scene/planScene"
 const pt = (p: { x: number; y: number }) => `${Math.round(p.x * 1000) / 1000} ${Math.round(p.y * 1000) / 1000}`;
 export const svgLine = (points: ReadonlyArray<{ x: number; y: number }>, closed = false) => `M${points.map(pt).join("L")}${closed ? "Z" : ""}`;
 const path = (rings: Ring[]) => rings.map((ring) => svgLine(ring, true)).join("");
+const rectPath = (r: Rect) => svgLine([{ x: r.minX, y: r.minY }, { x: r.maxX, y: r.minY }, { x: r.maxX, y: r.maxY }, { x: r.minX, y: r.maxY }], true);
+
+/** A floor's stairs, for drawings that have the whole house: none for a floor drawn on its own. */
+export const stairsOn = (plan: PlanDocument | undefined, level: Level | undefined): readonly StairPrimitive[] | undefined =>
+  plan && level && plan.staircases ? buildStairScene(plan, level.id) : undefined;
+
+/** Stairs as on the canvas, without the UP and DOWN words: treads, the cut, and the walking line with its arrow. */
+function StairDrawing({ stair }: { stair: StairPrimitive }) {
+  const tip = stair.path[stair.path.length - 1];
+  const before = stair.path[stair.path.length - 2] ?? tip;
+  const len = Math.hypot(tip.x - before.x, tip.y - before.y) || 1;
+  const [dx, dy] = [(tip.x - before.x) / len, (tip.y - before.y) / len];
+  const head = 0.22;
+  const arrow = [
+    { x: tip.x - dx * head - dy * head * 0.5, y: tip.y - dy * head + dx * head * 0.5 },
+    tip,
+    { x: tip.x - dx * head + dy * head * 0.5, y: tip.y - dy * head - dx * head * 0.5 },
+  ];
+  return (
+    <g fill="none" stroke={T.stairStroke} strokeWidth={0.02} strokeLinejoin="round">
+      <path d={stair.footprint.map(rectPath).join("")} fill={T.stairFill} stroke="none" />
+      {stair.treads.map((t, i) => (
+        <path key={i} d={rectPath(t.rect)} strokeDasharray={t.hidden ? "0.06 0.05" : undefined} opacity={t.hidden ? 0.6 : 1} />
+      ))}
+      {stair.breakLine && <path d={svgLine(stair.breakLine)} strokeWidth={0.035} />}
+      <path d={svgLine(stair.path)} />
+      <path d={svgLine(arrow)} />
+      <path d={stair.footprint.map(rectPath).join("")} strokeWidth={0.03} />
+    </g>
+  );
+}
 
 /** Neutral cream floors with lighter circulation and wet rooms, for drawings outside the editor. */
 const WARM_FILL: Partial<Record<RoomType, string>> = { hall: "#f8f4ec", bathroom: "#ede7dc", ensuite: "#ede7dc", wc: "#ede7dc", utility: "#ede7dc" };
 const WARM_DEFAULT = "#f1e9da";
 
-export type PlanPalette = "type" | "warm" | "zones";
+/** "finish" draws each floor as it's laid (herringbone, tiles…), as the plan in the editor does. */
+export type PlanPalette = "type" | "warm" | "zones" | "finish";
 
-const fillFor = (palette: PlanPalette, type: RoomType) =>
+const fillFor = (palette: Exclude<PlanPalette, "finish">, type: RoomType) =>
   palette === "warm" ? (WARM_FILL[type] ?? WARM_DEFAULT) : palette === "zones" ? ZONE_FILL[type] : ROOM_FILL[type];
+
+/** Finishes too fine to show in a small drawing are drawn as their colour. */
+const SVG_PLAIN: ReadonlySet<FinishId> = new Set(["carpet", "concrete"]);
+
+/** The floor finishes a drawing uses, as SVG patterns in world metres. */
+function FinishDefs({ id, finishes }: { id: string; finishes: FinishId[] }) {
+  return (
+    <defs>
+      {finishes.map((f) => {
+        const tile = finishTile(f);
+        const plain = SVG_PLAIN.has(f);
+        return (
+          <pattern key={f} id={`${id}-${f}`} patternUnits="userSpaceOnUse" width={tile.width} height={tile.height}>
+            <rect width={tile.width} height={tile.height} fill={plain ? FINISH_TONE[f] : tile.base} />
+            {!plain && tile.parts.map((part, i) => (part.ring ? <path key={i} d={svgLine(part.ring, true)} fill={part.fill} stroke={part.stroke} strokeWidth={part.width} /> : null))}
+          </pattern>
+        );
+      })}
+    </defs>
+  );
+}
 
 /**
  * A plan's rooms, walls and (optionally) openings as SVG in world metres,
  * y up. Callers place it with their own transform.
  */
-export function PlanDrawing({ scene, palette = "type", detail = false, highlight }: { scene: PlanScene; palette?: PlanPalette; detail?: boolean; highlight?: readonly string[] }) {
+export function PlanDrawing({
+  scene,
+  palette = "type",
+  detail = false,
+  highlight,
+  stairs,
+}: {
+  scene: PlanScene;
+  palette?: PlanPalette;
+  detail?: boolean;
+  highlight?: readonly string[];
+  /** The floor's stairs (see `stairsOn`). */
+  stairs?: readonly StairPrimitive[];
+}) {
+  const id = useId().replace(/:/g, "");
+  const finishes = palette === "finish" ? [...new Set(scene.rooms.map(roomFinish).filter((f): f is FinishId => !!f))] : [];
+  const floorFill = (room: PlanScene["rooms"][number] | undefined): string => {
+    if (!room) return WARM_DEFAULT;
+    if (palette !== "finish") return fillFor(palette, room.type);
+    const finish = roomFinish(room);
+    return finish ? `url(#${id}-${finish})` : ROOM_FILL[room.type];
+  };
+  const roomsById = new Map(scene.rooms.map((r) => [r.id, r]));
   return (
     <>
+      {finishes.length > 0 && <FinishDefs id={id} finishes={finishes} />}
       {scene.rooms.map((room) => (
-        <path
-          key={room.id}
-          d={path(room.clear.flatMap((p) => [p.outer, ...p.holes]))}
-          fill={fillFor(palette, room.type)}
-          fillRule="evenodd"
-        />
+        <path key={room.id} d={path(room.clear.flatMap((p) => [p.outer, ...p.holes]))} fill={floorFill(room)} fillRule="evenodd" />
       ))}
       {highlight?.length ? (
         <g fill={T.accentSoft} stroke={T.accent} strokeWidth={0.12}>
@@ -48,17 +126,23 @@ export function PlanDrawing({ scene, palette = "type", detail = false, highlight
             ))}
         </g>
       ) : null}
+      {stairs?.map((stair) => <StairDrawing key={stair.id} stair={stair} />)}
+      {detail && scene.rugs.length > 0 && <path d={path(scene.rugs.flatMap((p) => [p.outer, ...p.holes]))} fill={FURNITURE.rug} fillRule="evenodd" />}
       {detail && scene.furniture.length > 0 && (
         <g stroke={T.furnitureStroke} strokeWidth={0.018} strokeLinejoin="round" opacity={0.85}>
           {scene.furniture.flatMap((f) =>
             f.parts.map((part, i) => (
-              <path key={`${f.id}-${i}`} d={svgLine(part.ring, part.closed)} fill={part.closed && part.tone !== "none" ? FURNITURE_FILL[part.tone] : "none"} />
+              <path key={`${f.id}-${i}`} d={svgLine(part.ring, part.closed)} fill={part.closed && part.tone !== "none" ? FURNITURE[part.tone] : "none"} />
             )),
           )}
         </g>
       )}
       {/* A hairline keeps thin internal walls legible at thumbnail size. */}
       <path d={path(scene.wallMass.flatMap((p) => [p.outer, ...p.holes]))} fill={T.wallFill} stroke={T.wallFill} strokeWidth={0.04} fillRule="evenodd" />
+      {/* Doors and windows are gaps in the walls: the floor runs through a doorway, and a window is its frame. */}
+      {scene.openings.map((o) => (
+        <path key={o.id} d={path([o.cut])} fill={o.kind === "door" ? floorFill(o.floorRoomId ? roomsById.get(o.floorRoomId) : undefined) : T.frame} />
+      ))}
       {detail && (
         <g fill="none" stroke={T.openingStroke} strokeWidth={0.035} strokeLinejoin="round">
           {scene.openings.map((o) =>
@@ -69,7 +153,7 @@ export function PlanDrawing({ scene, palette = "type", detail = false, highlight
               </g>
             ) : (
               <g key={o.id}>
-                {o.frame && <path d={path([o.frame])} fill="#fbfaf7" />}
+                {o.sill && <path d={path([o.sill])} fill={T.frame} />}
                 {o.glazing?.map(([a, b], i) => <path key={i} d={svgLine([a, b])} stroke={T.glazing} />)}
               </g>
             ),
@@ -88,8 +172,11 @@ export const PlanThumbnail = memo(function PlanThumbnail({
   pad = 0.3,
   detail = false,
   highlight,
+  plan,
 }: {
   level: Level;
+  /** The house the floor is in, to draw its stairs. */
+  plan?: PlanDocument;
   /** Rooms to outline, e.g. the ones a proposal changes. */
   highlight?: readonly string[];
   /** "type" tints rooms by use (as in Design); "warm" draws every floor in cream; "zones" colours day, night and wet rooms. */
@@ -108,7 +195,7 @@ export const PlanThumbnail = memo(function PlanThumbnail({
   return (
     <svg className={className} viewBox={`${r.minX - pad} ${-(r.maxY + pad)} ${w} ${h}`} preserveAspectRatio="xMidYMid meet" aria-hidden>
       <g transform="scale(1,-1)">
-        <PlanDrawing scene={scene} palette={palette} detail={detail} highlight={highlight} />
+        <PlanDrawing scene={scene} palette={palette} detail={detail} highlight={highlight} stairs={stairsOn(plan, level)} />
       </g>
     </svg>
   );

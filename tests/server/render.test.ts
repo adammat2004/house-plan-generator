@@ -77,7 +77,7 @@ describe("the photo renderer", () => {
     expect(await renderPhoto(request(), ok)).toMatchObject({ ok: true, image: "abc" });
     expect(asked[0]).toMatch(/house seen from its garden/);
     const blocked: ImageClient = { generate: async () => ({ blocked: "IMAGE_SAFETY" }) };
-    expect(await renderPhoto(request(), blocked)).toMatchObject({ ok: false, status: 422, message: expect.stringMatching(/image safety/) });
+    expect(await renderPhoto(request(), blocked)).toMatchObject({ ok: false, status: 422, message: expect.stringMatching(/didn't come out/) });
     vi.stubEnv("GEMINI_API_KEY", "");
     expect(await renderPhoto(request())).toMatchObject({ ok: false, status: 503 });
   });

@@ -243,13 +243,6 @@ export function HeroIllustration() {
   ];
   const planTransform = r ? `matrix(${COS * S} ${0.5 * S} ${COS * S} ${-0.5 * S} 0 0) translate(${px} ${py}) scale(${k}) translate(${-r.minX} ${-r.minY})` : undefined;
 
-  // Drafting grid, running well past the frame so it reaches into the faded edge.
-  const grid: ReactNode[] = [];
-  for (let v = -30; v <= 40; v += 2) {
-    grid.push(<polyline key={`x${v}`} points={pts([v, -30, 0], [v, 40, 0])} />);
-    grid.push(<polyline key={`y${v}`} points={pts([-30, v, 0], [40, v, 0])} />);
-  }
-
   const trees: Array<{ at: [number, number]; r?: number; tone?: number }> = [
     { at: [9, 21], r: 1.6 },
     { at: [13, 23.5], r: 2, tone: 1 },
@@ -272,10 +265,6 @@ export function HeroIllustration() {
   return (
     <svg className="hero-art" viewBox={`${minX} ${minY} ${maxX - minX} ${maxY - minY}`} preserveAspectRatio="xMaxYMid meet" aria-hidden>
       <IsoDefs ids={ids} />
-
-      <g stroke="#bdb8ad" strokeWidth={0.5} opacity={0.4} fill="none">
-        {grid}
-      </g>
 
       {/* Garden and terrace. */}
       <polygon points={pts([hx0 - 5, hy0 - 6, 0], [hx1 + 7, hy0 - 6, 0], [hx1 + 7, hy1 + 7, 0], [hx0 - 5, hy1 + 7, 0])} fill={`url(#${ids.lawn})`} />
@@ -327,6 +316,20 @@ function Window({ x, y, w, h }: { x: number; y: number; w: number; h: number }) 
 }
 
 const HOUSES: Record<TemplateStyle, ReactNode> = {
+  // Two storeys: a gabled front with windows on both floors.
+  twostorey: (
+    <g>
+      <rect x={76} y={58} width={88} height={56} fill="#efebe3" />
+      <polygon points="68,60 172,60 120,30" fill="#4a4d4f" />
+      <rect x={68} y={60} width={104} height={2.5} fill="#2f3132" />
+      <Window x={86} y={68} w={22} h={14} />
+      <Window x={132} y={68} w={22} h={14} />
+      <Window x={86} y={92} w={22} h={14} />
+      <rect x={136} y={95} width={14} height={19} fill="#4f5d55" />
+      <polygon points="132,95 154,95 150,90 136,90" fill="#3f4244" />
+      <rect x={76} y={111} width={88} height={3} fill="#c4beb1" />
+    </g>
+  ),
   bungalow: (
     <g>
       <rect x={52} y={84} width={136} height={30} fill="#f4f1ea" />

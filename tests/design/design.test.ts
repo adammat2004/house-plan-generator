@@ -3,7 +3,7 @@ import { neighbourRooms } from "@/domain/design/analysis";
 import { createStripPlanner } from "@/domain/design/stripPlanner";
 import { furnitureInRoom } from "@/domain/furniture/layout";
 import { createDesignActions } from "@/editor/state/design";
-import { createEditorActions, createEditorStores } from "@/editor/state/stores";
+import { createEditorActions, createEditorStores, displayedDocument } from "@/editor/state/stores";
 import { apply, level, newHouse } from "../helpers";
 
 function setup() {
@@ -57,6 +57,61 @@ describe("AI designer workflow", () => {
     expect(plans.filter((p) => p.origin.kind === "generated").every((p) => p.parentId === plans[0].id)).toBe(true);
   });
 
+  it("names each generated layout for why you'd pick it, and records how the run ended", async () => {
+    const { stores, design } = setup();
+    expect(stores.session.getState().designer.generation).toBeNull();
+    await design.generateLayouts();
+    const generated = stores.project.getState().plans.filter((p) => p.origin.kind === "generated");
+    const titles = generated.map((p) => (p.origin.kind === "generated" ? p.origin.title : undefined));
+    expect(titles.every((t) => typeof t === "string" && t.length > 0)).toBe(true);
+    expect(new Set(titles).size).toBe(titles.length);
+    expect(stores.session.getState().designer.generation?.phase).toBe("done");
+  });
+
+  it("keeps the layouts already there when starting again fails", async () => {
+    const { stores, actions } = setup();
+    const planner = createStripPlanner();
+    let broken = false;
+    const flaky = { ...planner, plan: (request: Parameters<typeof planner.plan>[0]) => (broken ? Promise.reject(new Error("boom")) : planner.plan(request)) };
+    const design = createDesignActions(stores, actions, flaky);
+    const quiet = console.error;
+    console.error = () => {};
+    try {
+      await design.generateLayouts();
+      const before = stores.project.getState().plans.map((p) => p.id);
+      broken = true;
+      expect(await design.regenerate()).toEqual([]);
+      expect(stores.project.getState().plans.map((p) => p.id)).toEqual(before);
+      expect(stores.session.getState().designer.generation).toMatchObject({ phase: "failed" });
+      expect(stores.documents.getState().notice?.message).not.toMatch(/boom|planner failed/i);
+    } finally {
+      console.error = quiet;
+    }
+  });
+
+  it("says when the rooms don't fit instead of failing", async () => {
+    const { stores, actions, design } = setup();
+    // Far more rooms than a fixed 8 × 10 m house can hold.
+    stores.project.setState((p) => ({ brief: { ...p.brief, bedrooms: 8, bathrooms: 6 } }));
+    actions.setSizing(undefined);
+    const ids = await design.generateLayouts();
+    expect(ids).toEqual([]);
+    expect(stores.session.getState().designer.generation?.phase).toBe("nofit");
+    expect(stores.session.getState().designer.generation?.message).toBeTruthy();
+  });
+
+  it("ignores a second generate while one is running", async () => {
+    const { stores, design } = setup();
+    const phases: string[] = [];
+    const stop = stores.session.subscribe((s) => s.designer.generation && phases.push(s.designer.generation.phase));
+    const [first, second] = await Promise.all([design.generateLayouts(), design.generateLayouts()]);
+    stop();
+    expect(first).toHaveLength(3);
+    expect(phases).not.toContain("failed");
+    expect(second).toEqual([]);
+    expect(stores.project.getState().plans.filter((p) => p.origin.kind === "generated")).toHaveLength(3);
+  });
+
   it("offers room changes as proposals, applied as one undoable edit", async () => {
     const { stores, actions, design } = setup();
     await design.generateLayouts(1);
@@ -71,12 +126,52 @@ describe("AI designer workflow", () => {
 
     expect(design.applyProposal(proposals[0].id)).toBe(true);
     expect(actions.current()).not.toBe(before);
-    expect(stores.session.getState().designer.chat[1].proposals![0].state).toBe("applied");
+    expect(design.statusOf(proposals[0])).toBe("applied");
+    // Undo puts the plan back, and the option is on offer again; redo applies it again.
     actions.undo();
     expect(actions.current()).toBe(before);
+    expect(design.statusOf(proposals[0])).toBe("open");
+    actions.redo();
+    expect(design.statusOf(proposals[0])).toBe("applied");
 
     // A proposal made from an older plan is refused rather than discarding edits.
-    expect(design.applyProposal(proposals[1]?.id ?? proposals[0].id)).toBe(false);
+    const other = proposals[1] ?? proposals[0];
+    if (other !== proposals[0]) {
+      expect(design.statusOf(other)).toBe("stale");
+      expect(design.applyProposal(other.id)).toBe(false);
+    }
+  });
+
+  it("measures what each option changes, and lets one be looked at on the plan without changing it", async () => {
+    const { stores, actions, design } = setup();
+    await design.generateLayouts(1);
+    const before = actions.current();
+    const autosaveKey = stores.documents.getState().history;
+    const bedroom = Object.values(level(before).rooms).find((r) => r.type === "primary_bedroom")!;
+    const [larger] = await design.redesignRoom(bedroom.id, ["make_larger"]);
+    expect(larger.letter).toBe("A");
+    expect(larger.impact?.areaDelta).toBeGreaterThan(0.4);
+    expect(larger.impact?.areaAfter).toBeCloseTo(larger.impact!.areaBefore + larger.impact!.areaDelta, 6);
+
+    expect(design.stage(larger.id)).toBe(true);
+    // The canvas shows the option; the plan, its history and what autosave watches don't move.
+    expect(displayedDocument(stores.documents.getState())).toBe(larger.document);
+    expect(actions.current()).toBe(before);
+    expect(stores.documents.getState().history).toBe(autosaveKey);
+    // Nothing else can be changed while it's on show.
+    const wall = Object.values(level(before).walls).find((w) => w.role === "internal")!;
+    expect(actions.dispatch({ type: "updateWall", wallId: wall.id, height: 2.5 }).ok).toBe(false);
+    actions.peekStaged(true);
+    expect(displayedDocument(stores.documents.getState())).toBe(before);
+    actions.peekStaged(false);
+    // Undo leaves it, as Back does; applying it makes it the plan, as one undoable step.
+    expect(actions.undo()).toBe(true);
+    expect(stores.documents.getState().staged).toBeNull();
+    expect(actions.current()).toBe(before);
+    design.stage(larger.id);
+    expect(design.applyProposal(larger.id)).toBe(true);
+    expect(stores.documents.getState().staged).toBeNull();
+    expect(stores.documents.getState().history.past.at(-1)).toBe(before);
   });
 
   it("lays several rooms out again as proposals, leaving the rest of the plan as it is", async () => {

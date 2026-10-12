@@ -65,6 +65,11 @@ const CASES: Case[] = [
   // House shape.
   { text: "Make it an L-shaped house", brief: { houseShape: "L" } },
   { text: "Could it be a courtyard house?", brief: { houseShape: "U" } },
+  // Storeys.
+  { text: "Make it a two-storey house", brief: { storeys: 2 } },
+  { text: "Put the bedrooms upstairs", brief: { storeys: 2 } },
+  { mode: "instructions", text: "We want a bungalow, everything on one level", brief: {} },
+  { text: "Could it have three storeys?", unclear: true },
   // The brief's notes: preferences, sizes and counts, never room changes.
   { mode: "instructions", text: "We'd like an open-plan layout", brief: { preferences: ["open_plan"] } },
   { mode: "instructions", text: "The kitchen should look out onto the garden", brief: { preferences: ["kitchen_faces_garden"] } },
@@ -75,7 +80,7 @@ const CASES: Case[] = [
   // Unclear.
   { text: "Make it bigger", unclear: true },
   { text: "Paint the walls sage green", unclear: true },
-  { text: "Add a utility room and add a second storey", brief: { requiredSpaces: spaces(["utility"]) }, unclear: true },
+  { text: "Add a utility room and add a second storey", brief: { requiredSpaces: spaces(["utility"]), storeys: 2 } },
 ];
 
 /**

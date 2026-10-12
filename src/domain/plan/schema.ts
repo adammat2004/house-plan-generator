@@ -8,7 +8,7 @@ import { z } from "zod";
  * geometric validity is checked by the command layer.
  */
 
-export const CURRENT_SCHEMA_VERSION = 4 as const;
+export const CURRENT_SCHEMA_VERSION = 6 as const;
 
 const idSchema = z.string().min(1).max(200);
 const lengthSchema = z.number().positive();
@@ -72,7 +72,7 @@ export const ROOM_TYPES = [
   "other",
 ] as const;
 
-export const FLOOR_MATERIALS = ["timber", "tile", "stone", "carpet", "concrete", "vinyl"] as const;
+export const FLOOR_MATERIALS = ["timber", "boards", "tile", "stone", "carpet", "concrete", "vinyl"] as const;
 
 /** Whether a room should touch an external wall (daylight, garden access). */
 export const EXTERNAL_WALL_PREFERENCES = ["required", "preferred", "avoid"] as const;
@@ -152,11 +152,24 @@ export const furnitureSchema = z.object({
   height: lengthSchema,
 });
 
+/**
+ * One floor of the house. Floors are listed from the ground up; each stands
+ * on the one below, and its outline stays inside that floor's outline.
+ */
 export const levelSchema = z.object({
   id: idSchema,
   name: z.string().max(200),
+  /**
+   * Height of this floor's finished floor above the ground floor's, m. Kept
+   * equal to the floor below's elevation plus its ceiling height plus this
+   * floor's thickness (`restack` in plan/levels.ts); validation refuses
+   * anything else.
+   */
   elevation: z.number(),
+  /** The ceiling height: new walls take it, and the floor above stands on it. */
   defaultWallHeight: lengthSchema,
+  /** Depth of the floor structure this floor stands on, m. Upper floors only; absent on the ground floor. */
+  floorThickness: lengthSchema.optional(),
   vertices: z.record(idSchema, point2Schema),
   walls: z.record(idSchema, wallSchema),
   openings: z.record(idSchema, openingSchema),
@@ -174,10 +187,37 @@ export const levelSchema = z.object({
   rearWallId: idSchema.nullable(),
 });
 
+/** Straight; L, turning a quarter on a landing; U, turning back on a half landing. */
+export const STAIR_SHAPES = ["straight", "l", "u"] as const;
+
+/**
+ * A staircase from one floor up to another, through any floors between.
+ * Every storey's flight has the same plan, stacked directly over the one
+ * below, so a staircase is one footprint on every floor it serves; the
+ * opening it needs in the floors above is derived (geometry/stairs.ts).
+ */
+export const staircaseSchema = z.object({
+  id: idSchema,
+  fromLevelId: idSchema,
+  toLevelId: idSchema,
+  shape: z.enum(STAIR_SHAPES),
+  /** Which way an L or U turns on the way up. */
+  turn: z.enum(["left", "right"]).optional(),
+  /** Middle of the bottom step's front edge. */
+  foot: point2Schema,
+  /** Quarter turns counterclockwise; at 0 the first flight climbs north (+y). */
+  rotation: z.union([z.literal(0), z.literal(90), z.literal(180), z.literal(270)]),
+  width: lengthSchema,
+  /** Depth of each tread, front to back. */
+  going: lengthSchema,
+});
+
 export const planDocumentSchema = z.object({
   schemaVersion: z.literal(CURRENT_SCHEMA_VERSION),
   id: idSchema,
   name: z.string().max(200),
   units: z.literal("m"),
   levels: z.array(levelSchema).min(1),
+  /** Absent when the house has no stairs. */
+  staircases: z.record(idSchema, staircaseSchema).optional(),
 });

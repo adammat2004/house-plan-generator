@@ -5,10 +5,11 @@ import { roomAtPoint } from "@/domain/design/analysis";
 import { FURNITURE_CATALOG } from "@/domain/furniture/catalog";
 import { backDirection } from "@/domain/furniture/geometry";
 import { FURNITURE_PROBLEM_TEXT, furnitureIssues } from "@/domain/furniture/issues";
+import { levelKeepOut } from "@/domain/geometry/stairs";
 import type { Furniture, Level } from "@/domain/plan/types";
 import { Button, MenuItem, NumberField } from "@/components/ui/controls";
 import { CopyIcon, RefreshIcon, TrashIcon } from "@/components/ui/icons";
-import { editor } from "../../state/editor";
+import { editor, useDocumentState } from "../../state/editor";
 import { FurnitureArt } from "../furniture/FurnitureArt";
 import { InspectorFrame, MM_FIELD, mm, run, Section } from "./frame";
 
@@ -32,7 +33,8 @@ export function FurnitureInspector({ level, item }: { level: Level; item: Furnit
   const spec = FURNITURE_CATALOG[item.kind];
   const update = (changes: FurnitureChanges) => run({ type: "updateFurniture", furnitureId: id, changes });
   const roomId = roomAtPoint(level, item.position);
-  const problem = furnitureIssues(level).get(id);
+  const plan = useDocumentState((s) => s.history.present);
+  const problem = furnitureIssues(level, levelKeepOut(plan, level.id)).get(id);
   return (
     <InspectorFrame
       title={describeEntity(level, id)}
@@ -65,13 +67,6 @@ export function FurnitureInspector({ level, item }: { level: Level; item: Furnit
           {FURNITURE_PROBLEM_TEXT[problem]} Drag it clear, or use Furnish room to lay the room out again.
         </p>
       )}
-      <Section>
-        <div className="field-row">
-          <NumberField label="Width" value={item.width} {...MM_FIELD} testId="furniture-width" onCommit={(width) => update({ width })} />
-          <NumberField label="Depth" value={item.depth} {...MM_FIELD} testId="furniture-depth" onCommit={(depth) => update({ depth })} />
-        </div>
-        <NumberField label="Height" value={item.height} {...MM_FIELD} testId="furniture-height" onCommit={(height) => update({ height })} />
-      </Section>
       <Section title="Turn">
         <div className="button-row">
           <Button onClick={() => editor.rotateFurniture(id, 1)} data-testid="furniture-rotate-left">
@@ -82,6 +77,13 @@ export function FurnitureInspector({ level, item }: { level: Level; item: Furnit
           </Button>
         </div>
         <p className="field-hint">Shift+R turns it; arrow keys nudge it 50 mm (Shift for 500 mm).</p>
+      </Section>
+      <Section title="Size">
+        <div className="field-row">
+          <NumberField label="Width" value={item.width} {...MM_FIELD} testId="furniture-width" onCommit={(width) => update({ width })} />
+          <NumberField label="Depth" value={item.depth} {...MM_FIELD} testId="furniture-depth" onCommit={(depth) => update({ depth })} />
+        </div>
+        <NumberField label="Height" value={item.height} {...MM_FIELD} testId="furniture-height" onCommit={(height) => update({ height })} />
       </Section>
       <div className="card-footer">
         <Button variant="danger" className="btn-block" onClick={() => run({ type: "deleteFurniture", furnitureId: id })} data-testid="delete-furniture">

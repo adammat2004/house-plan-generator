@@ -5,7 +5,8 @@ import type { PolygonWithHoles, Ring } from "@/domain/geometry/polygons";
 import type { Rect } from "@/domain/geometry/vector";
 import { pointAtParam, type WallAxis } from "@/domain/geometry/walls";
 import type { FloorMaterial, Id, Level, Point2, RoomType } from "@/domain/plan/types";
-import { plant, type Tile, type Tree } from "../scene/site";
+import type { Site } from "@/domain/project/site";
+import { buildGarden, type Garden } from "../scene/garden";
 import { furnitureBoxes, type FurnitureTone } from "./furnitureModel";
 
 /**
@@ -17,7 +18,7 @@ import { furnitureBoxes, type FurnitureTone } from "./furnitureModel";
 
 /** An upright box: `length` along `angle` (radians, plan CCW from +x), `depth` across it, `height` up from `z0`. */
 export interface Box {
-  kind: "wall" | "lintel" | "sill" | "frame" | "door" | "glass" | "roof" | "parapet" | "furniture";
+  kind: "wall" | "lintel" | "sill" | "frame" | "door" | "glass" | "roof" | "parapet" | "furniture" | "slab" | "stair" | "balustrade";
   center: Point2;
   z0: number;
   length: number;
@@ -42,6 +43,9 @@ export interface FloorPiece {
   label: Point2;
   area: number;
   bounds: Rect;
+  /** Height of the floor, for upper floors of a house of several (absent at ground level). */
+  z?: number;
+  levelId?: Id;
 }
 
 export interface DimensionLabel {
@@ -65,7 +69,10 @@ export interface HouseModel {
   /** Height of the tallest wall as built (before cutaway). */
   wallHeight: number;
   labels: DimensionLabel[];
-  site: { trees: Tree[]; tiles: Tile[] } | null;
+  /** The garden round the house, when the landscape is on. */
+  site: Garden | null;
+  /** For a house of several floors: each floor's ceiling, at its height (absent otherwise: ceilings sit under `slabs` at `wallHeight`). */
+  ceilings?: Array<{ rect: Rect; z: number }>;
 }
 
 export interface HouseModelOptions {
@@ -77,14 +84,16 @@ export interface HouseModelOptions {
   furniture: boolean;
   /** Name and area floating over each room. */
   roomLabels?: boolean;
+  /** The plot the garden fills, when the project has one. */
+  site?: Site;
 }
 
 export const CUTAWAY_HEIGHT = 1.2;
 const FRAME = 0.05;
 const GLASS = 0.02;
-const ROOF_SLAB = 0.25;
+export const ROOF_SLAB = 0.25;
 const PARAPET = 0.3;
-const PARAPET_THICKNESS = 0.15;
+export const PARAPET_THICKNESS = 0.15;
 const DOOR_OPEN = Math.PI / 6;
 
 const cache = new WeakMap<Level, Map<string, HouseModel>>();
@@ -192,7 +201,7 @@ function build(level: Level, options: HouseModelOptions): HouseModel {
     }
   }
 
-  return { boxes, floors, outside, outline, slabs, wallHeight, labels, site: options.landscape && outside ? plant(outside) : null };
+  return { boxes, floors, outside, outline, slabs, wallHeight, labels, site: options.landscape && outside ? buildGarden(level, options.site) : null };
 }
 
 /**
@@ -200,7 +209,7 @@ function build(level: Level, options: HouseModelOptions): HouseModel {
  * corners and reach across the inward ones; vertical runs stop short of the
  * outward corners, so the strips meet without overlapping or leaving gaps.
  */
-function parapets(outline: Ring, z0: number): Box[] {
+export function parapets(outline: Ring, z0: number): Box[] {
   const t = PARAPET_THICKNESS;
   const n = outline.length;
   const reflex = new Set(reflexVertices(outline));

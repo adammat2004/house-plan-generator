@@ -3,6 +3,7 @@ import { DEFAULT_BRIEF, houseBriefSchema, normaliseBrief, type HouseBrief } from
 import type { PlanIssue } from "../commands/types";
 import { loadPlanDocument } from "../commands/serialization";
 import type { Id, PlanDocument } from "../plan/types";
+import { siteSchema, type Site } from "./site";
 
 /**
  * A project: the user's brief plus one or more alternative plans. Each plan
@@ -31,6 +32,8 @@ export const planOriginSchema = z.discriminatedUnion("kind", [
     arrangement: z.string().max(60).optional(),
     /** For layouts sized from the rooms: arrangement@WxD, which tells layouts in the same arrangement apart. */
     variant: z.string().max(80).optional(),
+    /** Why to pick it over the others generated with it ("Most compact"); see design/layoutNames.ts. */
+    title: z.string().max(60).optional(),
   }),
 ]);
 
@@ -106,6 +109,8 @@ const rawProjectSchema = z.object({
   appearance: appearanceSchema.optional(),
   /** Optional: absent means layouts use the user's own house. */
   sizing: sizingSchema.optional(),
+  /** Optional: the plot, its gaps and north, once set on the Map step. */
+  site: siteSchema.optional(),
   activePlanId: idSchema,
   plans: z
     .array(z.object({ ...planVariantShape, document: z.unknown() }))
@@ -137,6 +142,7 @@ export interface ProjectDocument {
   details?: ProjectDetails;
   appearance?: Appearance;
   sizing?: Sizing;
+  site?: Site;
   activePlanId: Id;
   plans: PlanVariant[];
 }

@@ -1,87 +1,72 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { IconButton } from "@/components/ui/controls";
-import { ExpandIcon, FitIcon, GridIcon, MagnetIcon, MinusIcon, NorthArrowIcon, PlusIcon, RedoIcon, ShrinkIcon, UndoIcon } from "@/components/ui/icons";
+import { FitIcon, MinusIcon, PlusIcon, RedoIcon, UndoIcon } from "@/components/ui/icons";
 import { editor, editorStores, useDocumentState, useSessionState } from "../../state/editor";
+import { only3d } from "../../state/stores";
 import { toolController } from "../../tools/instance";
+import { aim } from "../present/actions";
 
-const toggle = (key: "snapEnabled" | "gridVisible") =>
+/** Turns the grid or snapping on or off (from the tool rail's More menu). */
+export const toggleSetting = (key: "snapEnabled" | "gridVisible") =>
   editorStores.session.setState((s) => ({ settings: { ...s.settings, [key]: !s.settings[key] } }));
 
-/** Bottom-centre dock: drawing aids, history and fit. */
+/** Zoom as a percentage of what Fit chose, so 100% always means "the whole plan". */
+function useZoomPercent(): number {
+  const scale = useSessionState((s) => s.viewport.scale);
+  const fitScale = useSessionState((s) => s.fitScale);
+  return Math.round((scale / (fitScale ?? scale)) * 100);
+}
+
+/** The pill under the plan: history, then zoom and fit (or, over the 3D view, putting the camera back). */
 export function CanvasDock() {
-  const snapEnabled = useSessionState((s) => s.settings.snapEnabled);
-  const gridVisible = useSessionState((s) => s.settings.gridVisible);
+  const covered = useSessionState(only3d);
   const canUndo = useDocumentState((s) => s.history.past.length > 0 && !s.preview);
   const canRedo = useDocumentState((s) => s.history.future.length > 0 && !s.preview);
+  // Phones look but don't edit, so there's nothing to undo.
+  const readOnly = useSessionState((s) => s.readOnly);
+  const mod = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform) ? "⌘" : "Ctrl+";
   return (
-    <div className="canvas-dock floating" role="toolbar" aria-label="Canvas">
-      <button type="button" className={`dock-btn${gridVisible ? " is-active" : ""}`} aria-pressed={gridVisible} onClick={() => toggle("gridVisible")} data-testid="toggle-grid">
-        <GridIcon width={20} height={20} />
-        <span>Grid</span>
-      </button>
-      <button type="button" className={`dock-btn${snapEnabled ? " is-active" : ""}`} aria-pressed={snapEnabled} onClick={() => toggle("snapEnabled")} data-testid="toggle-snap">
-        <MagnetIcon width={20} height={20} />
-        <span>Snap</span>
-      </button>
+    <div className="canvas-dock floating" role="toolbar" aria-label={covered ? "3D view" : "Plan view"}>
+      {!readOnly && (
+        <>
+          <IconButton label="Undo" shortcut={`${mod}Z`} tooltipSide="top" disabled={!canUndo} onClick={() => editor.undo()} data-testid="undo">
+            <UndoIcon width={20} height={20} />
+          </IconButton>
+          <IconButton label="Redo" shortcut={`${mod}⇧Z`} tooltipSide="top" disabled={!canRedo} onClick={() => editor.redo()} data-testid="redo">
+            <RedoIcon width={20} height={20} />
+          </IconButton>
+          <span className="dock-divider" aria-hidden />
+        </>
+      )}
+      {covered ? (
+        <button type="button" className="btn btn-ghost dock-fit" onClick={() => aim("orbit")} data-testid="three-reset">
+          <FitIcon width={18} height={18} /> Reset view
+        </button>
+      ) : (
+        <PlanZoom />
+      )}
+    </div>
+  );
+}
+
+function PlanZoom() {
+  const zoom = useZoomPercent();
+  return (
+    <>
+      <IconButton label="Zoom out" shortcut="−" tooltipSide="top" onClick={() => toolController.zoomBy(1 / 1.25, true)}>
+        <MinusIcon width={20} height={20} />
+      </IconButton>
+      <span className="zoom-readout" aria-live="polite" data-testid="zoom-readout">
+        {zoom}%
+      </span>
+      <IconButton label="Zoom in" shortcut="+" tooltipSide="top" onClick={() => toolController.zoomBy(1.25, true)}>
+        <PlusIcon width={20} height={20} />
+      </IconButton>
       <span className="dock-divider" aria-hidden />
-      <IconButton label="Undo" tooltipSide="top" disabled={!canUndo} onClick={() => editor.undo()} data-testid="dock-undo">
-        <UndoIcon width={20} height={20} />
-      </IconButton>
-      <IconButton label="Redo" tooltipSide="top" disabled={!canRedo} onClick={() => editor.redo()} data-testid="dock-redo">
-        <RedoIcon width={20} height={20} />
-      </IconButton>
-      <button type="button" className="btn btn-primary dock-fit" data-tooltip="Fit plan  F" data-tooltip-side="top" onClick={() => toolController.fitPlan()} data-testid="fit-plan">
+      <button type="button" className="btn btn-ghost dock-fit" data-tooltip="Show the whole plan  F" data-tooltip-side="top" onClick={() => toolController.fitPlan(true)} data-testid="fit-plan">
         <FitIcon width={18} height={18} /> Fit
       </button>
-    </div>
+    </>
   );
-}
-
-/** Bottom-right: north, zoom and full screen. */
-export function ViewControls() {
-  const scale = useSessionState((s) => s.viewport.scale);
-  const fullscreen = useFullscreen();
-  return (
-    <div className="view-controls">
-      <div className="north-badge floating" role="img" aria-label="North is up">
-        <span aria-hidden>N</span>
-        <NorthArrowIcon width={18} height={18} />
-      </div>
-      <div className="zoom-pill floating" role="group" aria-label="Zoom">
-        <IconButton label="Zoom out" shortcut="−" tooltipSide="top" onClick={() => toolController.zoomBy(1 / 1.25)}>
-          <MinusIcon />
-        </IconButton>
-        <span className="zoom-readout" aria-live="polite" data-testid="zoom-readout">
-          {Math.round(scale)} px/m
-        </span>
-        <IconButton label="Zoom in" shortcut="+" tooltipSide="top" onClick={() => toolController.zoomBy(1.25)}>
-          <PlusIcon />
-        </IconButton>
-      </div>
-      <IconButton
-        label={fullscreen ? "Exit full screen" : "Full screen"}
-        tooltipSide="top"
-        className="floating fullscreen-btn"
-        onClick={() => {
-          if (document.fullscreenElement) void document.exitFullscreen();
-          else void document.documentElement.requestFullscreen?.().catch(() => editor.notify("info", "Full screen isn't available in this browser."));
-        }}
-        data-testid="toggle-fullscreen"
-      >
-        {fullscreen ? <ShrinkIcon /> : <ExpandIcon />}
-      </IconButton>
-    </div>
-  );
-}
-
-function useFullscreen() {
-  const [on, setOn] = useState(false);
-  useEffect(() => {
-    const update = () => setOn(!!document.fullscreenElement);
-    document.addEventListener("fullscreenchange", update);
-    return () => document.removeEventListener("fullscreenchange", update);
-  }, []);
-  return on;
 }

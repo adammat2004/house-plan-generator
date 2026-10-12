@@ -18,6 +18,7 @@ import { ENSUITE_TARGET } from "./roomRules";
 import { planRoomChange } from "./roomPlanner";
 import { footprintsFor, minimumFootprint, type Footprint, type FootprintShape } from "./footprint";
 import { assessSense } from "./sense";
+import { isStoreyLayout, planStoreyLayouts, STOREY_TITLE } from "./storeyLayouts";
 import { planAutoShapes, planWingLayouts, shellFrom, WING_TITLE, wingArrangementOf } from "./wingPlanner";
 import { autoZoneCandidates, furnishZones, isZoneLayout, pickVaried, ZONE_TITLE, zoneCandidates, zoneFamily } from "./zoneLayouts";
 import { ARRANGEMENTS, hallWidthFor, minBandDepth, zoneProgram, type Arrangement } from "./zoning";
@@ -41,6 +42,7 @@ export const ARRANGEMENT_TITLE: Record<string, string> = Object.fromEntries(ARRA
 /** The card title for a layout's arrangement id, from any planner. */
 export function arrangementTitle(id: string): string | null {
   if (isZoneLayout(id)) return ZONE_TITLE;
+  if (isStoreyLayout(id)) return STOREY_TITLE;
   const wing = wingArrangementOf(id);
   return ARRANGEMENT_TITLE[id] ?? (wing ? WING_TITLE[wing] : null);
 }
@@ -92,6 +94,8 @@ export function createStripPlanner(): LayoutPlanner {
 export function planLayouts(request: PlanningRequest): PlanningResult {
   const { intent } = request;
   if (intent.action !== "generate_layouts") return planRoomChange(request);
+  // Two storeys have their own planner; a brief without storeys plans exactly as before.
+  if (intent.brief.storeys === 2) return planStoreyLayouts(request);
   const result = planWholeLayouts(request);
   // A shape in the brief only shapes houses sized from the rooms; say so when the drawn house differs.
   const wanted = intent.brief.houseShape;

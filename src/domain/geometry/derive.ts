@@ -126,6 +126,46 @@ export function deriveWallMass(level: Level): MultiPolygon {
   return mass;
 }
 
+const cutCache = new WeakMap<LevelGeometry, WeakMap<object, MultiPolygon>>();
+
+/**
+ * The wall mass with every door and window cut out of its own wall, as a
+ * plan draws it: floors run through doorways and windows sit in a real gap.
+ * Openings stay clear of junctions (openingHostIntervals), so each cut is a
+ * rectangle across one wall's thickness and no other wall fills it again.
+ */
+export function deriveWallMassCut(level: Level): MultiPolygon {
+  const openings = Object.values(level.openings);
+  if (!openings.length) return deriveWallMass(level);
+  const geometry = deriveLevelGeometry(level);
+  let byOpenings = cutCache.get(geometry);
+  if (!byOpenings) cutCache.set(geometry, (byOpenings = new WeakMap()));
+  const cached = byOpenings.get(level.openings);
+  if (cached) return cached;
+  const onWall = new Map<Id, Opening[]>();
+  for (const o of openings) onWall.set(o.wallId, [...(onWall.get(o.wallId) ?? []), o]);
+  const pieces: PolygonWithHoles[] = [];
+  for (const fp of geometry.footprints.values()) {
+    const cuts = onWall.get(fp.wallId);
+    const axis = geometry.axes.get(fp.wallId);
+    if (!cuts || !axis) {
+      pieces.push(fp.polygon);
+      continue;
+    }
+    // A hair wider than the wall, so no sliver is left along either face.
+    const half = axis.wall.thickness / 2 + 0.001;
+    const across = (s: number, side: number): Point2 => {
+      const p = pointAtParam(axis, s);
+      return { x: p.x + axis.normal.x * side, y: p.y + axis.normal.y * side };
+    };
+    const clips = cuts.map((o) => ({ outer: [across(o.offset, -half), across(o.offset + o.width, -half), across(o.offset + o.width, half), across(o.offset, half)], holes: [] }));
+    pieces.push(...difference(fp.polygon, clips));
+  }
+  const mass = union(pieces);
+  byOpenings.set(level.openings, mass);
+  return mass;
+}
+
 /** Maps each room to the index of the face containing its seed (or -1). */
 export function roomFaceIndices(level: Level): Map<Id, number> {
   const faces = deriveLevelGeometry(level).faces;

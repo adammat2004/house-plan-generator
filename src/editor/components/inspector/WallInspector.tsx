@@ -1,15 +1,16 @@
 "use client";
 
-import { describeEntity } from "@/domain/commands";
 import { deriveLevelGeometry } from "@/domain/geometry/derive";
 import { analyzeEnvelope } from "@/domain/geometry/envelope";
 import { SIDE_NORMAL } from "@/domain/geometry/outline";
 import type { Level } from "@/domain/plan/types";
 import { Button, NumberField, ReadoutRow } from "@/components/ui/controls";
-import { TrashIcon } from "@/components/ui/icons";
+import { ChevronRightIcon, DoorIcon, TrashIcon, WindowIcon } from "@/components/ui/icons";
+import { addOpeningHere } from "../shell/planActions";
 import { InspectorFrame, MM_FIELD, MoreSettings, mm, run, Section } from "./frame";
+import { friendlyName } from "./names";
 
-/** Walls are reshaped by dragging them and their end handles; this card sets exact sizes. */
+/** Walls are reshaped by dragging them and their end handles; this card adds doors and windows to them and sets exact sizes. */
 export function WallInspector({ level, wallId }: { level: Level; wallId: string }) {
   const wall = level.walls[wallId];
   const axis = deriveLevelGeometry(level).axes.get(wallId);
@@ -42,10 +43,24 @@ export function WallInspector({ level, wallId }: { level: Level; wallId: string 
 
   return (
     <InspectorFrame
-      title={describeEntity(level, wallId)}
+      title={friendlyName(level, wallId)}
       summary={`${axis.length.toFixed(3)} m · ${mm(wall.thickness)} mm thick`}
     >
-      <Section>
+      <Section title="Quick actions">
+        <div className="quick-actions">
+          <button type="button" className="quick-action" onClick={() => addOpeningHere(wallId, "door")} data-testid="wall-add-door">
+            <DoorIcon width={18} height={18} />
+            <span>Add a door here</span>
+            <ChevronRightIcon width={16} height={16} />
+          </button>
+          <button type="button" className="quick-action" onClick={() => addOpeningHere(wallId, "window")} data-testid="wall-add-window">
+            <WindowIcon width={18} height={18} />
+            <span>Add a window here</span>
+            <ChevronRightIcon width={16} height={16} />
+          </button>
+        </div>
+      </Section>
+      <Section title="Size">
         <NumberField
           label="Length"
           value={axis.length}
@@ -62,14 +77,14 @@ export function WallInspector({ level, wallId }: { level: Level; wallId: string 
         <Section title="Garden side">
           {isRear ? (
             <div className="rear-row">
-              <span className="badge badge-rear">Rear wall</span>
+              <span className="badge badge-rear">Garden side</span>
               <Button variant="ghost" onClick={() => run({ type: "setRearWall", wallId: null })}>
                 Clear
               </Button>
             </div>
           ) : (
             <Button data-testid="mark-rear" onClick={() => run({ type: "setRearWall", wallId })}>
-              Mark as rear wall
+              Mark as the garden side
             </Button>
           )}
           <p className="field-hint">The rear wall faces the garden. One external wall can be the rear.</p>

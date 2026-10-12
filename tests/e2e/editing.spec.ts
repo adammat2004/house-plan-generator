@@ -63,14 +63,14 @@ test.describe("Editing a concept in Design", () => {
     page.on("pageerror", (e) => errors.push(e.message));
     await freshHome(page);
     await page.getByTestId("start-rooms").click();
-    await page.getByTestId("new-project-submit").click();
     await expect(page.getByTestId("room-picker")).toBeVisible();
-    await page.getByTestId("next-step").click();
-    await expect(page.getByTestId("concept-board")).toBeVisible();
+    await page.getByTestId("generate-layouts").click();
+    await expect(page.getByTestId("concept-board").locator(".layout-card:not(.is-loading)")).toHaveCount(3);
 
     // Open a concept with two bedrooms side by side, and clear its furniture so the wall between them is free to grab.
     const plan = (await getProject(page)).plans.slice(1).find((p) => bedroomWall(levelOf(p.document), true))!;
     expect(plan).toBeTruthy();
+    await page.getByTestId("concept-board").getByTestId(`concept-${plan.label}`).click();
     await page.getByTestId(`open-concept-${plan.label}`).click();
     await page.waitForTimeout(300);
     await page.getByTestId("tool-more").click();
@@ -95,7 +95,7 @@ test.describe("Editing a concept in Design", () => {
     expect(pair).toBeTruthy();
     await selectRoomFromList(page, start.rooms[pair![0]].name);
     const card = page.getByTestId("inspector");
-    await card.getByTestId("room-tab-ai").click();
+    await card.getByTestId("room-tab-design").click();
     await card.getByTestId(`regenerate-with-${start.rooms[pair![1]].name}`).click();
     await card.getByTestId("regenerate-area").click();
     const option = page.getByTestId("proposal").first();
@@ -106,7 +106,7 @@ test.describe("Editing a concept in Design", () => {
     expect(await getDoc(page)).not.toEqual(unchanged);
     await page.keyboard.press(undoKey);
     expect(await getDoc(page)).toEqual(unchanged);
-    await card.getByTestId("room-tab-details").click();
+    await card.getByTestId("room-tab-design").click();
 
     // Pinned, the room keeps its walls.
     const pinnedName = start.rooms[left].name;
@@ -123,7 +123,7 @@ test.describe("Editing a concept in Design", () => {
     await selectRoomFromList(page, pinnedName);
     await inspector.getByTestId("room-pin").click();
     const other = Object.values(start.rooms).find((r) => r.type === "living" || r.type === "kitchen_dining" || r.type === "kitchen")!;
-    await inspector.getByTestId("room-tab-details").click();
+    await inspector.getByTestId("room-tab-design").click();
     await inspector.getByTestId("swap-room").click();
     await inspector.getByTestId(`swap-with-${other.name}`).click();
     const swapped = await currentLevel(page);

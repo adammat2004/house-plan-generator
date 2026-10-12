@@ -4,12 +4,12 @@ import { describeEntity } from "@/domain/commands";
 import { deriveLevelGeometry, deriveRoomRegions, roomFaceIndices } from "@/domain/geometry/derive";
 import { roomAtPoint } from "@/domain/design/analysis";
 import { formatArea } from "@/domain/geometry/numeric";
-import { editor, editorStores, useDocumentState, useSessionState } from "../state/editor";
+import { editor, editorStores, useActiveLevel, useSessionState } from "../state/editor";
 import type { EntityKind } from "../state/stores";
 
 /** Keyboard-accessible list of everything on the plan; selecting here equals selecting on the canvas. */
 export function EntityList() {
-  const level = useDocumentState((s) => s.history.present.levels[0]);
+  const level = useActiveLevel();
   const selection = useSessionState((s) => s.selection);
   const geometry = deriveLevelGeometry(level);
   const regions = deriveRoomRegions(level);

@@ -192,19 +192,24 @@ export function assessSense(level: Level): PlanSense {
     .filter((r) => r.type === "primary_bedroom")
     .every((m) => !roomWalls(level, m.id).some((w) => !w.external && rooms.some((o) => LIVING.has(o.type) && roomWalls(level, o.id).some((ow) => ow.wallId === w.wallId))));
   const metrics: SenseMetrics = { hallShare, areaMiss, cornerDoors, gardenDoorFromLiving, irregularRooms: irregular, utilityByKitchen, primaryPrivate };
-
-  let score = 100;
-  score -= Math.max(0, hallShare - 0.08) * 150;
-  score -= areaMiss * 30;
-  score -= (1 - cornerDoors) * 10;
-  score -= gardenDoorFromLiving ? 0 : 8;
-  score -= irregular * 4;
-  score -= utilityByKitchen ? 0 : 4;
-  score -= primaryPrivate ? 0 : 4;
-  score -= findings.length * 5;
-  const result: PlanSense = { findings, metrics, score: Math.max(0, Math.min(100, Math.round(score * 10) / 10)) };
+  const result: PlanSense = { findings, metrics, score: senseScore(metrics, findings.length) };
   cache.set(level, result);
   return result;
+}
+
+/** The soft score: 100 less what the metrics and findings cost. `extra` is any further cost, for houses of several floors. */
+export function senseScore(m: SenseMetrics, findings: number, extra = 0): number {
+  let score = 100;
+  score -= Math.max(0, m.hallShare - 0.08) * 150;
+  score -= m.areaMiss * 30;
+  score -= (1 - m.cornerDoors) * 10;
+  score -= m.gardenDoorFromLiving ? 0 : 8;
+  score -= m.irregularRooms * 4;
+  score -= m.utilityByKitchen ? 0 : 4;
+  score -= m.primaryPrivate ? 0 : 4;
+  score -= findings * 5;
+  score -= extra;
+  return Math.max(0, Math.min(100, Math.round(score * 10) / 10));
 }
 
 /** Findings for the rules given, e.g. the ones the planner enforces. */

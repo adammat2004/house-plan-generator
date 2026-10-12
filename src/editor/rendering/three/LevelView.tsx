@@ -1,18 +1,19 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { Level } from "@/domain/plan/types";
+import type { Level, PlanDocument } from "@/domain/plan/types";
 import type { Appearance } from "@/domain/project/schema";
+import { planOf } from "./buildingModel";
 import type { HouseModelOptions } from "./houseModel";
 import { HouseViewer, type CameraMode, type Lighting } from "./viewer";
 
 /**
- * A 3D view of any plan level, driven by props rather than the editor's
- * stores: the live preview beside the room picker shows a layout that isn't
- * saved yet.
+ * A 3D view of any plan (or one floor of it), driven by props rather than
+ * the editor's stores: the live preview beside the room picker shows a
+ * layout that isn't saved yet.
  */
 export interface LevelViewProps {
-  level: Level;
+  level: Level | PlanDocument;
   display: HouseModelOptions;
   appearance: Appearance;
   lighting: Lighting;
@@ -47,7 +48,7 @@ export default function LevelView({ level, display, appearance, lighting, camera
   }, []);
 
   useEffect(() => {
-    viewer.current?.update({ level, display, appearance, lighting, shadows: true, sunAzimuth: 0, ground: "lawn", sky: "clear", selectedRoomId: null });
+    viewer.current?.update({ plan: planOf(level), display, appearance, lighting, shadows: true, sunAzimuth: 0, ground: "lawn", sky: "clear", selectedRoomId: null });
   }, [level, display, appearance, lighting]);
 
   useEffect(() => {

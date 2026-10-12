@@ -1,27 +1,34 @@
 "use client";
 
 import { useEffect } from "react";
-import { editor, useDocumentState, useSessionState } from "../../state/editor";
-import { TOOLS, WORKSPACE_HINT } from "./tools";
+import { editor, useActiveLevel, useDocumentState, useSessionState } from "../../state/editor";
+import { inRefine } from "../../state/stores";
+import { TOOLS } from "./tools";
 
 const SNAP_LABEL = { endpoint: "Endpoint", junction: "Junction", wall: "On wall", centre: "Centred", grid: "Grid", free: "Free" } as const;
 
 const OUTLINE_HINT = "Drag outside walls to move them, Alt-drag for a bay, or drag a corner square to cut a notch.";
 
-/** Quiet bottom-left readout: cursor position, snap and what the current tool does. */
+/**
+ * A quiet line above the dock: a problem with what's being drawn, or what the
+ * active tool does. Nothing while just looking at the plan; the side panel
+ * says what to do there.
+ */
 export function StatusHint() {
-  const cursor = useSessionState((s) => s.cursor);
   const snap = useSessionState((s) => s.snap);
   const tool = useSessionState((s) => s.tool);
-  const workspace = useSessionState((s) => s.workspace);
+  const refining = useSessionState(inRefine);
   const openingDraft = useSessionState((s) => s.openingDraft);
   const previewIssue = useDocumentState((s) => s.preview?.issue ?? null);
   const selection = useSessionState((s) => s.selection);
-  const outsideWall = useDocumentState((s) => selection?.kind === "wall" && s.history.present.levels[0].walls[selection.id]?.role === "external");
-  const reshaping = workspace === "structure" && tool === "select" && (outsideWall || selection?.kind === "house");
-  const hint = reshaping ? OUTLINE_HINT : (WORKSPACE_HINT[workspace] ?? TOOLS.find((t) => t.id === tool)?.hint);
+  const level = useActiveLevel();
+  const outsideWall = selection?.kind === "wall" && level.walls[selection.id]?.role === "external";
+  const reshaping = refining && tool === "select" && (outsideWall || selection?.kind === "house");
+  const hint = reshaping ? OUTLINE_HINT : tool !== "select" ? TOOLS.find((t) => t.id === tool)?.hint : undefined;
   const outlineProblem = useSessionState((s) => s.outlineDraft?.problem ?? null);
-  const message = previewIssue?.message ?? (openingDraft && !openingDraft.valid ? openingDraft.message : null) ?? outlineProblem;
+  const stairsProblem = useSessionState((s) => s.stairsDraft?.message ?? null);
+  const message = previewIssue?.message ?? (openingDraft && !openingDraft.valid ? openingDraft.message : null) ?? outlineProblem ?? stairsProblem;
+  if (!message && !hint && !snap) return null;
   return (
     <footer className="status-hint" aria-label="Status">
       <span className={message ? "status-message is-warning" : "status-message"} data-testid="status-message">
@@ -29,9 +36,6 @@ export function StatusHint() {
       </span>
       <span className="status-meta">
         <span data-testid="snap-kind">{snap ? `Snap: ${SNAP_LABEL[snap.kind]}` : ""}</span>
-        <span className="coords" data-testid="cursor-coords">
-          {cursor ? `${cursor.x.toFixed(2)}, ${cursor.y.toFixed(2)} m` : ""}
-        </span>
       </span>
     </footer>
   );
@@ -42,7 +46,8 @@ export function NoticeToast() {
   const notice = useDocumentState((s) => s.notice);
   useEffect(() => {
     if (!notice || notice.tone === "error") return;
-    const t = setTimeout(() => editor.clearNotice(), 6000);
+    // Four seconds, longer for a message that takes longer to read.
+    const t = setTimeout(() => editor.clearNotice(), Math.max(4000, notice.message.length * 60));
     return () => clearTimeout(t);
   }, [notice]);
   return (

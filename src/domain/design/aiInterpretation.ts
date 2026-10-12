@@ -5,6 +5,7 @@ import {
   HOUSE_SHAPES,
   houseBriefSchema,
   houseShapeStep,
+  storeysStep,
   normaliseBrief,
   PREFERENCE_IDS,
   PREFERENCE_LABEL,
@@ -14,7 +15,7 @@ import {
   type HouseBrief,
 } from "../brief/schema";
 import { ROOM_TYPES } from "../plan/schema";
-import type { Id, Level } from "../plan/types";
+import type { Id, Level, PlanDocument } from "../plan/types";
 import { assessPlan, roomConnections, touchesRear } from "./analysis";
 import { ROOM_GOALS } from "./intent";
 import type { Interpretation, RequestStep } from "./request";
@@ -46,6 +47,8 @@ export const designContextSchema = z.object({
         garden: z.boolean(),
         /** Names of the rooms its doors lead to. */
         doorsTo: z.array(z.string().max(80)).max(20),
+        /** In a house of several floors, the floor it's on. */
+        floor: z.string().max(80).optional(),
       }),
     )
     .max(60),
@@ -83,30 +86,37 @@ export const aiReplySchema = z.object({
     roomSizes: z.array(z.object({ group: z.enum(SIZED_ROOMS), size: z.enum(ROOM_SIZES) })),
     /** The shape of house wanted, or null to leave it unchanged. */
     houseShape: z.enum(HOUSE_SHAPES).nullable(),
+    /** Storeys wanted (1 or 2; more can't be planned yet), or null to leave unchanged. */
+    storeys: z.number().int().nullable(),
   }),
   /** Parts of the text that ask for something neither the planners nor the brief can express. */
   unclear: z.array(z.string()),
 });
 export type AiReply = z.infer<typeof aiReplySchema>;
 
-/** Summarises the plan for a model: rooms by name and use, size, garden side and doors. */
-export function designContext(level: Level | null, brief: HouseBrief, selectedRoomId: Id | null): DesignContext {
-  const rooms = level
-    ? assessPlan(level).rooms.map((r) => ({
-        id: r.id,
-        name: r.name,
-        type: r.type,
-        area: Math.round(r.area * 10) / 10,
-        garden: touchesRear(level, r.id),
-        doorsTo: [
-          ...new Set(
-            roomConnections(level, r.id)
-              .filter((c) => c.kind === "door")
-              .map((c) => (c.target.kind === "room" ? c.target.name : c.target.kind)),
-          ),
-        ],
-      }))
-    : [];
+/** A plan's floors, or the one floor given. */
+const floorsOf = (source: Level | PlanDocument | null): Level[] => (!source ? [] : "levels" in source ? source.levels : [source]);
+
+/** Summarises the plan for a model: rooms by name and use, size, garden side, doors, and the floor in a house of several. */
+export function designContext(source: Level | PlanDocument | null, brief: HouseBrief, selectedRoomId: Id | null): DesignContext {
+  const floors = floorsOf(source);
+  const rooms = floors.flatMap((level) =>
+    assessPlan(level).rooms.map((r) => ({
+      id: r.id,
+      name: r.name,
+      type: r.type,
+      area: Math.round(r.area * 10) / 10,
+      garden: touchesRear(level, r.id),
+      doorsTo: [
+        ...new Set(
+          roomConnections(level, r.id)
+            .filter((c) => c.kind === "door")
+            .map((c) => (c.target.kind === "room" ? c.target.name : c.target.kind)),
+        ),
+      ],
+      ...(floors.length > 1 ? { floor: level.name } : {}),
+    })),
+  );
   return { rooms, brief, selectedRoomId: selectedRoomId && rooms.some((r) => r.id === selectedRoomId) ? selectedRoomId : null };
 }
 
@@ -125,14 +135,15 @@ const spaceName = (s: (typeof BRIEF_SPACES)[number]) => SPACE_PHRASE[s];
  * dropping anything that doesn't fit the plan. Notes in the brief only ever
  * add to it: they never remove spaces or preferences, or lower counts.
  */
-export function interpretationFromReply(reply: AiReply, level: Level | null, brief: HouseBrief, mode: AiMode): Interpretation & { reply: string } {
+export function interpretationFromReply(reply: AiReply, source: Level | PlanDocument | null, brief: HouseBrief, mode: AiMode): Interpretation & { reply: string } {
+  const roomOf = (id: Id) => floorsOf(source).find((l) => id in l.rooms)?.rooms[id];
   const steps: RequestStep[] = [];
   const unclear = [...reply.unclear.filter((u) => u.trim())];
   const additive = mode === "instructions";
 
   // Notes in the brief come before there is a layout, so room changes don't apply to them.
   for (const change of additive ? [] : reply.roomChanges) {
-    const room = level?.rooms[change.roomId];
+    const room = roomOf(change.roomId);
     if (!room || !change.goals.length) {
       if (change.clause.trim()) unclear.push(change.clause);
       continue;
@@ -171,5 +182,7 @@ export function interpretationFromReply(reply: AiReply, level: Level | null, bri
     push({ roomSizes: { ...next.roomSizes, [group]: size } }, `${SIZED_ROOM_LABEL[group]} set to ${size}`);
   }
   if (b.houseShape) push({ houseShape: b.houseShape }, houseShapeStep(b.houseShape));
+  if (b.storeys === 1 || b.storeys === 2) push({ storeys: b.storeys }, storeysStep(b.storeys));
+  else if (b.storeys !== null && b.storeys > 2) unclear.push(`a house of ${b.storeys} storeys (layouts have one or two for now)`);
   return { steps, unclear: [...new Set(unclear)], reply: reply.reply.trim() };
 }

@@ -8,6 +8,8 @@ export const DEFAULT_HOUSE = {
   externalThickness: 0.3,
   internalThickness: 0.1,
   wallHeight: 2.4,
+  /** Depth of an upper floor's structure, from the ceiling below to the floor above. */
+  floorThickness: 0.3,
 } as const;
 
 export const DOOR_PRESET = {
@@ -19,6 +21,26 @@ export const WINDOW_PRESET = {
   width: 1.2,
   height: 1.2,
   sillHeight: 0.9,
+} as const;
+
+/**
+ * Stairs: editable starting values and the ranges the editor offers. The
+ * riser limit only decides how many steps a storey gets; nothing here is
+ * checked against building regulations.
+ */
+export const STAIR_PRESET = {
+  width: 0.9,
+  going: 0.25,
+  /** Tallest step; a storey gets as many risers as keep each step under it. */
+  maxRise: 0.22,
+  minWidth: 0.6,
+  maxWidth: 2,
+  minGoing: 0.2,
+  maxGoing: 0.4,
+  /** Between the two flights of a U. */
+  gap: 0.05,
+  /** Floor kept clear at the foot and the top, to step on and off. */
+  approach: 0.8,
 } as const;
 
 export interface OpeningPreset {
@@ -60,4 +82,8 @@ export const LIMITS = {
   /** Shortest step in a house outline, on the wall centrelines. */
   minOutlineStep: 0.2,
   maxNameLength: 80,
+  /** Most floors a house may have, the ground floor included. */
+  maxLevels: 3,
+  minFloorThickness: 0.1,
+  maxFloorThickness: 1,
 } as const;

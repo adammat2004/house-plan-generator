@@ -107,7 +107,7 @@ describe("asking for a shape", () => {
     const reply: AiReply = {
       reply: "A U-shaped house it is.",
       roomChanges: [],
-      brief: { bedrooms: null, bathrooms: null, addSpaces: [], removeSpaces: [], addPreferences: [], removePreferences: [], roomSizes: [], houseShape: "U" },
+      brief: { bedrooms: null, bathrooms: null, addSpaces: [], removeSpaces: [], addPreferences: [], removePreferences: [], roomSizes: [], houseShape: "U", storeys: null },
       unclear: [],
     };
     const read = interpretationFromReply(reply, null, DEFAULT_BRIEF, "request");

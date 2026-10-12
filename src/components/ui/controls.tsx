@@ -1,15 +1,23 @@
 "use client";
 
 import { useEffect, useId, useRef, useState, type ButtonHTMLAttributes, type ReactNode } from "react";
+import { MinusIcon, PlusIcon } from "./icons";
 
-type ButtonVariant = "default" | "primary" | "dark" | "ghost" | "danger" | "danger-ghost";
+export type ButtonVariant = "primary" | "secondary" | "ghost" | "danger" | "danger-ghost";
+export type ButtonSize = "sm" | "md" | "lg";
+
+/** Class names for a button (also used on links styled as buttons). See DESIGN.md: one primary per screen region. */
+export function buttonClass(variant: ButtonVariant = "secondary", size: ButtonSize = "sm", className?: string): string {
+  return `btn btn-${variant}${size === "sm" ? "" : ` btn-${size}`}${className ? ` ${className}` : ""}`;
+}
 
 export function Button({
-  variant = "default",
+  variant = "secondary",
+  size = "sm",
   className,
   ...props
-}: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: ButtonVariant }) {
-  return <button type="button" className={`btn btn-${variant}${className ? ` ${className}` : ""}`} {...props} />;
+}: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: ButtonVariant; size?: ButtonSize }) {
+  return <button type="button" className={buttonClass(variant, size, className)} {...props} />;
 }
 
 export type TooltipSide = "top" | "bottom" | "left" | "right";
@@ -341,6 +349,7 @@ export function SelectField<T extends string>({
   );
 }
 
+/** A labelled segmented control in a field (inspectors). */
 export function Segmented<T extends string>({
   label,
   value,
@@ -358,21 +367,149 @@ export function Segmented<T extends string>({
       <span id={id} className="field-label">
         {label}
       </span>
-      <div className="segmented" role="radiogroup" aria-labelledby={id}>
-        {options.map((o) => (
-          <button
-            key={o.value}
-            type="button"
-            role="radio"
-            aria-checked={o.value === value}
-            className={o.value === value ? "is-active" : undefined}
-            onClick={() => onChange(o.value)}
-          >
-            {o.label}
-          </button>
-        ))}
-      </div>
+      <SegmentedControl labelledBy={id} value={value} options={options} onChange={onChange} />
     </div>
+  );
+}
+
+/** 2-4 views of the same thing (Plan / 3D). Medium size sits in toolbars; small in fields. */
+export function SegmentedControl<T extends string>({
+  label,
+  labelledBy,
+  value,
+  options,
+  onChange,
+  size = "sm",
+  className,
+  testIdPrefix,
+}: {
+  label?: string;
+  labelledBy?: string;
+  value: T;
+  options: ReadonlyArray<{ value: T; label: ReactNode }>;
+  onChange: (value: T) => void;
+  size?: "sm" | "md";
+  className?: string;
+  testIdPrefix?: string;
+}) {
+  return (
+    <div
+      className={`segmented${size === "md" ? " segmented-md" : ""}${className ? ` ${className}` : ""}`}
+      role="radiogroup"
+      aria-label={labelledBy ? undefined : label}
+      aria-labelledby={labelledBy}
+    >
+      {options.map((o) => (
+        <button
+          key={o.value}
+          type="button"
+          role="radio"
+          aria-checked={o.value === value}
+          className={o.value === value ? "is-active" : undefined}
+          onClick={() => onChange(o.value)}
+          data-testid={testIdPrefix ? `${testIdPrefix}-${o.value}` : undefined}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** Sections of one panel, underlined. */
+export function Tabs<T extends string>({
+  label,
+  value,
+  tabs,
+  onChange,
+  testIdPrefix,
+}: {
+  label: string;
+  value: T;
+  tabs: ReadonlyArray<{ value: T; label: ReactNode }>;
+  onChange: (value: T) => void;
+  testIdPrefix?: string;
+}) {
+  return (
+    <div className="tabs" role="tablist" aria-label={label}>
+      {tabs.map((t) => (
+        <button
+          key={t.value}
+          type="button"
+          role="tab"
+          aria-selected={t.value === value}
+          onClick={() => onChange(t.value)}
+          data-testid={testIdPrefix ? `${testIdPrefix}-${t.value}` : undefined}
+        >
+          {t.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** A small choice or label. `on` marks a selected choice (aria-pressed). */
+export function Chip({ on, className, ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { on?: boolean }) {
+  return <button type="button" className={`chip${on ? " is-on" : ""}${className ? ` ${className}` : ""}`} aria-pressed={on} {...props} />;
+}
+
+/** A labelled on/off switch (a native checkbox with role="switch"). */
+export function Toggle({ label, checked, onChange, disabled, hint, testId }: { label: string; checked: boolean; onChange: () => void; disabled?: boolean; hint?: string; testId?: string }) {
+  return (
+    <label className={`toggle-row${disabled ? " is-disabled" : ""}`}>
+      <span>
+        {label}
+        {hint && <small>{hint}</small>}
+      </span>
+      <input type="checkbox" role="switch" checked={checked} disabled={disabled} onChange={onChange} data-testid={testId} />
+    </label>
+  );
+}
+
+/**
+ * How many of something: − n +. Buttons are named for the thing ("Add a
+ * double bedroom"), and the new count is announced. `disabledReason` explains
+ * why adding is blocked (e.g. "An ensuite needs a master bedroom").
+ */
+export function CountStepper({
+  noun,
+  value,
+  min = 0,
+  max,
+  onChange,
+  disabledReason,
+  testIdPrefix,
+}: {
+  /** Singular, lower case: "double bedroom". */
+  noun: string;
+  value: number;
+  min?: number;
+  max: number;
+  onChange: (value: number) => void;
+  disabledReason?: string;
+  testIdPrefix?: string;
+}) {
+  const article = /^[aeiou]/i.test(noun) ? "an" : "a";
+  const blocked = !!disabledReason;
+  return (
+    <span className={`count-stepper${value === 0 ? " is-zero" : ""}`} role="group" aria-label={`${noun} count`}>
+      <button type="button" aria-label={`Remove ${article} ${noun}`} disabled={value <= min} onClick={() => onChange(value - 1)} data-testid={testIdPrefix ? `${testIdPrefix}-dec` : undefined}>
+        <MinusIcon width={15} height={15} aria-hidden />
+      </button>
+      <output aria-live="polite" aria-label={`${value} ${noun}${value === 1 ? "" : "s"}`} data-testid={testIdPrefix ? `${testIdPrefix}-count` : undefined}>
+        {value}
+      </output>
+      <button
+        type="button"
+        aria-label={blocked ? `Add ${article} ${noun}: ${disabledReason}` : `Add ${article} ${noun}`}
+        title={blocked ? disabledReason : undefined}
+        disabled={value >= max || blocked}
+        onClick={() => onChange(value + 1)}
+        data-testid={testIdPrefix ? `${testIdPrefix}-inc` : undefined}
+      >
+        <PlusIcon width={15} height={15} aria-hidden />
+      </button>
+    </span>
   );
 }
 

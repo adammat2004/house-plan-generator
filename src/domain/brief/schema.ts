@@ -46,6 +46,8 @@ export const houseBriefSchema = z.object({
    * Absent means a rectangle, as before shapes existed; "any" lets the planner choose.
    */
   houseShape: z.enum(HOUSE_SHAPES).optional(),
+  /** Optional: 2 puts the bedrooms upstairs. Absent means one storey, as before storeys existed. */
+  storeys: z.union([z.literal(1), z.literal(2)]).optional(),
 });
 
 export type HouseBrief = z.infer<typeof houseBriefSchema>;
@@ -63,6 +65,10 @@ export function houseShapeStep(shape: HouseShape): string {
   if (shape === "rectangle") return "The brief now asks for a rectangular house";
   return `The brief now asks for ${shape === "L" ? "an" : "a"} ${shape}-shaped house`;
 }
+
+/** How a change of storeys is described to the user. */
+export const storeysStep = (storeys: 1 | 2): string =>
+  storeys === 2 ? "The brief now asks for a two-storey house, with the bedrooms upstairs" : "The brief now asks for a single-storey house";
 
 /** Multiplier applied to a group's target areas. */
 export const ROOM_SIZE_FACTOR: Record<RoomSize, number> = { compact: 0.85, standard: 1, generous: 1.2 };
@@ -111,7 +117,7 @@ export const PREFERENCE_LABEL: Record<PreferenceId, string> = {
  * sizes left out, so equal briefs compare and serialise identically.
  */
 export function normaliseBrief(brief: HouseBrief): HouseBrief {
-  const { roomSizes, rooms, houseShape, ...parsed } = houseBriefSchema.parse(brief);
+  const { roomSizes, rooms, houseShape, storeys, ...parsed } = houseBriefSchema.parse(brief);
   const sizes = SIZED_ROOMS.filter((g) => roomSizes?.[g] && roomSizes[g] !== "standard").map((g) => [g, roomSizes![g]] as const);
   const base = {
     ...parsed,
@@ -120,6 +126,8 @@ export function normaliseBrief(brief: HouseBrief): HouseBrief {
     ...(sizes.length ? { roomSizes: Object.fromEntries(sizes) } : {}),
     // A rectangle is what no preference means.
     ...(houseShape && houseShape !== "rectangle" ? { houseShape } : {}),
+    // So is one storey.
+    ...(storeys === 2 ? { storeys } : {}),
   };
   if (!rooms) return base;
   // Counts and spaces changed some other way (the AI reader) carry over into the picks.

@@ -1,35 +1,74 @@
+import { COLOR, FALLBACK_SANS } from "@/design/tokens";
 import type { FloorMaterial, RoomType } from "@/domain/plan/types";
+
+let fontStack: string | null = null;
+
+/**
+ * The UI typeface for canvas text. next/font gives Inter a generated family
+ * name, so read the real stack from the --font-sans token once it's on the page.
+ */
+function planFont(): string {
+  if (fontStack) return fontStack;
+  if (typeof document === "undefined") return FALLBACK_SANS;
+  const value = getComputedStyle(document.documentElement).getPropertyValue("--font-sans").trim();
+  if (!value) return FALLBACK_SANS;
+  fontStack = value;
+  return fontStack;
+}
 
 /**
  * Plan colours. Geometry stays neutral; the single accent marks what is
- * selected or being edited. Keep in step with the CSS tokens in globals.css.
+ * selected or being edited. UI colours come from the design tokens
+ * (src/design/tokens.ts, mirroring tokens.css).
  */
 export const PLAN_THEME = {
-  paper: "#f3f1ec",
+  paper: COLOR.canvas,
   roomFill: "#efece6",
   gridMinor: "rgba(60, 64, 60, 0.045)",
   gridMajor: "rgba(60, 64, 60, 0.1)",
-  wallFill: "#1f2326",
-  wallStroke: "#16191b",
+  wallFill: "#25282a",
+  wallStroke: "#1b1d1f",
+  /** The soft shadow walls cast on the floor beside them. */
+  wallShadow: "rgba(24, 22, 18, 0.32)",
+  /** Window frames, sills and door leaves. */
+  frame: "#fbfaf7",
+  /** A door's swing, quieter than the door. */
+  swing: "#8e918d",
   openingStroke: "#2a2e31",
-  glazing: "#6f8ea6",
+  glazing: "#8fa9bc",
   roomLabel: "#1f2326",
   roomArea: "#555b57",
   dimension: "#3f4441",
-  dimensionSelection: "#2f6f5e",
-  accent: "#2f6f5e",
+  dimensionSelection: COLOR.accent,
+  accent: COLOR.accent,
   accentSoft: "rgba(47, 111, 94, 0.12)",
   hover: "rgba(47, 111, 94, 0.45)",
-  error: "#b8432f",
+  error: COLOR.danger,
   errorSoft: "rgba(184, 67, 47, 0.14)",
-  valid: "#2f6f5e",
+  valid: COLOR.accent,
   validSoft: "rgba(47, 111, 94, 0.2)",
-  rear: "#a8642e",
+  /** Drawing annotations such as GARDEN and STREET. */
+  annotation: COLOR["ink-3"],
   glass: "#e6eff6",
   houseShadow: "rgba(40, 38, 30, 0.16)",
   furnitureStroke: "#5f6461",
+  /** Furniture's shadow on the floor, offset to the south-east; no blur. */
+  furnitureShadow: "rgba(40, 34, 26, 0.16)",
+  rugStroke: "rgba(95, 100, 97, 0.35)",
+  /** The floor below, faded under the one being drawn. */
+  underlay: "rgba(31, 35, 38, 0.18)",
+  /** The walls as they are, dashed, under an option on show. */
+  ghost: "rgba(47, 111, 94, 0.75)",
+  /** The outline of the floor above, dashed. */
+  floorAbove: "rgba(31, 35, 38, 0.55)",
+  stairFill: "#f8f6f1",
+  stairStroke: "#4a4f4c",
   labelHalo: "rgba(255, 255, 255, 0.8)",
-  fontFamily: "Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif",
+  /** Behind room names on the plan. */
+  labelPill: "rgba(255, 255, 255, 0.84)",
+  get fontFamily(): string {
+    return planFont();
+  },
 } as const;
 
 /** Room tints by type, shown in the Design workspace only. Related spaces share a hue family. */
@@ -54,16 +93,23 @@ export const ROOM_FILL: Record<RoomType, string> = {
 
 /** Decorative site planting around the house. Not part of the plan. */
 export const SITE_THEME = {
-  canopy: ["#6b8a4f", "#7a9659", "#86a063", "#62804a"],
-  canopyLight: "#bdd09a",
-  treeShadow: "rgba(46, 52, 32, 0.12)",
+  canopy: ["#7f9467", "#8a9d70", "#93a57a", "#778c5f"],
+  canopyLight: "rgba(189, 208, 154, 0.45)",
+  canopyEdge: "rgba(62, 76, 46, 0.35)",
+  treeShadow: "rgba(46, 52, 32, 0.16)",
+  lawn: "#b9c79b",
+  hedge: "#7c9163",
+  hedgeEdge: "#6a7f53",
+  hedgeShadow: "rgba(46, 52, 32, 0.16)",
+  gravel: "#e3dccd",
   paving: "#ebe5da",
-  pavingJoint: "#ddd5c7",
+  pavingJoint: "#cfc7b8",
 } as const;
 
 /** Floor finishes as drawn on the plan in Designs (light enough for labels). */
 export const MATERIAL_FILL: Record<FloorMaterial, string> = {
   timber: "#e6d2b5",
+  boards: "#e8d6bb",
   tile: "#ebe8e1",
   stone: "#ddd6c8",
   carpet: "#e4dfd5",
@@ -74,6 +120,7 @@ export const MATERIAL_FILL: Record<FloorMaterial, string> = {
 /** Swatches for choosing a finish: the material's own colour. */
 export const MATERIAL_SWATCH: Record<FloorMaterial, string> = {
   timber: "#c1915f",
+  boards: "#c99d6c",
   tile: "#d8d4cb",
   stone: "#b9b09f",
   carpet: "#a9a397",
@@ -101,11 +148,3 @@ export const ZONE_FILL: Record<RoomType, string> = {
   other: "#efece6",
 };
 
-/** Furniture symbol fills, light so room tints and labels still read through. */
-export const FURNITURE_FILL: Record<"body" | "soft" | "dark" | "water" | "leaf", string> = {
-  body: "#fdfcf9",
-  soft: "#efebe3",
-  dark: "#4a4f4d",
-  water: "#e3ecef",
-  leaf: "#b7c99a",
-};

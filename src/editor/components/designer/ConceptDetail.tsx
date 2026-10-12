@@ -4,15 +4,15 @@ import { useState, type ReactNode } from "react";
 import { PLAN_FEATURE_LABEL, type PlanFeature } from "@/domain/design/analysis";
 import { formatArea } from "@/domain/geometry/numeric";
 import { ROOM_TYPE_LABEL } from "@/domain/plan/rooms";
-import { IconButton } from "@/components/ui/controls";
 import {
   AreaIcon,
   ArrowRightIcon,
   BathIcon,
   BedIcon,
+  ChevronDownIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
-  CloseIcon,
+  ChevronUpIcon,
   DeskIcon,
   DoorIcon,
   LeafIcon,
@@ -20,17 +20,20 @@ import {
   SunIcon,
   WarningIcon,
 } from "@/components/ui/icons";
-import type { Level } from "@/domain/plan/types";
+import type { Level, PlanDocument } from "@/domain/plan/types";
+import { useAreaText } from "@/components/units";
 import { useRenders } from "../../state/editor";
+import { usePhoneLayout } from "../shell/phone";
+import { SendToComputer } from "../shell/SendToComputer";
 import { openConcept } from "../shell/tools";
-import { ConceptPreview } from "./ConceptPreview";
+import { ConceptPreview, HousePreview } from "./ConceptPreview";
 import { RoomGallery, useLook } from "./RoomGallery";
 import { useStill } from "./useStill";
 import type { Concept } from "./concepts";
 import type { PlanPalette } from "./PlanThumbnail";
 
 const VIEWS: ReadonlyArray<{ id: string; label: string; palette: PlanPalette }> = [
-  { id: "plan", label: "Plan", palette: "warm" },
+  { id: "plan", label: "Plan", palette: "finish" },
   { id: "uses", label: "Room uses", palette: "type" },
   { id: "zones", label: "Day and night", palette: "zones" },
 ];
@@ -52,22 +55,29 @@ const FEATURE_ICON: Record<PlanFeature, ReactNode> = {
 type Tab = "overview" | "rooms" | "dimensions";
 
 /** The focused concept in depth, with the way into refining it. */
-export function ConceptDetail({ concept, onClose }: { concept: Concept; onClose: () => void }) {
+export function ConceptDetail({ concept }: { concept: Concept }) {
   const [tab, setTab] = useState<Tab>("overview");
   const [view, setView] = useState(0);
+  // Phones show this panel as a sheet over the cards: the name and actions, with the details on request.
+  const phone = usePhoneLayout();
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const areaText = useAreaText();
   const a = concept.assessment;
   const shown = a.rooms.slice(0, 4);
   const other = a.rooms.slice(4).reduce((sum, r) => sum + r.area, 0);
   const hall = a.rooms.filter((r) => r.type === "hall").reduce((sum, r) => sum + r.area, 0);
   return (
-    <aside className="concept-detail floating" aria-label="Concept details" data-testid="concept-detail">
+    <aside className={`concept-detail layout-detail${sheetOpen ? " is-open" : ""}`} aria-label="Layout details" data-testid="concept-detail">
       <header className="concept-detail-header">
-        <h2>
-          {concept.letter}. {concept.title}
-        </h2>
-        <IconButton label="Close details" onClick={onClose}>
-          <CloseIcon width={18} height={18} />
-        </IconButton>
+        <div>
+          {concept.letter && <span className="concept-detail-kicker">Layout {concept.letter}</span>}
+          <h2>{concept.title}</h2>
+        </div>
+        {phone && (
+          <button type="button" className="btn btn-ghost sheet-toggle" aria-expanded={sheetOpen} onClick={() => setSheetOpen(!sheetOpen)} data-testid="layout-sheet-toggle">
+            {sheetOpen ? "Less" : "Details"} {sheetOpen ? <ChevronDownIcon width={16} height={16} /> : <ChevronUpIcon width={16} height={16} />}
+          </button>
+        )}
       </header>
       <div className="panel-tabs" role="tablist">
         {(["overview", "rooms", "dimensions"] as Tab[]).map((t) => (
@@ -79,9 +89,9 @@ export function ConceptDetail({ concept, onClose }: { concept: Concept; onClose:
       <div className="concept-detail-body">
         {tab === "overview" && (
           <>
-            <ExteriorPicture planId={concept.meta.id} level={concept.level} />
+            <ExteriorPicture planId={concept.meta.id} level={concept.plan} />
             <div className="viewer">
-              <ConceptPreview level={concept.level} palette={VIEWS[view].palette} className="viewer-main" />
+              <HousePreview plan={concept.plan} palette={VIEWS[view].palette} className="viewer-main" />
               <span className="viewer-caption">{VIEWS[view].label}</span>
               <button type="button" className="viewer-arrow is-prev" aria-label="Previous view" onClick={() => setView((view + VIEWS.length - 1) % VIEWS.length)}>
                 <ChevronLeftIcon width={18} height={18} />
@@ -93,7 +103,7 @@ export function ConceptDetail({ concept, onClose }: { concept: Concept; onClose:
             <div className="viewer-thumbs" role="tablist" aria-label="Views">
               {VIEWS.map((v, i) => (
                 <button key={v.id} type="button" role="tab" aria-selected={view === i} aria-label={v.label} className={view === i ? "is-active" : undefined} onClick={() => setView(i)}>
-                  <ConceptPreview level={concept.level} palette={v.palette} labels={false} className="viewer-thumb" />
+                  <ConceptPreview level={concept.level} plan={concept.plan} palette={v.palette} labels={false} className="viewer-thumb" />
                 </button>
               ))}
             </div>
@@ -139,14 +149,14 @@ export function ConceptDetail({ concept, onClose }: { concept: Concept; onClose:
               )}
               <div className="is-total">
                 <dt>Total floor area</dt>
-                <dd data-testid="detail-total-area">{a.totalArea.toFixed(1)} m²</dd>
+                <dd data-testid="detail-total-area">{areaText(a.totalArea, 1)}</dd>
               </div>
             </dl>
           </>
         )}
         {tab === "rooms" && (
           <>
-          <RoomGallery planId={concept.meta.id} level={concept.level} />
+          <RoomGallery planId={concept.meta.id} level={concept.plan} />
           <h3 className="detail-heading">All rooms</h3>
           <ul className="room-list">
             {a.rooms.map((r) => (
@@ -172,13 +182,19 @@ export function ConceptDetail({ concept, onClose }: { concept: Concept; onClose:
                 </dd>
               </div>
             )}
+            {a.storeys && (
+              <div>
+                <dt>Storeys</dt>
+                <dd>{a.storeys}</dd>
+              </div>
+            )}
             <div>
-              <dt>Floor area (inside walls)</dt>
-              <dd>{a.totalArea.toFixed(1)} m²</dd>
+              <dt>Floor area (inside walls{a.storeys ? ", every floor" : ""})</dt>
+              <dd>{areaText(a.totalArea, 1)}</dd>
             </div>
             <div>
               <dt>Living spaces</dt>
-              <dd>{a.dayArea.toFixed(1)} m²</dd>
+              <dd>{areaText(a.dayArea, 1)}</dd>
             </div>
             <div>
               <dt>Hallway share</dt>
@@ -196,16 +212,17 @@ export function ConceptDetail({ concept, onClose }: { concept: Concept; onClose:
         )}
       </div>
       <footer className="concept-detail-footer">
-        <button type="button" className="btn btn-primary btn-block btn-lg" onClick={() => openConcept(concept.meta.id)} data-testid="use-design">
-          Use this design <ArrowRightIcon width={16} height={16} />
+        <button type="button" className="btn btn-primary btn-block btn-lg" onClick={() => openConcept(concept.meta.id)} data-testid={`open-concept-${concept.meta.label}`}>
+          Refine this layout <ArrowRightIcon width={16} height={16} />
         </button>
+        {phone && <SendToComputer planId={concept.meta.id} className="btn btn-secondary btn-block btn-md" />}
       </footer>
     </aside>
   );
 }
 
 /** The house from the garden: its photo render if there is one, else the 3D view. */
-function ExteriorPicture({ planId, level }: { planId: string; level: Level }) {
+export function ExteriorPicture({ planId, level }: { planId: string; level: Level | PlanDocument }) {
   const { appearance } = useLook();
   const photo = useRenders((s) => s.byPlan[planId]?.exterior);
   const { ref, url } = useStill(level, { kind: "exterior" }, { width: 640, height: 360 }, appearance);

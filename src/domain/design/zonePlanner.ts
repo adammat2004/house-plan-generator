@@ -44,14 +44,14 @@ export interface ZoneOptions {
   rearSide: EnvelopeSide;
 }
 
-interface Box {
+export interface Box {
   u0: number;
   u1: number;
   v0: number;
   v1: number;
 }
 
-interface Frame {
+export interface Frame {
   /** Along the street front, m. */
   W: number;
   /** From the street to the garden, m. */
@@ -61,7 +61,7 @@ interface Frame {
   local: (p: { x: number; y: number }) => { u: number; v: number };
 }
 
-interface Placed {
+export interface Placed {
   key: string;
   kind: LabeledRoom["kind"];
   name: string;
@@ -75,7 +75,7 @@ interface Placed {
   gardenDoor?: boolean;
 }
 
-interface ZoneLayout {
+export interface ZoneLayout {
   /** Distinguishes layouts of the same zone, for stable ids. */
   tag: string;
   rooms: Placed[];
@@ -87,7 +87,7 @@ interface ZoneLayout {
 }
 
 const GRID = 0.05;
-const snap = (v: number) => roundToPrecision(Math.round(v / GRID) * GRID);
+export const snap = (v: number) => roundToPrecision(Math.round(v / GRID) * GRID);
 const len = (r: [number, number]) => r[1] - r[0];
 const overlap = (a0: number, a1: number, b0: number, b1: number) => Math.min(a1, b1) - Math.max(a0, b0);
 
@@ -103,10 +103,10 @@ const COATS = 2.5;
 /** A bedroom on the inner side needs at least this thickness of band, m. */
 const INNER_BEDROOM = 2.8;
 /** Longest day zone laid out as a single row of rooms, m. */
-const MAX_DAY_WIDTH = 6.4;
-const MIN_DAY_WIDTH = 3.1;
+export const MAX_DAY_WIDTH = 6.4;
+export const MIN_DAY_WIDTH = 3.1;
 
-function frameOf(r: Rect, rear: EnvelopeSide): Frame {
+export function frameOf(r: Rect, rear: EnvelopeSide): Frame {
   const across = rear === "north" || rear === "south";
   const W = across ? r.maxX - r.minX : r.maxY - r.minY;
   const V = across ? r.maxY - r.minY : r.maxX - r.minX;
@@ -129,7 +129,7 @@ function frameOf(r: Rect, rear: EnvelopeSide): Frame {
 }
 
 /** The night zone's rooms with an ensuite as its own space beside its bedroom. */
-function nightSpaces(program: Program): SpaceSpec[] {
+export function nightSpaces(program: Program): SpaceSpec[] {
   const out: SpaceSpec[] = [];
   for (const s of program.spaces.filter((x) => x.zone === "night")) {
     out.push({ ...s, ensuite: false });
@@ -141,7 +141,7 @@ function nightSpaces(program: Program): SpaceSpec[] {
 const rank = (s: SpaceSpec) => ({ utility: 0, wc: 0.5, bathroom: 1, office: 1.5, bedroom: 2, ensuite: 4, primary_bedroom: 5 })[s.type as string] ?? 3;
 
 /** Night rooms from the street to the garden: bathrooms, bedrooms smallest first, then the ensuite and master at the garden end. */
-function nightOrders(spaces: SpaceSpec[]): SpaceSpec[][] {
+export function nightOrders(spaces: SpaceSpec[]): SpaceSpec[][] {
   const sorted = [...spaces].sort((a, b) => rank(a) - rank(b) || a.target - b.target || a.key.localeCompare(b.key));
   const orders = [sorted];
   // A bedroom on the street, then the bathrooms.
@@ -155,7 +155,7 @@ function nightOrders(spaces: SpaceSpec[]): SpaceSpec[][] {
  * its own minimum, room for its door to the hall, and wide enough not to be
  * a corridor (a WC in a deep band becomes a cloakroom rather than a slot).
  */
-function slotMin(s: SpaceSpec, thickness: number, door: number, viaHall: boolean): number {
+export function slotMin(s: SpaceSpec, thickness: number, door: number, viaHall: boolean): number {
   return Math.max(s.minWidth, viaHall ? door + 0.3 : 0, clearMin(s.type, thickness));
 }
 
@@ -164,7 +164,7 @@ function slotMin(s: SpaceSpec, thickness: number, door: number, viaHall: boolean
 
 
 /** Rooms cut from a band along v, in order; null if they don't fit or one would be too long and narrow. */
-function slotBand(spaces: SpaceSpec[], u: [number, number], v: [number, number], door: number, via: (s: SpaceSpec) => string): Placed[] | null {
+export function slotBand(spaces: SpaceSpec[], u: [number, number], v: [number, number], door: number, via: (s: SpaceSpec) => string): Placed[] | null {
   const thickness = len(u);
   const mins = spaces.map((s) => slotMin(s, thickness, door, via(s) === "hall"));
   const cuts = spaces.length === 1 ? [0, roundToPrecision(len(v))] : distributeWidths(len(v), spaces, mins);
@@ -319,7 +319,7 @@ function edgeCost(parent: RoomType | "hall", child: RoomType, rootTaken: boolean
  * order whose doors and positions suit the rooms best; null if no order
  * works.
  */
-function dayRow(spaces: SpaceSpec[], u: [number, number], v: [number, number], contact: [number, number], opts: ZoneOptions): ZoneLayout | null {
+export function dayRow(spaces: SpaceSpec[], u: [number, number], v: [number, number], contact: [number, number], opts: ZoneOptions): ZoneLayout | null {
   const width = len(u);
   if (!spaces.length) return { tag: "", rooms: [], halls: [], contact, score: 0 };
   const mins = (list: SpaceSpec[]) => list.map((s) => Math.max(s.minWidth, clearMin(s.type, width)));

@@ -1,16 +1,74 @@
 import { normaliseBrief, type HouseBrief } from "@/domain/brief/schema";
-import { applyCommand, pinnedMessage, pinnedRoomChanges } from "@/domain/commands";
+import { applyCommand, pinnedMessage, pinnedRoomChanges, validateDocument } from "@/domain/commands";
 import { designIntentSchema, ROOM_GOAL_LABEL, type DesignIntent, type RoomGoal } from "@/domain/design/intent";
 import type { LayoutPlanner, PlanningResult } from "@/domain/design/planner";
 import { designContext, interpretationFromReply, type AiMode } from "@/domain/design/aiInterpretation";
 import { roomAtPoint } from "@/domain/design/analysis";
+import { areaDeltaText, proposalImpact } from "@/domain/design/impact";
+import { layoutNames } from "@/domain/design/layoutNames";
 import { interpretRequest, type Interpretation } from "@/domain/design/request";
 import { furnishRoom } from "@/domain/furniture/furnish";
+import { levelKeepOut } from "@/domain/geometry/stairs";
+import { levelIndex, levelOf, levelView, spliceLevel } from "@/domain/plan/levels";
+import { generationPlot } from "@/domain/project/site";
 import { assessSense } from "@/domain/design/sense";
 import type { Id, Level, PlanDocument } from "@/domain/plan/types";
 import type { AiInterpreter } from "./aiInterpreter";
 import { newIdPrefix } from "./ids";
-import type { ChatMessage, EditorActions, EditorStores, Proposal } from "./stores";
+import type { ChatMessage, EditorActions, EditorStores, Generation, Proposal } from "./stores";
+
+/** What people see when generating breaks; the error itself goes to the console. */
+export const GENERATION_FAILED = "Something went wrong laying out these rooms. Try again, or change a room.";
+
+/** Lets the page paint (the Layouts loading state) before the planner takes the main thread. */
+const nextPaint = () =>
+  new Promise<void>((resolve) => (typeof requestAnimationFrame === "function" ? requestAnimationFrame(() => setTimeout(resolve, 0)) : setTimeout(resolve, 0)));
+
+/** Options made from one source plan carry letters, A to Z, in the order shown. */
+const LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+
+/**
+ * A room-level request planned on the room's own floor (room planners see
+ * one floor) and put back into the whole house, with no effect on the UI.
+ * Upstairs rooms don't open onto the garden, and options that would clash
+ * with another floor, such as a wall through the stairs, are left out.
+ */
+export async function planOnRoomFloor(planner: LayoutPlanner, intent: DesignIntent, source: PlanDocument, roomId: Id, brief: HouseBrief, idPrefix: string): Promise<PlanningResult> {
+  const level = levelOf(source, roomId);
+  if (!level || source.levels.length === 1) return planner.plan({ intent, source, brief, idPrefix });
+  const upstairs = levelIndex(source, level.id) > 0;
+  const goals = "goals" in intent && upstairs ? intent.goals.filter((g) => g !== "increase_garden_connection") : null;
+  if (goals && "goals" in intent && intent.goals.length && !goals.length) {
+    return { candidates: [], issues: [{ code: "unsupported-intent", message: "Rooms upstairs can't open onto the garden." }] };
+  }
+  const result = await planner.plan({ intent: goals ? ({ ...intent, goals } as DesignIntent) : intent, source: levelView(source, level.id), brief, idPrefix });
+  const candidates = result.candidates
+    .filter((c) => !(upstairs && c.goal === "increase_garden_connection"))
+    .map((c) => ({ ...c, document: spliceLevel(source, level.id, c.document) }))
+    .filter((c) => validateDocument(c.document).length === 0);
+  const clashed = candidates.length === 0 && result.candidates.length > 0;
+  return { candidates, issues: clashed ? [{ code: "does-not-fit", message: "Those changes would run into the stairs or the floors around them." }] : result.issues };
+}
+
+/** Planner candidates as proposals, each measured against the plan it was made from. */
+export function proposalsFrom(result: PlanningResult, source: PlanDocument, roomId: Id, firstLetter = 0): Proposal[] {
+  return result.candidates.map((c, i) => {
+    const roomIds = c.changedRoomIds ?? [roomId];
+    return {
+      id: newIdPrefix(),
+      title: c.title ?? c.summary,
+      summary: c.summary,
+      goal: c.goal,
+      variant: c.variant,
+      document: c.document,
+      roomIds,
+      source,
+      state: "open" as const,
+      impact: proposalImpact(source, c.document, roomId, roomIds),
+      letter: LETTERS[(firstLetter + i) % LETTERS.length],
+    };
+  });
+}
 
 /**
  * Runs design intents through a planner. Whole-plan layouts are filed as new
@@ -36,13 +94,42 @@ export function createDesignActions({ session, project }: EditorStores, actions:
     }
     actions.setDesigner({ status: "running" });
     // Let the UI show progress before planning starts.
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    await nextPaint();
     try {
       return await planner.plan({ intent: parsed.data, source, brief: project.getState().brief, idPrefix: newIdPrefix(), instructionsRead });
     } catch (error) {
-      const message = `The planner failed: ${(error as Error).message}`;
-      actions.setDesigner({ lastResult: { tone: "error", message, notes: [] } });
-      actions.notify("error", message);
+      console.error("Planner failed", error);
+      actions.setDesigner({ lastResult: { tone: "error", message: GENERATION_FAILED, notes: [] } });
+      actions.notify("error", GENERATION_FAILED);
+      return null;
+    } finally {
+      actions.setDesigner({ status: "idle" });
+    }
+  }
+
+  /** A room and its floor, wherever it is in the house. */
+  const roomIn = (doc: PlanDocument, roomId: Id) => {
+    const level = levelOf(doc, roomId);
+    return level?.rooms[roomId] ? { level, room: level.rooms[roomId] } : null;
+  };
+
+  /**
+   * A room-level request, planned on the room's own floor (room planners see
+   * one floor) and put back into the whole house. Upstairs rooms don't open
+   * onto the garden, and options that would clash with another floor, such
+   * as a wall through the stairs, are left out.
+   */
+  async function planRooms(intent: DesignIntent, source: PlanDocument, roomId: Id): Promise<PlanningResult | null> {
+    if (running()) return null;
+    const parsed = designIntentSchema.safeParse(intent);
+    if (!parsed.success) return plan(intent, source);
+    actions.setDesigner({ status: "running" });
+    await nextPaint();
+    try {
+      return await planOnRoomFloor(planner, parsed.data, source, roomId, project.getState().brief, newIdPrefix());
+    } catch (error) {
+      console.error("Planner failed", error);
+      actions.notify("error", GENERATION_FAILED);
       return null;
     } finally {
       actions.setDesigner({ status: "idle" });
@@ -59,7 +146,7 @@ export function createDesignActions({ session, project }: EditorStores, actions:
   type AiOutcome = { kind: "read"; interpretation: Interpretation & { reply: string } } | { kind: "off" } | { kind: "failed"; message: string };
 
   /** Asks the language model to read some text, if one is set up. "off" means use the built-in rules. */
-  async function readWithAi(mode: AiMode, text: string, level: Level | null, brief: HouseBrief, selectedRoomId: Id | null): Promise<AiOutcome> {
+  async function readWithAi(mode: AiMode, text: string, level: Level | PlanDocument | null, brief: HouseBrief, selectedRoomId: Id | null): Promise<AiOutcome> {
     if (!interpreter || session.getState().designer.ai === "off" || running()) return { kind: "off" };
     actions.setDesigner({ status: "running" });
     try {
@@ -93,6 +180,7 @@ export function createDesignActions({ session, project }: EditorStores, actions:
     const seen = notesRead.get(text);
     if (seen) return { read: true, notes: seen };
     const outcome = await readWithAi("instructions", text, null, brief, null);
+    if (outcome.kind === "failed") return { read: false, notes: ["Your notes weren't read this time."] };
     if (outcome.kind !== "read") return { read: false, notes: [] };
     let next = brief;
     const changes: string[] = [];
@@ -111,31 +199,72 @@ export function createDesignActions({ session, project }: EditorStores, actions:
     return { read: true, notes };
   }
 
-  async function layouts(count: number, extra: { exclude?: string[]; similarTo?: string }, describe: (n: number) => string): Promise<Id[]> {
-    // Layouts grow from the user's own shell, whichever concept is open.
-    const plans = project.getState().plans;
-    const sourcePlanId = (plans.find((p) => p.parentId === null && p.origin.kind === "user") ?? plans[0]).id;
-    const instructions = await readInstructions();
-    const { sizing } = project.getState();
-    const intent: DesignIntent = {
-      action: "generate_layouts",
-      brief: project.getState().brief,
-      count,
-      ...extra,
-      // Projects started from rooms size every house from the rooms, within the plot.
-      ...(sizing?.footprint === "auto" ? { footprint: "auto" as const, ...(sizing.plot ? { plot: sizing.plot } : {}) } : {}),
-    };
-    const result = await plan(intent, actions.planDocument(sourcePlanId) ?? actions.current(), instructions.read);
-    if (!result) return [];
-    if (!result.candidates.length) {
-      const message = result.issues[0]?.message ?? "The planner didn't produce any layouts.";
-      actions.setDesigner({ lastResult: { tone: "info", message, notes: [], offerAutoSize: !!result.issues[0]?.tooSmall } });
-      actions.notify("info", message);
-      return [];
+  interface PlannedSet {
+    result: PlanningResult;
+    sourcePlanId: Id;
+    notes: string[];
+    startedAt: number;
+  }
+
+  const setGeneration = (generation: Generation) => actions.setDesigner({ generation });
+
+  /**
+   * Plans a set of layouts from the brief without adding them, moving the
+   * generation through its phases. Null (with the phase set to nofit or
+   * failed) when there's nothing to add.
+   */
+  /** Set from the moment a run starts (before any await), so a second click can't start another. */
+  let generating = false;
+
+  async function planSet(count: number, extra: { exclude?: string[]; similarTo?: string }): Promise<PlannedSet | null> {
+    if (generating || running()) return null;
+    generating = true;
+    const startedAt = Date.now();
+    try {
+      // Layouts grow from the user's own shell, whichever concept is open.
+      const plans = project.getState().plans;
+      const sourcePlanId = (plans.find((p) => p.parentId === null && p.origin.kind === "user") ?? plans[0]).id;
+      const reading = !!project.getState().brief.additionalInstructions.trim() && session.getState().designer.ai !== "off" && !!interpreter;
+      setGeneration({ phase: reading ? "reading" : "planning", startedAt });
+      const instructions = await readInstructions();
+      setGeneration({ phase: "planning", startedAt });
+      const { sizing, site } = project.getState();
+      const plot = generationPlot({ site, sizing });
+      const intent: DesignIntent = {
+        action: "generate_layouts",
+        brief: project.getState().brief,
+        count,
+        ...extra,
+        // Projects started from rooms size every house from the rooms, within the plot.
+        ...(sizing?.footprint === "auto" ? { footprint: "auto" as const, ...(plot ? { plot } : {}) } : {}),
+      };
+      const result = await plan(intent, actions.planDocument(sourcePlanId) ?? actions.current(), instructions.read);
+      if (!result) {
+        setGeneration({ phase: "failed", startedAt, message: GENERATION_FAILED });
+        return null;
+      }
+      if (!result.candidates.length) {
+        const message = result.issues[0]?.message ?? "These rooms don't fit a layout yet.";
+        actions.setDesigner({ lastResult: { tone: "info", message, notes: [], offerAutoSize: !!result.issues[0]?.tooSmall } });
+        setGeneration({ phase: "nofit", startedAt, message });
+        return null;
+      }
+      return { result, sourcePlanId, notes: instructions.notes, startedAt };
+    } catch (error) {
+      console.error("Generating layouts failed", error);
+      setGeneration({ phase: "failed", startedAt, message: GENERATION_FAILED });
+      return null;
+    } finally {
+      generating = false;
     }
+  }
+
+  /** Files a planned set as new plans, each named for why you'd pick it. */
+  function addSet({ result, sourcePlanId, notes: readNotes, startedAt }: PlannedSet, describe: (n: number) => string): Id[] {
     const requestId = newIdPrefix();
+    const titles = layoutNames(result.candidates.map((c) => c.document.levels[0]));
     const ids = actions.addPlans(
-      result.candidates.map((c) => ({
+      result.candidates.map((c, i) => ({
         document: c.document,
         meta: {
           parentId: sourcePlanId,
@@ -148,26 +277,36 @@ export function createDesignActions({ session, project }: EditorStores, actions:
             notes: c.notes,
             arrangement: c.arrangement,
             ...(c.variant && c.footprint ? { variant: c.variant } : {}),
+            title: titles[i],
           },
           scope: { kind: "plan" },
         },
       })),
     );
-    if (!ids.length) return [];
-    const notes = [...instructions.notes, ...new Set(result.candidates.flatMap((c) => c.notes))];
-    const message = describe(ids.length);
-    actions.setDesigner({ lastResult: { tone: "success", message, notes }, focusPlanId: ids[0] });
-    actions.notify("success", message);
+    if (!ids.length) {
+      // addPlans has said why (the plan limit).
+      setGeneration({ phase: "failed", startedAt, message: "You have the most plans a project can hold. Delete some to make more." });
+      return [];
+    }
+    const notes = [...readNotes, ...new Set(result.candidates.flatMap((c) => c.notes))];
+    // The Layouts page shows the new set and picks the recommended one; no toast needed.
+    actions.setDesigner({ lastResult: { tone: "success", message: describe(ids.length), notes }, focusPlanId: null });
+    setGeneration({ phase: "done", startedAt });
     return ids;
+  }
+
+  async function layouts(count: number, extra: { exclude?: string[]; similarTo?: string }, describe: (n: number) => string): Promise<Id[]> {
+    const planned = await planSet(count, extra);
+    return planned ? addSet(planned, describe) : [];
   }
 
   /** Room-level options, reported in the AI Designer chat. */
   async function propose(roomId: Id, goals: RoomGoal[], count = 3): Promise<Proposal[]> {
-    const room = actions.current().levels[0].rooms[roomId];
+    const source = actions.current();
+    const room = roomIn(source, roomId)?.room;
     if (!room) return [];
     actions.setDesigner({ panelOpen: true });
-    const source = actions.current();
-    const result = await plan(goals.length ? { action: "redesign_room", roomId, goals } : { action: "room_variations", roomIds: [roomId], goals, count });
+    const result = await planRooms(goals.length ? { action: "redesign_room", roomId, goals } : { action: "room_variations", roomIds: [roomId], goals, count }, source, roomId);
     if (!result) return [];
     if (!result.candidates.length) {
       say({ role: "assistant", text: result.issues[0]?.message ?? `I couldn't find a change to ${room.name}.` });
@@ -180,28 +319,36 @@ export function createDesignActions({ session, project }: EditorStores, actions:
     return proposals;
   }
 
-  const toProposals = (result: PlanningResult, source: PlanDocument, roomId: Id): Proposal[] =>
-    result.candidates.map((c) => ({
-      id: newIdPrefix(),
-      title: c.title ?? c.summary,
-      summary: c.summary,
-      goal: c.goal,
-      variant: c.variant,
-      document: c.document,
-      roomIds: c.changedRoomIds ?? [roomId],
-      source,
-      state: "open",
-    }));
+  /** Every proposal offered this session, wherever it's shown (chat, variations, the inspector), by id. */
+  const known = new Map<string, Proposal>();
+  /** The plan each applied proposal became: it's "applied" exactly while that is the plan (so undo and redo move it). */
+  const appliedDocs = new Map<string, PlanDocument>();
+
+  const remember = (proposals: Proposal[]) => {
+    for (const p of proposals) known.set(p.id, p);
+    return proposals;
+  };
+
+  const toProposals = (result: PlanningResult, source: PlanDocument, roomId: Id): Proposal[] => remember(proposalsFrom(result, source, roomId));
 
   const updateProposal = (proposalId: string, state: Proposal["state"]) => {
     const mark = (list: Proposal[]) => list.map((p) => (p.id === proposalId ? { ...p, state } : p));
     actions.setDesigner({ chat: session.getState().designer.chat.map((m) => (m.proposals ? { ...m, proposals: mark(m.proposals) } : m)) });
     const v = session.getState().variations;
     if (v) actions.setVariations({ options: mark(v.options) });
+    const p = known.get(proposalId);
+    if (p) known.set(proposalId, { ...p, state });
   };
 
-  const findProposal = (proposalId: string) =>
-    [...session.getState().designer.chat.flatMap((m) => m.proposals ?? []), ...(session.getState().variations?.options ?? [])].find((p) => p.id === proposalId);
+  const findProposal = (proposalId: string) => known.get(proposalId);
+
+  /** Where a proposal stands against the plan as it is now. */
+  const statusOf = (p: Pick<Proposal, "id" | "source">): "open" | "applied" | "saved" | "stale" => {
+    const present = actions.current();
+    if (appliedDocs.get(p.id) === present) return "applied";
+    if (known.get(p.id)?.state === "saved") return "saved";
+    return p.source === present ? "open" : "stale";
+  };
 
   /** More options for the room on show, leaving out the ones already there. */
   async function extendVariations(goals: RoomGoal[], none: string): Promise<Proposal[]> {
@@ -215,7 +362,7 @@ export function createDesignActions({ session, project }: EditorStores, actions:
     const intent: DesignIntent = goals.length
       ? { action: "redesign_room", roomId: v.roomId, goals, exclude }
       : { action: "room_variations", roomIds: [v.roomId], goals, count: 3, exclude };
-    const result = await plan(intent, v.source);
+    const result = await planRooms(intent, v.source, v.roomId);
     if (!result) return [];
     if (!result.candidates.length) {
       actions.notify("info", result.issues[0]?.message ?? none);
@@ -263,10 +410,14 @@ export function createDesignActions({ session, project }: EditorStores, actions:
      */
     async regenerate(count = 3): Promise<Id[]> {
       if (running()) return [];
-      const stale = project.getState().plans.filter((p) => p.origin.kind === "generated" && p.scope.kind === "plan" && !actions.planEdited(p.id));
-      if (stale.length && project.getState().plans.length - stale.length < 1) return [];
-      for (const p of stale) actions.deletePlan(p.id);
-      return layouts(count, {}, (n) => `${n} fresh layout${n === 1 ? "" : "s"} from your brief.${stale.length ? ` ${stale.length} unedited concept${stale.length === 1 ? " was" : "s were"} replaced.` : ""}`);
+      const staleIds = () => project.getState().plans.filter((p) => p.origin.kind === "generated" && p.scope.kind === "plan" && !actions.planEdited(p.id)).map((p) => p.id);
+      if (staleIds().length && project.getState().plans.length - staleIds().length < 1) return [];
+      // Plan first: if the new set fails, the layouts already there stay.
+      const planned = await planSet(count, {});
+      if (!planned) return [];
+      const stale = staleIds();
+      for (const id of stale) actions.deletePlan(id);
+      return addSet(planned, (n) => `${n} fresh layout${n === 1 ? "" : "s"} from your brief.${stale.length ? ` ${stale.length} unedited concept${stale.length === 1 ? " was" : "s were"} replaced.` : ""}`);
     },
 
     /**
@@ -275,9 +426,9 @@ export function createDesignActions({ session, project }: EditorStores, actions:
      */
     async openRoomVariations(roomId: Id, goals: RoomGoal[] = []): Promise<Proposal[]> {
       const source = actions.current();
-      const room = source.levels[0].rooms[roomId];
+      const room = roomIn(source, roomId)?.room;
       if (!room) return [];
-      const result = await plan(goals.length ? { action: "redesign_room", roomId, goals } : { action: "room_variations", roomIds: [roomId], goals, count: 3 });
+      const result = await planRooms(goals.length ? { action: "redesign_room", roomId, goals } : { action: "room_variations", roomIds: [roomId], goals, count: 3 }, source, roomId);
       if (!result) return [];
       if (!result.candidates.length) {
         const message = result.issues[0]?.message ?? `I couldn't find a variation of ${room.name.toLowerCase()}.`;
@@ -309,12 +460,17 @@ export function createDesignActions({ session, project }: EditorStores, actions:
      */
     async regenerateArea(roomIds: Id[]): Promise<Proposal[]> {
       const source = actions.current();
-      const names = roomIds.map((id) => source.levels[0].rooms[id]?.name).filter((n): n is string => !!n);
+      const names = roomIds.map((id) => roomIn(source, id)?.room.name).filter((n): n is string => !!n);
       if (names.length < 2 || running()) return [];
       const list = `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
       say({ role: "user", text: `Lay out ${list.toLowerCase()} again` });
       actions.setDesigner({ panelOpen: true });
-      const result = await plan({ action: "room_variations", roomIds, goals: [], count: 3 }, source);
+      // The rooms laid out again together are on one floor.
+      if (new Set(roomIds.map((id) => levelOf(source, id)?.id)).size > 1) {
+        actions.notify("info", "Choose rooms on the same floor to lay out again together.");
+        return [];
+      }
+      const result = await planRooms({ action: "room_variations", roomIds, goals: [], count: 3 }, source, roomIds[0]);
       if (!result) return [];
       if (!result.candidates.length) {
         say({ role: "assistant", text: result.issues[0]?.message ?? `I couldn't find another way to lay out ${list.toLowerCase()}.` });
@@ -327,7 +483,7 @@ export function createDesignActions({ session, project }: EditorStores, actions:
 
     /** "Redesign this room" from chat: options for the given goals, offered in the AI Designer. */
     redesignRoom(roomId: Id, goals: RoomGoal[]): Promise<Proposal[]> {
-      const room = actions.current().levels[0].rooms[roomId];
+      const room = roomIn(actions.current(), roomId)?.room;
       if (room) say({ role: "user", text: goals.length ? `${goals.map((g) => ROOM_GOAL_LABEL[g]).join(", ")} for ${room.name.toLowerCase()}` : `Redesign ${room.name.toLowerCase()}` });
       return propose(roomId, goals);
     },
@@ -335,27 +491,31 @@ export function createDesignActions({ session, project }: EditorStores, actions:
 
 
     /** A typed request: room changes become proposals, new spaces go into the brief. */
-    async ask(text: string): Promise<void> {
+    async ask(text: string): Promise<Proposal[]> {
+      const offered: Proposal[] = [];
       const trimmed = text.trim();
-      if (!trimmed || running()) return;
+      if (!trimmed || running()) return offered;
       say({ role: "user", text: trimmed });
       actions.setDesigner({ panelOpen: true });
       const { selection } = session.getState();
-      const level = actions.current().levels[0];
+      // Requests are about the floor on show, or the selected room's floor.
+      const level = (selection?.kind === "room" ? levelOf(actions.current(), selection.id) : undefined) ?? actions.activeLevel();
       const selected =
         selection?.kind === "room" ? selection.id
         : selection?.kind === "furniture" && level.furniture[selection.id] ? roomAtPoint(level, level.furniture[selection.id].position)
         : null;
-      // Claude reads the request when it's set up; otherwise (or if it fails) the built-in rules do.
-      const outcome = await readWithAi("request", trimmed, level, project.getState().brief, selected);
-      if (outcome.kind === "failed") say({ role: "assistant", text: `${outcome.message} I'll use the simpler built-in reader instead.` });
+      // The language model reads the request when it's set up; otherwise (or if it fails) the built-in rules
+      // answer without comment, since which reader answered doesn't matter to the person asking.
+      // Claude sees the whole house, every floor; the built-in reader works on the floor in question.
+      const outcome = await readWithAi("request", trimmed, actions.current(), project.getState().brief, selected);
+      if (outcome.kind === "failed") console.warn(`AI request failed, using the built-in reader: ${outcome.message}`);
       const byAi = outcome.kind === "read";
       const { steps, unclear } = byAi ? outcome.interpretation : interpretRequest(trimmed, level, project.getState().brief, selected);
       if (byAi && outcome.interpretation.reply) say({ role: "assistant", text: outcome.interpretation.reply });
       let brief: HouseBrief = project.getState().brief;
       const briefChanges: string[] = [];
       for (const step of steps) {
-        if (step.kind === "room") await propose(step.roomId, step.goals);
+        if (step.kind === "room") offered.push(...(await propose(step.roomId, step.goals)));
         else {
           brief = normaliseBrief({ ...brief, ...step.patch });
           briefChanges.push(step.describe);
@@ -374,6 +534,7 @@ export function createDesignActions({ session, project }: EditorStores, actions:
           text: `I didn't follow “${unclear.join("”, “")}”.${pick} I can make rooms larger or smaller, bring in more light, add garden doors, storage, an island, a dining area or an ensuite, open rooms up to each other, or add rooms to the brief.`,
         });
       }
+      return offered;
     },
 
     /** Finds out whether Claude is set up, so the panels can say who reads requests. */
@@ -388,22 +549,33 @@ export function createDesignActions({ session, project }: EditorStores, actions:
     /** Applies a proposal to the plan as one undoable edit. */
     applyProposal(proposalId: string): boolean {
       const proposal = findProposal(proposalId);
-      if (!proposal || proposal.state !== "open") return false;
-      if (proposal.source !== actions.current()) {
+      if (!proposal) return false;
+      const status = statusOf(proposal);
+      if (status === "applied" || status === "saved") return false;
+      if (status === "stale") {
         actions.notify("info", "The plan has changed since this option was made. Ask again for fresh options.");
         return false;
       }
-      const [pinned] = pinnedRoomChanges(proposal.source.levels[0], proposal.document.levels[0], { furniture: true });
+      const [pinned] = proposal.source.levels.flatMap((before) => {
+        const after = proposal.document.levels.find((l) => l.id === before.id);
+        return after && after !== before ? pinnedRoomChanges(before, after, { furniture: true }) : [];
+      });
       if (pinned) {
         actions.notify("error", pinnedMessage(pinned.name));
         return false;
       }
+      // An option on show becomes the plan itself.
+      actions.unstage();
       const result = actions.dispatch({ type: "replaceDocument", document: proposal.document });
       if (!result.ok) return false;
-      updateProposal(proposalId, "applied");
+      appliedDocs.set(proposalId, actions.current());
       // Applying from the variations view goes back to the plan with the room selected.
       if (session.getState().designView === "variations") actions.setDesignView("plan");
-      if (proposal.roomIds[0] && proposal.document.levels[0].rooms[proposal.roomIds[0]]) actions.select({ kind: "room", id: proposal.roomIds[0] });
+      const changed = proposal.roomIds[0] ? levelOf(proposal.document, proposal.roomIds[0]) : undefined;
+      if (changed) {
+        actions.setActiveLevel(changed.id);
+        actions.select({ kind: "room", id: proposal.roomIds[0] });
+      }
       actions.notify("success", `${proposal.summary} Undo to go back.`);
       return true;
     },
@@ -411,7 +583,7 @@ export function createDesignActions({ session, project }: EditorStores, actions:
     /** Keeps a proposal as a new plan beside this one, without changing it. */
     saveProposal(proposalId: string): Id | null {
       const proposal = findProposal(proposalId);
-      if (!proposal || proposal.state === "saved") return null;
+      if (!proposal || statusOf(proposal) === "saved") return null;
       const [id] = actions.addPlans(
         [
           {
@@ -437,8 +609,9 @@ export function createDesignActions({ session, project }: EditorStores, actions:
      */
     swapRooms(a: Id, b: Id): boolean {
       const doc = actions.current();
-      const [ra, rb] = [doc.levels[0].rooms[a], doc.levels[0].rooms[b]];
-      if (!ra || !rb || a === b) return false;
+      const level = levelOf(doc, a);
+      const [ra, rb] = [level?.rooms[a], level?.rooms[b]];
+      if (!level || !ra || !rb || a === b) return false;
       const held = [ra, rb].find((r) => r.locked);
       if (held) {
         actions.notify("error", `Unpin ${held.name} to swap it.`, [held.id]);
@@ -457,14 +630,15 @@ export function createDesignActions({ session, project }: EditorStores, actions:
       // The furniture follows the use: the bed leaves what is now the kitchen.
       const prefix = newIdPrefix();
       for (const id of [a, b]) {
-        const layout = furnishRoom(next.levels[0], id, `${prefix}-${id}`);
+        const floor = levelOf(next, id)!;
+        const layout = furnishRoom(floor, id, `${prefix}-${id}`, { keepOut: levelKeepOut(next, floor.id) });
         if (!layout) continue;
-        const result = applyCommand(next, { type: "replaceFurniture", remove: layout.remove, add: layout.items });
+        const result = applyCommand(next, { type: "replaceFurniture", levelId: floor.id, remove: layout.remove, add: layout.items });
         if (result.ok) next = result.document;
       }
       // What the swap made worse (a bedroom with no window, a bathroom off the kitchen) is said, not refused.
-      const was = new Set(assessSense(doc.levels[0]).findings.map((f) => f.message));
-      const worse = assessSense(next.levels[0]).findings.filter((f) => !was.has(f.message) && f.roomIds.some((id) => id === a || id === b));
+      const was = new Set(assessSense(level).findings.map((f) => f.message));
+      const worse = assessSense(levelOf(next, a)!).findings.filter((f) => !was.has(f.message) && f.roomIds.some((id) => id === a || id === b));
       const result = actions.dispatch({ type: "replaceDocument", document: next });
       if (result.ok) {
         if (worse.length) actions.notify("info", `Swapped ${ra.name} and ${rb.name}. To check: ${worse.map((f) => f.message).join(" ")} Undo to go back.`, [a, b]);
@@ -475,6 +649,38 @@ export function createDesignActions({ session, project }: EditorStores, actions:
 
     clearChat() {
       actions.setDesigner({ chat: [] });
+    },
+
+    /** Back to the plan as it is, from an option on show. */
+    unstageOption() {
+      actions.unstage();
+    },
+
+    /** Where a proposal stands now: open to apply, applied (until undone), saved as a plan, or stale. */
+    statusOf,
+
+    /** Options planned elsewhere (the inspector's), so they can be applied, saved and staged like any other. */
+    remember,
+
+    /**
+     * Shows an option on the plan (and in 3D) without changing anything:
+     * the history, autosave and undo stay on the plan as it is. Applying it
+     * makes it the plan; Back, Escape or undo leave it.
+     */
+    stage(proposalId: string, letter?: string): boolean {
+      const p = findProposal(proposalId);
+      if (!p || statusOf(p) !== "open") return false;
+      const level = p.roomIds[0] ? levelOf(p.document, p.roomIds[0]) : undefined;
+      if (level) actions.setActiveLevel(level.id === p.document.levels[0].id ? null : level.id);
+      actions.stage({
+        proposalId: p.id,
+        document: p.document,
+        source: p.source,
+        roomIds: p.roomIds,
+        title: (letter ?? p.letter) ? `${letter ?? p.letter} · ${p.title}` : p.title,
+        delta: p.impact ? areaDeltaText(p.impact) : null,
+      });
+      return true;
     },
   };
 }

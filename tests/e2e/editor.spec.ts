@@ -215,7 +215,10 @@ test.describe("Milestone 1 editing workflow", () => {
     for (const zoomSteps of [0, 3, -2]) {
       const canvas = (await page.getByTestId("plan-canvas").boundingBox())!;
       await page.mouse.move(canvas.x + canvas.width / 2, canvas.y + canvas.height / 2);
+      // Scrolling pans; with Control held it zooms (as a trackpad pinch does).
+      await page.keyboard.down("Control");
       for (let i = 0; i < Math.abs(zoomSteps); i++) await page.mouse.wheel(0, zoomSteps > 0 ? -200 : 200);
+      await page.keyboard.up("Control");
       await page.waitForTimeout(80);
       const target = await toScreen(page, { x: 4, y: 5 });
       await page.mouse.move(target.x + 6, target.y - 4, { steps: 2 });
@@ -249,7 +252,8 @@ test.describe("Milestone 1 editing workflow", () => {
     const nav = await openLayers(page);
     await nav.getByText("Walls").click();
     await nav.getByRole("button", { name: /Internal wall 1/ }).click();
-    await expect(page.getByTestId("inspector").getByRole("heading", { name: "Internal wall 1" })).toBeVisible();
+    // The inspector says where the wall is, not what the drawing calls it.
+    await expect(page.getByTestId("inspector").getByRole("heading", { name: /^Wall between Room \d and Room \d$/ })).toBeVisible();
     await page.getByTestId("plan-canvas").focus();
     await page.keyboard.press("Delete");
     let doc = await getDoc(page);
@@ -288,38 +292,47 @@ test.describe("Milestone 1 editing workflow", () => {
     await inspector.getByTestId("inspector-menu").click();
     await inspector.getByTestId("inspector-collapse").click();
     await expect(inspector.getByTestId("wall-length")).toBeHidden();
-    await expect(inspector.getByRole("heading", { name: "Internal wall 1" })).toBeVisible();
+    await expect(inspector.getByRole("heading", { name: /^Wall between / })).toBeVisible();
     await inspector.getByTestId("inspector-menu").click();
     await inspector.getByTestId("inspector-collapse").click();
     await page.keyboard.press("Escape");
     await expect(inspector).toBeHidden();
 
-    // Designs opens on the concept board; with none yet, the starting plan can be opened to refine.
-    await page.getByTestId("workspace-design").click();
-    await expect(page.getByTestId("workspace-design")).toHaveAttribute("aria-checked", "true");
-    await expect(page.getByTestId("board-go-brief")).toBeVisible();
-    await page.getByTestId("shell-refine").click();
+    // Layouts lists the project's plans; with none generated yet, the user's own house is there to refine.
+    await page.getByTestId("step-explore").click();
+    await expect(page.getByTestId("step-explore")).toHaveAttribute("aria-current", "step");
+    await expect(page.getByTestId("concept-My plan")).toBeVisible();
+    await expect(page.getByTestId("tool-select")).toHaveCount(0);
+    await page.getByTestId("open-concept-My plan").click();
     await expect(page.getByTestId("back-to-concepts")).toBeVisible();
-    // Refining offers room, wall and door tools but not the shell's windows; clicks pick rooms.
+    // A plan with no furniture opens in the 2D plan view; clicks inside a room pick the whole room.
+    await expect(page.getByTestId("view-plan")).toHaveAttribute("aria-checked", "true");
     await expect(page.getByTestId("tool-wall")).toBeVisible();
-    await expect(page.getByTestId("tool-window")).toHaveCount(0);
-    await page.keyboard.press("n");
-    await expect(page.getByTestId("tool-select")).toHaveAttribute("aria-pressed", "true");
     await clickAt(page, { x: 2, y: 6 });
     const selection = await page.evaluate(() => (window.__floorPlanEditor!.getSession() as { selection: { kind: string } | null }).selection);
     expect(selection?.kind).toBe("room");
     await expect(inspector.getByTestId("room-name")).toBeVisible();
+    // Every tool works in either view: windows keep the plan view, furniture shows the furnished one.
+    await page.keyboard.press("n");
+    await expect(page.getByTestId("view-plan")).toHaveAttribute("aria-checked", "true");
+    await expect(page.getByTestId("tool-window")).toHaveAttribute("aria-pressed", "true");
+    await page.keyboard.press("u");
+    await expect(page.getByTestId("view-furnished")).toHaveAttribute("aria-checked", "true");
+    await page.keyboard.press("Escape");
 
-    await page.getByTestId("workspace-3d").click();
-    await expect(page.getByTestId("workspace-3d")).toHaveAttribute("aria-checked", "true");
+    // The 3D view goes over the plan without leaving Refine; tools wait for the plan to come back.
+    await page.getByTestId("view-3d").click();
+    await expect(page.getByTestId("view-3d")).toHaveAttribute("aria-checked", "true");
+    await expect(page.getByTestId("step-refine")).toHaveAttribute("aria-current", "step");
     await expect(page.getByTestId("present-panel")).toBeVisible();
-    await page.keyboard.press("1");
-    await expect(page.getByTestId("workspace-structure")).toHaveAttribute("aria-checked", "true");
+    await expect(page.getByTestId("tool-wall")).toHaveCount(0);
+    await page.keyboard.press("Shift+Digit1");
+    await expect(page.getByTestId("view-plan")).toHaveAttribute("aria-checked", "true");
     await expect(page.getByTestId("tool-wall")).toBeVisible();
 
-    // The brief shows the plan for reference only: no tools, and clicks don't select.
+    // Requirements shows the brief: no tools, and clicks don't select.
     await page.keyboard.press("2");
-    await expect(page.getByTestId("workspace-brief")).toHaveAttribute("aria-checked", "true");
+    await expect(page.getByTestId("step-requirements")).toHaveAttribute("aria-current", "step");
     await expect(page.getByTestId("brief-panel")).toBeVisible();
     await expect(page.getByTestId("tool-select")).toHaveCount(0);
     await clickAt(page, { x: 2, y: 6 });
@@ -353,6 +366,8 @@ test.describe("Milestone 1 editing workflow", () => {
     const inspector = page.getByTestId("inspector");
     await inspector.getByTestId("room-type").selectOption("primary_bedroom");
     await expect(inspector.getByRole("heading", { name: "Primary Bedroom" })).toBeVisible();
+    // Sizes live under Dimensions; what the room is, under Design.
+    await inspector.getByTestId("room-tab-dimensions").click();
     await inspector.getByTestId("set-target-area").click();
     await inspector.getByTestId("room-target-area").fill("30");
     await inspector.getByTestId("room-target-area").press("Enter");
@@ -361,6 +376,7 @@ test.describe("Milestone 1 editing workflow", () => {
     const room = Object.values(level(await getDoc(page)).rooms).find((r) => r.type === "primary_bedroom")!;
     expect(room).toMatchObject({ name: "Primary Bedroom", targetArea: 30 });
     // A name the user chose is kept when the type changes.
+    await inspector.getByTestId("room-tab-design").click();
     await inspector.getByTestId("room-name").fill("Den");
     await inspector.getByTestId("room-name").press("Enter");
     await inspector.getByTestId("room-type").selectOption("office");
@@ -374,18 +390,20 @@ test.describe("Milestone 1 editing workflow", () => {
     await page.getByTestId("mark-rear").click();
     await page.keyboard.press("Escape");
     const original = await getDoc(page);
-    await expect(page.getByTestId("variation-tray")).toBeHidden();
 
-    await page.getByTestId("workspace-brief").click();
+    // Map shows the house on its site, with the garden side just marked.
+    await page.getByTestId("step-map").click();
+    await expect(page.getByTestId("brief-shell")).toContainText("Garden side North");
+    await expect(page.getByTestId("map-garden-north")).toHaveAttribute("aria-checked", "true");
+    await page.getByTestId("map-continue").click();
     const panel = page.getByTestId("brief-panel");
-    await expect(panel.getByRole("heading", { name: "Select your rooms" })).toBeVisible();
+    await expect(panel.getByRole("heading", { name: "Choose your rooms" })).toBeVisible();
     // The default brief shows as picked rooms: a master bedroom and two doubles.
     await expect(panel.getByTestId("pick-double_bedroom-count")).toHaveText("2");
     await panel.getByTestId("pick-double_bedroom-dec").click();
     await expect(panel.getByTestId("pick-double_bedroom-count")).toHaveText("1");
     await expect(panel.getByTestId("rooms-preview-facts")).toContainText("2 bed");
     await panel.getByTestId("rooms-more").click();
-    await expect(panel.getByTestId("brief-shell")).toContainText("Garden side North");
     await panel.getByTestId("brief-pref-kitchen_faces_garden").click();
     // The rear wall is set, so there's no prompt to mark it.
     await expect(panel.getByTestId("brief-rear-note")).toBeHidden();
@@ -393,66 +411,66 @@ test.describe("Milestone 1 editing workflow", () => {
     await panel.getByTestId("brief-instructions").fill("A boot room would be nice");
     await panel.getByTestId("brief-instructions").blur();
     await panel.getByTestId("generate-layouts").click();
-    // Layouts open in Designs.
-    await expect(page.getByTestId("workspace-design")).toHaveAttribute("aria-checked", "true");
-    await expect(page.getByTestId("notice")).toContainText("3 layouts generated");
 
-    // Designs shows the concepts side by side, one recommended, with the starting plan in reach.
+    // Explore lists the three new ones side by side, one recommended, beside the user's own house.
+    await expect(page.getByTestId("step-explore")).toHaveAttribute("aria-current", "step");
     const board = page.getByTestId("concept-board");
-    await expect(board).toBeVisible();
-    await expect(board.locator(".concept-card")).toHaveCount(3);
+    const cards = board.locator(".layout-card:not(.is-loading)");
+    await expect(cards).toHaveCount(4);
     await expect(board.getByTestId("recommended")).toHaveCount(1);
-    await expect(board.getByTestId("shell-My plan")).toBeVisible();
+    await expect(board.getByTestId("concept-My plan")).toBeVisible();
     await expect(page.getByTestId("concept-detail")).toBeVisible();
     let project = await getProject(page);
     expect(project.brief).toMatchObject({ bedrooms: 2, preferences: ["kitchen_faces_garden"], roomSizes: { bedrooms: "generous" } });
     const generated = project.plans.slice(1);
     expect(generated.every((p) => p.origin.kind === "generated" && p.parentId === project.plans[0].id)).toBe(true);
 
-    // Concept B in detail, then opened to refine.
+    // Layout B in detail, then opened to refine.
     await board.getByTestId("concept-Plan B").click();
-    await expect(page.getByTestId("concept-detail")).toContainText("B.");
+    await expect(page.getByTestId("concept-detail")).toContainText("Layout B");
     await page.getByTestId("detail-tab-rooms").click();
     await expect(page.getByTestId("concept-detail")).toContainText("Master Bedroom");
-    await page.getByTestId("use-design").click();
-    await expect(page.getByTestId("current-concept")).toContainText("B.");
+    await page.getByTestId("open-concept-Plan B").click();
+    await expect(page.getByTestId("current-concept")).toContainText("B ·");
     expect((await getProject(page)).activePlanId).toBe(generated[1].id);
     expect(Object.values(level(await getDoc(page)).rooms).map((r) => r.type)).toContain("primary_bedroom");
 
-    // Back to the board: more concepts come in new arrangements; duplicating adds one too.
+    // Back to Layouts: three more come in new arrangements, as their own set; a copy joins your plans.
     await page.getByTestId("back-to-concepts").click();
     await page.getByTestId("generate-more").click();
-    await expect(page.getByTestId("notice")).toContainText("3 more layouts");
-    await expect(board.locator(".concept-card")).toHaveCount(6);
+    await expect(cards).toHaveCount(7);
+    await expect(board.getByRole("heading", { name: "3 more" })).toBeVisible();
     await board.getByTestId("concept-menu-Plan A").click();
     await board.getByTestId("concept-duplicate-Plan A").click();
-    await expect(board.locator(".concept-card")).toHaveCount(7);
+    await expect(cards).toHaveCount(8);
     await board.getByTestId("concept-menu-Plan G").click();
     await board.getByTestId("concept-delete-Plan G").click();
     await board.getByTestId("concept-delete-confirm-Plan G").click();
-    await expect(board.locator(".concept-card")).toHaveCount(6);
+    await expect(cards).toHaveCount(7);
 
-    // The original plan is untouched.
-    await page.getByTestId("workspace-structure").click();
-    const tray = page.getByTestId("variation-tray");
-    await tray.getByTestId("plan-My plan").click();
+    // The original plan is untouched; a copy of it can be made from its card.
+    await board.getByTestId("concept-My plan").click();
+    await page.getByTestId("open-concept-My plan").click();
     expect(await getDoc(page)).toEqual(original);
-    await tray.getByTestId("add-variation").click();
-    await expect(tray.getByRole("radio")).toHaveCount(8);
+    await page.getByTestId("back-to-concepts").click();
+    await board.getByTestId("concept-menu-My plan").click();
+    await board.getByTestId("concept-duplicate-My plan").click();
+    await expect(cards).toHaveCount(8);
 
     // Plans and the brief survive a reload.
     await expect(page.getByTestId("save-status")).toContainText("Saved", { timeout: 5000 });
     await page.reload();
-    await expect(page.getByTestId("variation-tray").getByRole("radio")).toHaveCount(8);
+    await expect(page.getByTestId("plan-canvas")).toBeVisible();
     project = await getProject(page);
     expect(project.plans.map((p) => p.label)).toEqual(["My plan", "Plan A", "Plan B", "Plan C", "Plan D", "Plan E", "Plan F", "Plan G"]);
     expect(project.brief.bedrooms).toBe(2);
 
     // Delete asks for confirmation.
-    await page.getByTestId("variation-tray").getByTestId("plan-Plan G").hover();
-    await page.getByTestId("delete-plan-Plan G").click();
-    await page.getByTestId("delete-plan-confirm-Plan G").click();
-    await expect(page.getByTestId("variation-tray").getByRole("radio")).toHaveCount(7);
+    await page.getByTestId("step-explore").click();
+    await board.getByTestId("concept-menu-Plan G").click();
+    await board.getByTestId("concept-delete-Plan G").click();
+    await board.getByTestId("concept-delete-confirm-Plan G").click();
+    await expect(cards).toHaveCount(7);
   });
 
   test("refines a concept: room options are offered, applied as one undoable edit, and the AI Designer takes requests", async ({ page }) => {
@@ -463,7 +481,11 @@ test.describe("Milestone 1 editing workflow", () => {
     await page.keyboard.press("Escape");
     await page.keyboard.press("2");
     await page.getByTestId("generate-layouts").click();
+    await page.getByTestId("concept-board").getByTestId("concept-Plan A").click();
     await page.getByTestId("open-concept-Plan A").click();
+    // The AI Designer starts folded away, and opens from its button.
+    await expect(page.getByTestId("ai-panel")).toBeHidden();
+    await page.getByTestId("open-ai").click();
     await expect(page.getByTestId("ai-panel")).toBeVisible();
 
     const doc = await getDoc(page);
@@ -471,18 +493,27 @@ test.describe("Milestone 1 editing workflow", () => {
     await selectRoomFromList(page, bedroom.name);
     const inspector = page.getByTestId("inspector");
     await expect(inspector.getByRole("heading", { name: bedroom.name })).toBeVisible();
+    await inspector.getByTestId("room-tab-connections").click();
     await expect(inspector.getByTestId("room-connections")).toContainText("Door to");
     await expect(page.getByTestId("room-quickbar")).toBeVisible();
 
-    // Suggestions come back as options in the AI Designer; the plan only changes when one is applied.
+    // Quick actions are tried on the plan first; one that works shows its options on the plan without changing it.
     const before = await historySize(page);
-    await inspector.getByTestId("room-tab-ai").click();
-    await inspector.getByTestId("suggest-make_larger").click();
-    const proposal = page.getByTestId("proposal").first();
-    await expect(proposal).toBeVisible();
+    await inspector.getByTestId("room-tab-design").click();
+    await expect(inspector.getByText("Checking…")).toHaveCount(0, { timeout: 15_000 });
+    await inspector.locator('[data-testid^="suggest-"]:not([disabled])').first().click();
+    await expect(page.getByTestId("staged-banner")).toBeVisible();
+    await expect(inspector.getByTestId("room-option").first()).toBeVisible();
     expect(await historySize(page)).toEqual(before);
-    await proposal.getByTestId("apply-proposal").click();
-    await expect(proposal).toContainText("Applied");
+    expect(await getDoc(page)).toEqual(doc);
+    // Back leaves it, as if it had never been shown.
+    await page.getByTestId("staged-back").click();
+    await expect(page.getByTestId("staged-banner")).toHaveCount(0);
+    // Picking a card shows it again; Apply makes it the plan, as one step undo takes back.
+    await inspector.getByTestId("room-option").first().click();
+    await expect(page.getByTestId("staged-banner")).toBeVisible();
+    await inspector.getByTestId("apply-option").click();
+    await expect(page.getByTestId("staged-banner")).toHaveCount(0);
     expect((await historySize(page)).past).toBe(before.past + 1);
     await page.getByTestId("undo").click();
     expect(await getDoc(page)).toEqual(doc);
@@ -494,7 +525,6 @@ test.describe("Milestone 1 editing workflow", () => {
     expect((await getProject(page)).brief.requiredSpaces).toContain("utility");
 
     // Swapping rooms is one undoable step.
-    await inspector.getByTestId("room-tab-details").click();
     await inspector.getByTestId("swap-room").click();
     await inspector.getByTestId("swap-with-Bedroom 2").click();
     await expect(inspector.getByRole("heading", { name: "Bedroom 2" })).toBeVisible();
@@ -510,6 +540,7 @@ test.describe("Milestone 1 editing workflow", () => {
     await page.keyboard.press("Escape");
     await page.keyboard.press("2");
     await page.getByTestId("generate-layouts").click();
+    await page.getByTestId("concept-board").getByTestId("concept-Plan A").click();
     await page.getByTestId("open-concept-Plan A").click();
     const doc = await getDoc(page);
     const kitchen = Object.values(level(doc).rooms).find((r) => r.type === "kitchen" || r.type === "kitchen_dining")!;
@@ -551,33 +582,35 @@ test.describe("Milestone 1 editing workflow", () => {
     page.on("console", (m) => m.type() === "error" && errors.push(m.text()));
     await createHouse(page);
     await drawWall(page, { x: 4, y: AXIS.south }, { x: 4, y: AXIS.north });
-    await page.keyboard.press("4");
-    await expect(page.getByTestId("workspace-3d")).toHaveAttribute("aria-checked", "true");
+    await page.keyboard.press("Shift+Digit2");
+    await expect(page.getByTestId("view-3d")).toHaveAttribute("aria-checked", "true");
     await expect(page.getByTestId("three-view").locator("canvas")).toBeVisible();
     await expect(page.getByTestId("three-unavailable")).toHaveCount(0);
-    const session = () => page.evaluate(() => window.__floorPlanEditor!.getSession() as { selection: { kind: string; id: string } | null; view3d: { mode: string; camera: string; lighting: string; display: { roof: boolean } } });
+    const session = () => page.evaluate(() => window.__floorPlanEditor!.getSession() as { selection: { kind: string; id: string } | null; view3d: { split: boolean; camera: string; lighting: string; display: { roof: boolean } } });
 
     // Split: the plan on the left picks rooms for both views.
     await page.getByTestId("view-split").click();
     await expect(page.getByTestId("plan-canvas")).toBeVisible();
-    expect((await session()).view3d.mode).toBe("split");
+    expect((await session()).view3d.split).toBe(true);
     await page.waitForTimeout(200);
     await clickAt(page, { x: 2, y: 5 });
     expect((await session()).selection?.kind).toBe("room");
 
-    // Cameras, display and light.
+    // One panel: the camera, what's shown, and the look. Side by side it starts folded away.
+    await expect(page.getByTestId("present-panel")).toHaveCount(0);
+    await page.getByTestId("open-3d-panel").click();
     await page.getByTestId("camera-interior").click();
     expect((await session()).view3d.camera).toBe("interior");
-    await page.getByTestId("dock-walk").click();
+    await page.getByTestId("camera-walk").click();
     expect((await session()).view3d.camera).toBe("walk");
+    await page.getByTestId("present-tab-show").click();
     await page.getByTestId("display-roof").click();
     expect((await session()).view3d.display.roof).toBe(true);
-    await page.getByTestId("lighting-menu").click();
-    await page.getByTestId("lighting-option-night").click();
+    await page.getByTestId("present-tab-look").click();
+    await page.getByTestId("lighting-night").click();
     expect((await session()).view3d.lighting).toBe("night");
 
     // The exterior finish is saved with the project; wall height is one undoable edit.
-    await page.getByTestId("present-tab-materials").click();
     await page.getByTestId("exterior-brick").click();
     expect((await getProject(page)).appearance).toMatchObject({ exterior: "brick" });
     const before = await historySize(page);
@@ -586,7 +619,9 @@ test.describe("Milestone 1 editing workflow", () => {
     const heights = () => getDoc(page).then((d) => Object.values(level(d).walls).map((w) => (w as unknown as { height: number }).height));
     expect(new Set(await heights())).toEqual(new Set([2.7]));
     expect((await historySize(page)).past).toBe(before.past + 1);
-    await page.getByTestId("undo").click();
+    // 3D has no undo button; the shortcut works once the field is left.
+    await page.getByTestId("wall-height-all").blur();
+    await page.keyboard.press("ControlOrMeta+z");
     expect(new Set(await heights())).toEqual(new Set([2.4]));
 
     // Export the model.

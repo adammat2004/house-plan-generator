@@ -1,24 +1,24 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useMemo, useState } from "react";
+import { useDeferredValue, useMemo, useState } from "react";
 import { BRIEF_PRESETS, picksFromCounts, ROOM_PICK_GROUP_LABEL, ROOM_PICK_GROUPS, ROOM_PICK_SPECS, pickedBathrooms, pickedBedrooms, type RoomPick, type RoomPickGroup, type RoomPicks } from "@/domain/brief/rooms";
 import { BRIEF_LIMITS, PREFERENCE_IDS, PREFERENCE_LABEL, withPicks, type HouseBrief } from "@/domain/brief/schema";
-import { createPlanDocument, facingLabel } from "@/domain/commands";
-import { assessPlan } from "@/domain/design/analysis";
+import { createPlanDocument } from "@/domain/commands";
+import { assessHouse } from "@/domain/design/analysis";
 import { DEFAULT_INTERIOR_STYLE } from "@/domain/design/renderRequest";
+import { generationPlot } from "@/domain/project/site";
 import { planLayouts } from "@/domain/design/stripPlanner";
 import { analyzeEnvelope } from "@/domain/geometry/envelope";
-import { describeOutline } from "@/domain/geometry/outlineDescription";
-import type { Level } from "@/domain/plan/types";
+import type { Level, PlanDocument } from "@/domain/plan/types";
 import { DEFAULT_APPEARANCE } from "@/domain/project/schema";
 import { PROJECT_TEMPLATES } from "@/domain/project/templates";
-import { IconButton } from "@/components/ui/controls";
-import { ArrowLeftIcon, CheckIcon, ChevronDownIcon, ExteriorIcon, InteriorIcon, MinusIcon, OrbitIcon, PlusIcon, SparkleIcon, SunIcon, WalkIcon } from "@/components/ui/icons";
-import type { CameraMode, Lighting } from "../../rendering/three/viewer";
+import { CountStepper, SegmentedControl, Tabs } from "@/components/ui/controls";
+import { CheckIcon, ChevronDownIcon, MinusIcon, PlusIcon, SparkleIcon } from "@/components/ui/icons";
+import { useAreaText } from "@/components/units";
 import { design, editor, renders, useDocumentState, useProjectState, useRenders, useSessionState } from "../../state/editor";
-import { generateFromRooms, selectWorkspace } from "../shell/tools";
-import { BriefSection, BriefSizeFields, HouseShapeChips, toggle } from "./BriefFields";
+import { generateFromRooms, goToStep, selectWorkspace } from "../shell/tools";
+import { BriefSection, BriefSizeFields, HouseShapeChips, StoreyChips, toggle } from "./BriefFields";
 import { PlanThumbnail } from "./PlanThumbnail";
 
 const LevelView = dynamic(() => import("../../rendering/three/LevelView"), { ssr: false, loading: () => <div className="three-host three-loading">Loading 3D…</div> });
@@ -26,32 +26,40 @@ const LevelView = dynamic(() => import("../../rendering/three/LevelView"), { ssr
 /** Accessibility has its own section; the rest are design preferences. */
 const DESIGN_PREFERENCES = PREFERENCE_IDS.filter((p) => p !== "accessible_layout");
 
-type Tab = "rooms" | "presets" | "inspiration";
-type PreviewMode = "3d" | "2d" | "split";
+type Tab = "rooms" | "presets";
+type PreviewMode = "2d" | "3d";
 
 /**
- * Step 2, "Select your rooms": what the house needs, picked room by room,
- * beside a live 3D preview of a layout for those rooms. "Generate layouts"
- * (or Next) asks the planner for options and opens them in Design. The
- * user's own plan is never changed.
+ * Step 2, Requirements ("Choose your rooms"): what the house needs, picked
+ * room by room, beside a live preview of a layout for those rooms.
+ * "Generate layouts" opens Explore and fills it. The user's own plan is
+ * never changed.
  */
 export function BriefPanel() {
   const workspace = useSessionState((s) => s.workspace);
   if (workspace !== "brief") return null;
+  return <RoomsStep />;
+}
+
+/** One preview plan for the step, shared by the summary and the preview. */
+function RoomsStep() {
+  const preview = usePreviewLevel();
   return (
     <div className="rooms-step" data-testid="brief-panel">
-      <RoomsPanel />
-      <RoomsPreview />
+      <RoomsPanel preview={preview} />
+      <RoomsPreview preview={preview} />
     </div>
   );
 }
+
+type Preview = ReturnType<typeof usePreviewLevel>;
 
 /** The picks shown for a brief: its own, or ones matching an older brief's counts. */
 export function picksOf(brief: HouseBrief): RoomPicks {
   return brief.rooms ?? picksFromCounts(brief.bedrooms, brief.bathrooms, brief.requiredSpaces, brief.preferences.includes("open_plan"));
 }
 
-function RoomsPanel() {
+function RoomsPanel({ preview }: { preview: Preview }) {
   const status = useSessionState((s) => s.designer.status);
   const lastResult = useSessionState((s) => s.designer.lastResult);
   const brief = useProjectState((s) => s.brief);
@@ -65,28 +73,34 @@ function RoomsPanel() {
   return (
     <section className="rooms-panel" aria-label="Select your rooms">
       <div className="rooms-panel-scroll">
-        <button type="button" className="rooms-back" onClick={() => selectWorkspace("structure")} data-testid="rooms-back">
-          <ArrowLeftIcon width={16} height={16} /> Back
-        </button>
-        <p className="rooms-step-label">Step 2 of 4</p>
-        <h2 className="rooms-title">Select your rooms</h2>
-        <p className="rooms-lead">
-          Choose what you want in your {extension ? "extension" : "home"}. We&rsquo;ll create layouts with the right size and flow for your spaces.
-        </p>
+        <h2 className="rooms-title">Choose your rooms</h2>
+        <p className="rooms-lead">We&rsquo;ll size the {extension ? "extension" : "house"} and lay out three options for you.</p>
 
-        <div className="rooms-tabs" role="tablist">
-          {(["rooms", "presets", "inspiration"] as Tab[]).map((t) => (
-            <button key={t} type="button" role="tab" aria-selected={tab === t} className={tab === t ? "is-active" : undefined} onClick={() => setTab(t)} data-testid={`rooms-tab-${t}`}>
-              {t[0].toUpperCase() + t.slice(1)}
-            </button>
-          ))}
-        </div>
+        <Tabs
+          label="Choose rooms"
+          value={tab}
+          tabs={[
+            { value: "rooms", label: "Rooms" },
+            { value: "presets", label: "Starting points" },
+          ]}
+          onChange={setTab}
+          testIdPrefix="rooms-tab"
+        />
 
         {tab === "rooms" && <RoomPicker brief={brief} />}
-        {tab === "presets" && <Presets brief={brief} onPicked={() => setTab("rooms")} />}
-        {tab === "inspiration" && <Inspiration onPicked={() => setTab("rooms")} />}
+        {tab === "presets" && (
+          <>
+            <Presets brief={brief} onPicked={() => setTab("rooms")} />
+            <h3 className="rooms-subhead">From example homes</h3>
+            <Inspiration onPicked={() => setTab("rooms")} />
+          </>
+        )}
 
-        {auto && (
+        <BriefSection title="Storeys" hint={brief.storeys === 2 ? "Living spaces downstairs with a WC; bedrooms upstairs. Two-storey houses are rectangular for now." : undefined}>
+          <StoreyChips value={brief.storeys} onChange={(storeys) => update({ storeys })} />
+        </BriefSection>
+
+        {auto && brief.storeys !== 2 && (
           <BriefSection title="House shape" hint="The house is shaped and sized from your rooms. Any shape mixes rectangles with L, T and U houses.">
             <HouseShapeChips value={brief.houseShape} onChange={(houseShape) => update({ houseShape })} />
           </BriefSection>
@@ -97,7 +111,12 @@ function RoomsPanel() {
             More options <ChevronDownIcon width={16} height={16} />
           </summary>
           <div className="rooms-more-body">
-            {auto ? <SizingSummary /> : <ShellSummary />}
+            <p className="rooms-map-note">
+              {auto ? "The plot the house must fit" : "Your house's size and garden side"} {auto ? "is" : "are"} set in Map.{" "}
+              <button type="button" className="link-btn" onClick={() => goToStep("map")} data-testid="brief-open-map">
+                Open Map
+              </button>
+            </p>
             <BriefSection title="Approximate sizes">
               <BriefSizeFields brief={brief} onChange={update} />
             </BriefSection>
@@ -144,10 +163,11 @@ function RoomsPanel() {
             {lastResult.offerAutoSize && !auto && (
               <button
                 type="button"
-                className="btn btn-outline btn-sm"
+                className="btn btn-secondary btn-sm"
                 disabled={running}
                 onClick={async () => {
-                  if ((await design.sizeFromRooms()).length) selectWorkspace("design");
+                  selectWorkspace("design");
+                  await design.sizeFromRooms();
                 }}
                 data-testid="size-from-rooms"
               >
@@ -156,9 +176,12 @@ function RoomsPanel() {
             )}
           </div>
         )}
-        <button type="button" className="btn btn-primary btn-block btn-lg" disabled={running} onClick={() => void generateFromRooms()} data-testid="generate-layouts">
-          <SparkleIcon width={18} height={18} /> {running ? "Generating…" : "Generate layouts"}
-        </button>
+        <div className="rooms-footer-row">
+          <RoomsSummary brief={brief} plan={preview.plan} />
+          <button type="button" className="btn btn-primary btn-lg" disabled={running} onClick={() => void generateFromRooms()} data-testid="generate-layouts">
+            {running ? "Generating…" : "Generate layouts"}
+          </button>
+        </div>
       </footer>
     </section>
   );
@@ -178,25 +201,20 @@ function RoomPicker({ brief }: { brief: HouseBrief }) {
       count >= spec.max || unavailable || (spec.group === "bedrooms" && bedrooms >= BRIEF_LIMITS.maxBedrooms) || (spec.group === "bathrooms" && bathrooms >= BRIEF_LIMITS.maxBathrooms);
     return (
       <li key={id} className={`pick-card${count ? " is-on" : ""}${unavailable ? " is-unavailable" : ""}`} data-testid={`pick-${id}`}>
-        <label className="pick-check">
-          <input type="checkbox" checked={count > 0} disabled={unavailable} onChange={() => set(id, count ? 0 : 1)} aria-label={spec.label} data-testid={`pick-${id}-check`} />
-          <span aria-hidden>{count > 0 && <CheckIcon width={13} height={13} />}</span>
-        </label>
         {/* eslint-disable-next-line @next/next/no-img-element -- small static illustrations */}
-        <img className="pick-image" src={`/rooms/${id}.jpg`} alt="" width={84} height={64} loading="lazy" />
+        <img className="pick-image" src={`/rooms/${id}.jpg`} alt="" width={56} height={56} loading="lazy" />
         <span className="pick-text">
           <strong>{spec.label}</strong>
           <small>{unavailable ? "Add a master bedroom first" : spec.hint}</small>
         </span>
-        <span className="pick-counter" role="group" aria-label={`${spec.label} count`}>
-          <IconButton label={`Fewer: ${spec.label}`} disabled={!count} onClick={() => set(id, count - 1)} data-testid={`pick-${id}-dec`}>
-            <MinusIcon width={15} height={15} />
-          </IconButton>
-          <output data-testid={`pick-${id}-count`}>{count}</output>
-          <IconButton label={`More: ${spec.label}`} disabled={full} onClick={() => set(id, count + 1)} data-testid={`pick-${id}-inc`}>
-            <PlusIcon width={15} height={15} />
-          </IconButton>
-        </span>
+        <CountStepper
+          noun={spec.label.toLowerCase()}
+          value={count}
+          max={full && !unavailable ? count : spec.max}
+          disabledReason={unavailable ? "it needs a master bedroom first" : undefined}
+          onChange={(v) => set(id, v)}
+          testIdPrefix={`pick-${id}`}
+        />
       </li>
     );
   };
@@ -309,90 +327,103 @@ function Inspiration({ onPicked }: { onPicked: () => void }) {
 
 // ── Live preview ──────────────────────────────────────────────────────────
 
-const CAMERAS: ReadonlyArray<{ id: CameraMode; label: string; Icon: typeof OrbitIcon }> = [
-  { id: "orbit", label: "Orbit", Icon: OrbitIcon },
-  { id: "walk", label: "Walk", Icon: WalkIcon },
-  { id: "interior", label: "Interior", Icon: InteriorIcon },
-  { id: "exterior", label: "Exterior", Icon: ExteriorIcon },
-];
-
-const LIGHTING: ReadonlyArray<{ id: Lighting; label: string }> = [
-  { id: "morning", label: "Morning" },
-  { id: "midday", label: "Daylight" },
-  { id: "evening", label: "Evening" },
-  { id: "night", label: "Night" },
-];
-
 /** A layout for the picked rooms, worked out as the picks change. Not saved until layouts are generated. */
-function usePreviewLevel(): { level: Level | null; problem: string | null; tooSmall: boolean } {
-  const brief = useProjectState((s) => s.brief);
+function usePreviewLevel(): { plan: PlanDocument | null; level: Level | null; problem: string | null; tooSmall: boolean; stale: boolean } {
+  const current = useProjectState((s) => s.brief);
+  // Counters answer at once; the preview plans a beat later, and skips ahead while clicks keep coming.
+  const brief = useDeferredValue(current);
   const sizing = useProjectState((s) => s.sizing);
+  const site = useProjectState((s) => s.site);
   const plans = useProjectState((s) => s.plans);
   // The user's own house, which layouts fill when the house size is fixed.
   const active = useDocumentState((s) => s.history.present);
   const rootId = (plans.find((p) => p.parentId === null && p.origin.kind === "user") ?? plans[0]).id;
-  return useMemo(() => {
+  const planned = useMemo(() => {
     const auto = sizing?.footprint === "auto";
+    const plot = generationPlot({ site, sizing });
     const source = editor.planDocument(rootId) ?? active;
     const result = planLayouts({
-      intent: { action: "generate_layouts", brief, count: 1, ...(auto ? { footprint: "auto" as const, ...(sizing?.plot ? { plot: sizing.plot } : {}) } : {}) },
+      intent: { action: "generate_layouts", brief, count: 1, ...(auto ? { footprint: "auto" as const, ...(plot ? { plot } : {}) } : {}) },
       source,
       brief,
       idPrefix: "preview",
     });
     const first = result.candidates[0];
     return first
-      ? { level: first.document.levels[0], problem: null, tooSmall: false }
-      : { level: null, problem: result.issues[0]?.message ?? "These rooms don't fit a layout yet.", tooSmall: !!result.issues[0]?.tooSmall };
-  }, [brief, sizing, rootId, active]);
+      ? { plan: first.document, level: first.document.levels[0], problem: null, tooSmall: false }
+      : { plan: null, level: null, problem: result.issues[0]?.message ?? "These rooms don't fit a layout yet.", tooSmall: !!result.issues[0]?.tooSmall };
+  }, [brief, sizing, site, rootId, active]);
+  return { ...planned, stale: brief !== current };
 }
 
-function RoomsPreview() {
-  const { level, problem, tooSmall } = usePreviewLevel();
+/** The picked rooms in a line: what you'll get, and roughly how big. */
+function RoomsSummary({ brief, plan }: { brief: HouseBrief; plan: PlanDocument | null }) {
+  const picks = picksOf(brief);
+  const areaText = useAreaText();
+  const area = plan ? assessHouse(plan).totalArea : null;
+  return (
+    <div className="rooms-summary" aria-live="polite" data-testid="rooms-preview-facts">
+      <strong>
+        {pickedBedrooms(picks)} bed · {pickedBathrooms(picks)} bath
+      </strong>
+      <span>{area ? `about ${areaText(area)}` : "pick some rooms"}</span>
+    </div>
+  );
+}
+
+function RoomsPreview({ preview }: { preview: Preview }) {
+  const { plan, level, problem, tooSmall, stale } = preview;
   const stored = useProjectState((s) => s.appearance);
   const appearance = useMemo(() => ({ ...DEFAULT_APPEARANCE, ...stored }), [stored]);
   const style = appearance.interiorStyle ?? DEFAULT_INTERIOR_STYLE;
   const available = useRenders((s) => s.available);
-  const [mode, setMode] = useState<PreviewMode>("3d");
-  const [camera, setCamera] = useState<CameraMode>("orbit");
-  const [cameraTick, setCameraTick] = useState(0);
-  const [lighting, setLighting] = useState<Lighting>("midday");
-  const [dimensions, setDimensions] = useState(false);
+  const [mode, setMode] = useState<PreviewMode>("2d");
   const [photo, setPhoto] = useState<{ level: Level; url: string } | null>(null);
   const [rendering, setRendering] = useState(false);
   const [photoError, setPhotoError] = useState<string | null>(null);
   // Low cut walls show the rooms and furniture, as a dollhouse.
-  const display = useMemo(() => ({ cutaway: true, roof: false, dimensions, landscape: true, furniture: true, roomLabels: true }), [dimensions]);
+  const display = useMemo(() => ({ cutaway: true, roof: false, dimensions: false, landscape: true, furniture: true, roomLabels: true }), []);
   const env = level ? analyzeEnvelope(level) : null;
-  const facts = level ? assessPlan(level) : null;
   const sizeKey = env?.ok ? `${env.info.width}x${env.info.depth}` : "none";
   const shownPhoto = photo && photo.level === level ? photo.url : null;
+  // Photos need the image service; in production the button only shows when it's there.
+  const showRender = available === "yes" || (available === "no" && process.env.NODE_ENV === "development");
 
   const renderPhoto = async () => {
     if (!level) return;
     setRendering(true);
     setPhotoError(null);
-    const result = await renders.renderOne(level, { kind: "aerial" }, appearance, style);
+    const result = await renders.renderOne(plan ?? level, { kind: "aerial" }, appearance, style);
     setRendering(false);
     if (result.ok) setPhoto({ level, url: result.url });
     else setPhotoError(result.message);
   };
 
   return (
-    <section className={`rooms-preview is-${mode}`} aria-label="Layout preview" data-testid="rooms-preview">
+    <section className={`rooms-preview is-${mode}${stale ? " is-stale" : ""}`} aria-label="Layout preview" data-testid="rooms-preview">
       <div className="rooms-preview-panes">
-        {mode !== "2d" && (
+        {mode === "3d" ? (
           <div className="rooms-preview-3d">
             {level &&
               (shownPhoto ? (
                 // eslint-disable-next-line @next/next/no-img-element -- an object URL made in the browser
                 <img className="rooms-photo" src={shownPhoto} alt="Photo render of the layout from above" data-testid="rooms-photo" />
               ) : (
-                <LevelView level={level} display={display} appearance={appearance} lighting={lighting} camera={camera} cameraKey={`${sizeKey}:${cameraTick}`} />
+                <LevelView level={plan ?? level} display={display} appearance={appearance} lighting="midday" camera="orbit" cameraKey={sizeKey} />
               ))}
           </div>
+        ) : (
+          <div className={`rooms-preview-2d${plan && plan.levels.length > 1 ? " is-floors" : ""}`}>
+            {plan && plan.levels.length > 1
+              ? plan.levels.map((l) => (
+                  <figure key={l.id} className="rooms-floor">
+                    <PlanThumbnail level={l} plan={plan} palette="type" className="rooms-plan" pad={0.8} detail />
+                    <figcaption>{l.name}</figcaption>
+                  </figure>
+                ))
+              : level && <PlanThumbnail level={level} palette="type" className="rooms-plan" pad={1.2} detail />}
+          </div>
         )}
-        {mode !== "3d" && <div className="rooms-preview-2d plan-paper">{level && <PlanThumbnail level={level} palette="type" className="rooms-plan" pad={0.8} detail />}</div>}
       </div>
 
       {!level && (
@@ -407,150 +438,43 @@ function RoomsPreview() {
       )}
 
       <div className="rooms-preview-top">
-        <div className="rooms-view-switch floating-pill" role="radiogroup" aria-label="Preview">
-          {(
-            [
-              ["3d", "3D view"],
-              ["2d", "2D plan"],
-              ["split", "Split"],
-            ] as const
-          ).map(([id, label]) => (
-            <button key={id} type="button" role="radio" aria-checked={mode === id} className={mode === id ? "is-active" : undefined} onClick={() => setMode(id)} data-testid={`rooms-view-${id}`}>
-              {label}
-            </button>
-          ))}
-        </div>
-        <div className="rooms-preview-tools">
-          <label className="floating-pill toggle-pill">
-            <input type="checkbox" role="switch" checked={dimensions} onChange={() => setDimensions(!dimensions)} data-testid="rooms-dimensions" />
-            Show dimensions
-          </label>
-          <label className="floating-pill floor-pill">
-            Floor
-            <select aria-label="Floor" defaultValue="ground">
-              <option value="ground">Ground Floor</option>
-              <option value="first" disabled>
-                First Floor (coming soon)
-              </option>
-            </select>
-          </label>
-        </div>
-      </div>
-
-      {level && facts && (
-        <div className="rooms-preview-facts floating-pill" data-testid="rooms-preview-facts">
-          {env?.ok && (
-            <span>
-              {env.info.width} × {env.info.depth} m
-            </span>
-          )}
-          <span>{Math.round(facts.totalArea)} m² inside</span>
-          <span>
-            {facts.bedrooms} bed · {facts.bathrooms} bath
-          </span>
-        </div>
-      )}
-
-      {level && mode !== "2d" && (
-        <>
+        <SegmentedControl
+          label="Preview"
+          value={mode}
+          options={[
+            { value: "2d", label: "Plan" },
+            { value: "3d", label: "3D" },
+          ]}
+          onChange={setMode}
+          size="md"
+          className="floating-pill"
+          testIdPrefix="rooms-view"
+        />
+        {level && mode === "3d" && showRender && (
           <div className="rooms-photo-tools">
             {shownPhoto ? (
-              <button type="button" className="btn btn-outline floating-pill" onClick={() => setPhoto(null)} data-testid="rooms-photo-back">
+              <button type="button" className="btn btn-secondary btn-md" onClick={() => setPhoto(null)} data-testid="rooms-photo-back">
                 Back to 3D
               </button>
             ) : (
               <button
                 type="button"
-                className="btn btn-outline floating-pill"
+                className="btn btn-secondary btn-md"
                 disabled={available !== "yes" || rendering}
                 onClick={() => void renderPhoto()}
-                data-tooltip={available === "no" ? "Photo renders need GEMINI_API_KEY in .env.local" : "One paid call to Google's Gemini image model"}
+                data-tooltip={available === "no" ? "Photos need GEMINI_API_KEY in .env.local (shown in development only)" : "Turns this view into a photo, in about ten seconds"}
                 data-tooltip-side="left"
                 data-testid="rooms-render-photo"
               >
-                <SparkleIcon width={16} height={16} /> {rendering ? "Rendering photo…" : "Render photo"}
+                <SparkleIcon width={16} height={16} /> {rendering ? "Making a photo…" : "Render photo"}
               </button>
             )}
             {photoError && <span className="rooms-photo-error">{photoError}</span>}
           </div>
-          {!shownPhoto && (
-            <div className="rooms-dock floating-pill" role="radiogroup" aria-label="Camera">
-              {CAMERAS.map(({ id, label, Icon }) => (
-                <button
-                  key={id}
-                  type="button"
-                  role="radio"
-                  aria-checked={camera === id}
-                  className={camera === id ? "is-active" : undefined}
-                  onClick={() => {
-                    setCamera(id);
-                    setCameraTick((t) => t + 1);
-                  }}
-                  data-testid={`rooms-camera-${id}`}
-                >
-                  <Icon width={20} height={20} />
-                  {label}
-                </button>
-              ))}
-            </div>
-          )}
-          {!shownPhoto && (
-            <label className="rooms-light floating-pill">
-              <SunIcon width={18} height={18} />
-              <select aria-label="Lighting" value={lighting} onChange={(e) => setLighting(e.currentTarget.value as Lighting)} data-testid="rooms-lighting">
-                {LIGHTING.map((l) => (
-                  <option key={l.id} value={l.id}>
-                    {l.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-          )}
-        </>
-      )}
+        )}
+      </div>
+      <p className="rooms-preview-caption">Live preview. It changes as you add rooms; your three layouts come next.</p>
     </section>
-  );
-}
-
-/** The shell the layouts must fit: outside size and which side the garden is. */
-function ShellSummary() {
-  const level = useDocumentState((s) => s.history.present.levels[0]);
-  const env = analyzeEnvelope(level);
-  if (!env.ok) return null;
-  return (
-    <div className="shell-summary" data-testid="brief-shell">
-      <span>
-        Shell{" "}
-        <strong>
-          {env.info.isRectangle ? "" : `${describeOutline(env.info).words}, `}
-          {env.info.width.toFixed(1)} × {env.info.depth.toFixed(1)} m
-        </strong>
-      </span>
-      <span>
-        Garden side <strong>{(level.rearWallId && facingLabel(level, level.rearWallId)) || "not set"}</strong>
-      </span>
-      <button type="button" className="link-btn" onClick={() => editor.setSizing({ footprint: "auto" })} data-testid="use-auto-size">
-        Size the house from the rooms instead
-      </button>
-    </div>
-  );
-}
-
-/** Houses sized from the rooms: the plot they must fit, and a way back to the user's own house. */
-function SizingSummary() {
-  const plot = useProjectState((s) => s.sizing?.plot);
-  return (
-    <div className="shell-summary" data-testid="brief-sizing">
-      <span>
-        House size <strong>chosen from your rooms</strong>
-      </span>
-      <span>
-        Plot <strong>{plot?.maxWidth || plot?.maxDepth ? `up to ${plot.maxWidth ?? "any"} × ${plot.maxDepth ?? "any"} m` : "no limit"}</strong>
-      </span>
-      <button type="button" className="link-btn" onClick={() => editor.setSizing({ footprint: "source" })} data-testid="use-fixed-shell">
-        Use a fixed house size instead
-      </button>
-    </div>
   );
 }
 
@@ -560,9 +484,9 @@ function RearWallCheck() {
   if (hasRear) return null;
   return (
     <p className="brief-note" data-testid="brief-rear-note">
-      Mark the rear wall so we know where the garden is.{" "}
-      <button type="button" className="link-btn" onClick={() => selectWorkspace("structure")}>
-        Go to Structure
+      Mark the garden side so we know where the garden is.{" "}
+      <button type="button" className="link-btn" onClick={() => goToStep("map")}>
+        Mark it in Map
       </button>
     </p>
   );
@@ -573,9 +497,9 @@ function Instructions({ value, onCommit }: { value: string; onCommit: (v: string
   const [text, setText] = useState(value);
   const ai = useSessionState((s) => s.designer.ai);
   const notesHint =
-    ai === "available"
-      ? "When you generate layouts, Claude reads these notes and adds what it can to your rooms."
-      : "Saved with your brief. Add an Anthropic API key to have Claude read these notes into the brief.";
+    ai === "available" ? "We read these notes when you generate layouts and add what we can to your rooms."
+    : process.env.NODE_ENV === "development" ? "Saved with your rooms. Set ANTHROPIC_API_KEY to have them read into the brief (shown in development only)."
+    : "Saved with your rooms.";
   return (
     <div className="field">
       <textarea

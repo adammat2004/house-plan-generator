@@ -1,7 +1,7 @@
 import { analyzeEnvelope, type EnvelopeInfo } from "../../geometry/envelope";
 import { EPS, formatMetres, roundToPrecision } from "../../geometry/numeric";
 import { LIMITS } from "../../plan/defaults";
-import type { Id, Level } from "../../plan/types";
+import type { Id, Level, Point2 } from "../../plan/types";
 import type { IdSource } from "../ids";
 import { compensateOpenings, fail, requireLength } from "../ops";
 import { outlineLevel } from "./outline";
@@ -12,10 +12,11 @@ type ResizeFootprint = Extract<PlanCommand, { type: "resizeFootprint" }>;
 
 /**
  * Builds a new level with a rectangular envelope. Width and depth are
- * outside-face dimensions; the lower-left outside corner sits at the origin
- * and wall centrelines are inset by half the external thickness.
+ * outside-face dimensions; the lower-left outside corner sits at `origin`
+ * (an upper floor's goes over the floor below's) and wall centrelines are
+ * inset by half the external thickness.
  */
-export function createFootprint(previous: Level | null, cmd: CreateFootprint, ids: IdSource): Level {
+export function createFootprint(previous: Level | null, cmd: CreateFootprint, ids: IdSource, origin: Point2 = { x: 0, y: 0 }): Level {
   const thickness = requireLength(
     cmd.externalThickness,
     "External wall thickness",
@@ -33,7 +34,7 @@ export function createFootprint(previous: Level | null, cmd: CreateFootprint, id
     { x: roundToPrecision(width - half), y: half },
     { x: roundToPrecision(width - half), y: roundToPrecision(depth - half) },
     { x: half, y: roundToPrecision(depth - half) },
-  ];
+  ].map((p) => (origin.x === 0 && origin.y === 0 ? p : { x: roundToPrecision(p.x + origin.x), y: roundToPrecision(p.y + origin.y) }));
   return outlineLevel(previous, corners, thickness, height, ids);
 }
 

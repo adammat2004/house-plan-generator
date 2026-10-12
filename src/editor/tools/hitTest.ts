@@ -2,35 +2,22 @@ import { roomFaceIndices, type LevelGeometry } from "@/domain/geometry/derive";
 import { findFaceIndexContaining } from "@/domain/geometry/faces";
 import { dot, sub } from "@/domain/geometry/vector";
 import { axialParam, distanceToAxis } from "@/domain/geometry/walls";
-import type { Id, Level, Point2 } from "@/domain/plan/types";
+import { levelStairs } from "@/domain/geometry/stairs";
+import type { Id, Level, PlanDocument, Point2 } from "@/domain/plan/types";
 import type { Selection } from "../state/stores";
 
 /**
- * Hit testing in world coordinates against derived geometry, so Konva nodes
- * never act as the source of truth. Openings win over walls, walls over rooms.
+ * What Select picks in Refine, in world coordinates against derived geometry
+ * (Konva nodes are never the source of truth): furniture when it's on show,
+ * then the door or window the pointer is in, then a wall, then a door or
+ * window near it, then the room. A door or window wins over its own wall
+ * where it actually is, so it can still be dragged.
  */
-export function hitTest(level: Level, geometry: LevelGeometry, p: Point2, tolerance: number): Selection {
-  const openingId = hitOpening(level, geometry, p, tolerance);
-  if (openingId) return { kind: "opening", id: openingId };
-
-  const wallId = hitWall(geometry, p, tolerance);
-  if (wallId) return { kind: "wall", id: wallId };
-
-  const roomId = roomAt(level, geometry, p);
-  return roomId ? { kind: "room", id: roomId } : null;
-}
-
-/**
- * What Select picks in Designs: furniture, then an internal wall, then a
- * door or window, then the room. A door or window wins over its own wall
- * where it actually is, so it can still be dragged; outline walls stay
- * with Structure.
- */
-export function hitDesign(level: Level, geometry: LevelGeometry, p: Point2, tolerance: number, furnitureId: Id | null): Selection {
+export function hitRefine(level: Level, geometry: LevelGeometry, p: Point2, tolerance: number, furnitureId: Id | null = null): Selection {
   if (furnitureId) return { kind: "furniture", id: furnitureId };
   const inOpening = hitOpening(level, geometry, p, tolerance, 0);
   if (inOpening) return { kind: "opening", id: inOpening };
-  const wallId = hitWall(geometry, p, tolerance, (id) => level.walls[id]?.role === "internal");
+  const wallId = hitWall(geometry, p, tolerance);
   if (wallId) return { kind: "wall", id: wallId };
   const openingId = hitOpening(level, geometry, p, tolerance);
   if (openingId) return { kind: "opening", id: openingId };
@@ -97,4 +84,12 @@ export function hitWallEnd(geometry: LevelGeometry, wallId: Id, p: Point2, toler
   const de = Math.hypot(p.x - axis.end.x, p.y - axis.end.y);
   if (Math.min(ds, de) > tolerance) return null;
   return ds <= de ? "start" : "end";
+}
+
+/** The staircase on a floor whose plan holds the point. */
+export function hitStairs(doc: PlanDocument, levelId: Id, p: Point2): Id | null {
+  for (const { staircase, plan } of levelStairs(doc, levelId)) {
+    if (plan.footprint.some((r) => p.x >= r.minX && p.x <= r.maxX && p.y >= r.minY && p.y <= r.maxY)) return staircase.id;
+  }
+  return null;
 }

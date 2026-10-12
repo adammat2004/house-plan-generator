@@ -28,7 +28,7 @@ export async function freshEditor(page: Page) {
   await expect(page.getByTestId("new-project-form")).toBeVisible();
 }
 
-/** Clears browser storage and loads the home screen. */
+/** Clears browser storage and loads the home screen (empty: no projects listed). */
 export async function freshHome(page: Page) {
   await page.goto("/");
   await page.evaluate(
@@ -39,7 +39,8 @@ export async function freshHome(page: Page) {
       }),
   );
   await page.reload();
-  await expect(page.getByTestId("no-projects")).toBeVisible();
+  await expect(page.getByTestId("start-rooms")).toBeVisible();
+  await expect(page.getByTestId("project-card")).toHaveCount(0);
 }
 
 /** Fills in the new-project page and waits for the editor to open the project. */

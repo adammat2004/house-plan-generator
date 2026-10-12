@@ -2,8 +2,9 @@
 
 import { useLayoutEffect, useState, type ReactNode } from "react";
 import { compareRoom, connectionSummary, roomBounds, roomFacts, type RoomChange } from "@/domain/design/analysis";
+import { levelOf } from "@/domain/plan/levels";
 import type { Rect } from "@/domain/geometry/vector";
-import type { Level } from "@/domain/plan/types";
+import type { Level, PlanDocument } from "@/domain/plan/types";
 import { IconButton, Menu, MenuItem } from "@/components/ui/controls";
 import {
   ArrowLeftIcon,
@@ -39,6 +40,8 @@ interface Entry {
   label: string;
   title: string;
   level: Level;
+  /** The house the floor is in, for its stairs. */
+  plan: PlanDocument;
   /** The room's id in this entry's plan (a merged room may have a new one). */
   roomId: string;
   /** Rooms to outline in the preview. */
@@ -52,16 +55,20 @@ const union = (rects: Array<Rect | null>): Rect | null => {
   return { minX: Math.min(...r.map((x) => x.minX)), minY: Math.min(...r.map((x) => x.minY)), maxX: Math.max(...r.map((x) => x.maxX)), maxY: Math.max(...r.map((x) => x.maxY)) };
 };
 
+/** The floor the room is on, in the plan the variations were made from. */
+const floorOf = (v: VariationsState) => levelOf(v.source, v.roomId) ?? v.source.levels[0];
+
 function entriesOf(v: VariationsState): Entry[] {
-  const level = v.source.levels[0];
+  const level = floorOf(v);
   const room = level.rooms[v.roomId];
   return [
-    { id: CURRENT, label: "Current design", title: room?.name ?? "Room", level, roomId: v.roomId, highlight: [v.roomId], proposal: null },
+    { id: CURRENT, label: "Current design", title: room?.name ?? "Room", level, plan: v.source, roomId: v.roomId, highlight: [v.roomId], proposal: null },
     ...v.options.map((p, i) => ({
       id: p.id,
       label: `Variation ${i + 1}`,
       title: p.title,
-      level: p.document.levels[0],
+      level: levelOf(p.document, p.roomIds[0] ?? v.roomId) ?? p.document.levels[0],
+      plan: p.document,
       roomId: p.roomIds[0] ?? v.roomId,
       highlight: p.roomIds,
       proposal: p,
@@ -72,7 +79,7 @@ function entriesOf(v: VariationsState): Entry[] {
 /** Every card frames the same stretch of plan: the room and whatever any option changes, with some context. */
 function sharedFocus(v: VariationsState, entries: Entry[]): Rect | undefined {
   const rects = entries.flatMap((e) => e.highlight.map((id) => roomBounds(e.level, id)));
-  return union([roomBounds(v.source.levels[0], v.roomId), ...rects]) ?? undefined;
+  return union([roomBounds(floorOf(v), v.roomId), ...rects]) ?? undefined;
 }
 
 const CHANGE_ICON: Record<RoomChange["kind"], ReactNode> = {
@@ -91,7 +98,7 @@ function linesOf(v: VariationsState, e: Entry): string[] {
     const facts = roomFacts(e.level, e.roomId);
     return [...(facts ? [`${facts.width.toFixed(1)} × ${facts.depth.toFixed(1)} m`] : []), ...connectionSummary(e.level, e.roomId).map((c) => c.text)];
   }
-  return compareRoom(v.source.levels[0], e.level, v.roomId, e.roomId).map((c) => c.text);
+  return compareRoom(floorOf(v), e.level, v.roomId, e.roomId).map((c) => c.text);
 }
 
 /**
@@ -115,7 +122,7 @@ function Variations({ v }: { v: VariationsState }) {
   const entries = entriesOf(v);
   const focus = sharedFocus(v, entries);
   const stale = v.source !== current;
-  const room = v.source.levels[0].rooms[v.roomId];
+  const room = floorOf(v).rooms[v.roomId];
   const focused = entries.find((e) => e.id === v.focusId) ?? entries[0];
   const byId = (id: string) => entries.find((e) => e.id === id);
 
@@ -133,7 +140,7 @@ function Variations({ v }: { v: VariationsState }) {
   const compare = v.compare ? [byId(v.compare[0]), byId(v.compare[1])] : null;
 
   return (
-    <section className={`concept-board variations-board${gridVisible ? " has-grid" : ""}`} aria-label={`${room?.name ?? "Room"} variations`} data-testid="room-variations-board">
+    <section className={`variations-board${gridVisible ? " has-grid" : ""}`} aria-label={`${room?.name ?? "Room"} variations`} data-testid="room-variations-board">
       <header className="board-header">
         <div>
           <button type="button" className="board-back" onClick={back} data-testid="variations-back">
@@ -143,7 +150,7 @@ function Variations({ v }: { v: VariationsState }) {
           <p>Explore layout options for {room?.name.toLowerCase() ?? "this room"}. Compare them and apply your favourite; nothing changes until you do.</p>
         </div>
         <div className="board-actions">
-          <button type="button" className="btn btn-outline" disabled={running || stale} onClick={() => void design.moreVariations()} data-testid="more-variations">
+          <button type="button" className="btn btn-secondary" disabled={running || stale} onClick={() => void design.moreVariations()} data-testid="more-variations">
             <SparkleIcon width={17} height={17} /> {running ? "Generating…" : "Generate more variations"}
           </button>
         </div>
@@ -218,7 +225,7 @@ function VariationCard({
                 ))}
               <hr />
               <MenuItem onSelect={() => void design.similarVariation(entry.id)}>Generate similar</MenuItem>
-              <MenuItem onSelect={() => design.saveProposal(entry.id)} disabled={entry.proposal?.state === "saved"}>
+              <MenuItem onSelect={() => design.saveProposal(entry.id)} disabled={!!entry.proposal && design.statusOf(entry.proposal) === "saved"}>
                 Save as concept
               </MenuItem>
             </Menu>
@@ -227,7 +234,7 @@ function VariationCard({
       </header>
       {!isCurrent && facts && <span className="variation-area">{facts.area.toFixed(1)} m²</span>}
       <div className="variation-media">
-        <ConceptPreview level={entry.level} focus={focus} margin={CONTEXT} highlight={entry.highlight} />
+        <ConceptPreview level={entry.level} plan={entry.plan} focus={focus} margin={CONTEXT} highlight={entry.highlight} />
       </div>
       {isCurrent && (
         <div className="variation-current-title">
@@ -249,14 +256,14 @@ function VariationCard({
         <button type="button" className="btn btn-primary btn-block" disabled>
           <CheckIcon width={15} height={15} /> Current design
         </button>
-      ) : entry.proposal?.state === "saved" ? (
-        <button type="button" className="btn btn-outline btn-block" disabled>
+      ) : (entry.proposal && design.statusOf(entry.proposal) === "saved") ? (
+        <button type="button" className="btn btn-secondary btn-block" disabled>
           <CheckIcon width={15} height={15} /> Saved as a concept
         </button>
       ) : (
         <button
           type="button"
-          className="btn btn-outline btn-block"
+          className="btn btn-secondary btn-block"
           disabled={stale}
           onClick={(e) => {
             e.stopPropagation();
@@ -272,7 +279,7 @@ function VariationCard({
 }
 
 const VIEWS: ReadonlyArray<{ label: string; palette: PlanPalette }> = [
-  { label: "Plan", palette: "warm" },
+  { label: "Plan", palette: "finish" },
   { label: "Room uses", palette: "type" },
   { label: "Day and night", palette: "zones" },
 ];
@@ -281,7 +288,7 @@ function VariationDetail({ v, entry, focus, stale, onClose }: { v: VariationsSta
   const [viewIndex, setViewIndex] = useState(0);
   const facts = roomFacts(entry.level, entry.roomId);
   const room = entry.level.rooms[entry.roomId];
-  const changes = entry.proposal ? compareRoom(v.source.levels[0], entry.level, v.roomId, entry.roomId) : [];
+  const changes = entry.proposal ? compareRoom(floorOf(v), entry.level, v.roomId, entry.roomId) : [];
   const height = entry.level.defaultWallHeight;
   return (
     <aside className="concept-detail floating" aria-label="Variation details" data-testid="variation-detail">
@@ -296,7 +303,7 @@ function VariationDetail({ v, entry, focus, stale, onClose }: { v: VariationsSta
       </header>
       <div className="concept-detail-body">
         <div className="viewer">
-          <ConceptPreview level={entry.level} palette={VIEWS[viewIndex].palette} className="viewer-main" focus={focus} margin={CONTEXT} highlight={entry.highlight} />
+          <ConceptPreview level={entry.level} plan={entry.plan} palette={VIEWS[viewIndex].palette} className="viewer-main" focus={focus} margin={CONTEXT} highlight={entry.highlight} />
           <span className="viewer-caption">{VIEWS[viewIndex].label}</span>
           <button type="button" className="viewer-arrow is-prev" aria-label="Previous view" onClick={() => setViewIndex((viewIndex + VIEWS.length - 1) % VIEWS.length)}>
             <ChevronLeftIcon width={18} height={18} />
@@ -308,7 +315,7 @@ function VariationDetail({ v, entry, focus, stale, onClose }: { v: VariationsSta
         <div className="viewer-thumbs" role="tablist" aria-label="Views">
           {VIEWS.map((view, i) => (
             <button key={view.label} type="button" role="tab" aria-selected={viewIndex === i} aria-label={view.label} className={viewIndex === i ? "is-active" : undefined} onClick={() => setViewIndex(i)}>
-              <ConceptPreview level={entry.level} palette={view.palette} labels={false} className="viewer-thumb" focus={focus} margin={CONTEXT} />
+              <ConceptPreview level={entry.level} plan={entry.plan} palette={view.palette} labels={false} className="viewer-thumb" focus={focus} margin={CONTEXT} />
             </button>
           ))}
         </div>
@@ -354,15 +361,15 @@ function VariationDetail({ v, entry, focus, stale, onClose }: { v: VariationsSta
       </div>
       {entry.proposal && (
         <footer className="concept-detail-footer variation-actions">
-          <button type="button" className="btn btn-primary btn-block btn-lg" disabled={stale || entry.proposal.state !== "open"} onClick={() => design.applyProposal(entry.id)} data-testid="apply-variation">
+          <button type="button" className="btn btn-primary btn-block btn-lg" disabled={stale || design.statusOf(entry.proposal) !== "open"} onClick={() => design.applyProposal(entry.id)} data-testid="apply-variation">
             Apply this variation <ArrowRightIcon width={16} height={16} />
           </button>
           <button
             type="button"
-            className="btn btn-outline btn-block"
+            className="btn btn-secondary btn-block"
             disabled={stale}
             onClick={() => {
-              if (entry.proposal?.state === "open") design.saveProposal(entry.id);
+              if ((entry.proposal && design.statusOf(entry.proposal) === "open")) design.saveProposal(entry.id);
               void design.similarVariation(entry.id);
             }}
             data-testid="save-similar"
@@ -378,7 +385,7 @@ function VariationDetail({ v, entry, focus, stale, onClose }: { v: VariationsSta
 /** Two versions side by side, with the numbers that differ. */
 function VariationCompare({ v, left, right, focus, stale }: { v: VariationsState; left: Entry; right: Entry; focus: Rect | undefined; stale: boolean }) {
   const facts = [left, right].map((e) => roomFacts(e.level, e.roomId));
-  const neighbours = Object.keys(v.source.levels[0].rooms).filter((id) => id !== v.roomId);
+  const neighbours = Object.keys(floorOf(v).rooms).filter((id) => id !== v.roomId);
   const area = (e: Entry, id: string) => roomFacts(e.level, id)?.area ?? null;
   const rows: Array<[string, string, string]> = [
     ["Area", ...facts.map((f) => (f ? `${f.area.toFixed(1)} m²` : "—"))] as [string, string, string],
@@ -388,7 +395,7 @@ function VariationCompare({ v, left, right, focus, stale }: { v: VariationsState
     ["Garden doors", ...facts.map((f) => (f?.gardenDoor ? `${f.gardenDoor.toFixed(1)} m` : "None"))] as [string, string, string],
     ...neighbours
       .map((id): [string, string, string] => [
-        v.source.levels[0].rooms[id].name,
+        floorOf(v).rooms[id].name,
         area(left, id) === null ? "Merged" : `${area(left, id)!.toFixed(1)} m²`,
         area(right, id) === null ? "Merged" : `${area(right, id)!.toFixed(1)} m²`,
       ])
@@ -400,7 +407,7 @@ function VariationCompare({ v, left, right, focus, stale }: { v: VariationsState
         <h2>
           Comparing {left.label.toLowerCase()} and {right.label.toLowerCase()}
         </h2>
-        <button type="button" className="btn btn-outline btn-sm" onClick={() => editor.setVariations({ compare: null })} data-testid="end-compare">
+        <button type="button" className="btn btn-secondary btn-sm" onClick={() => editor.setVariations({ compare: null })} data-testid="end-compare">
           Back to all variations
         </button>
       </div>
@@ -412,14 +419,14 @@ function VariationCompare({ v, left, right, focus, stale }: { v: VariationsState
               <span>{e.proposal ? e.title : "As it is"}</span>
             </div>
             <div className="compare-media">
-              <ConceptPreview level={e.level} focus={focus} margin={CONTEXT} highlight={e.highlight} />
+              <ConceptPreview level={e.level} plan={e.plan} focus={focus} margin={CONTEXT} highlight={e.highlight} />
             </div>
             {e.proposal ? (
-              <button type="button" className="btn btn-primary btn-block" disabled={stale || e.proposal.state !== "open"} onClick={() => design.applyProposal(e.id)}>
+              <button type="button" className="btn btn-primary btn-block" disabled={stale || design.statusOf(e.proposal) !== "open"} onClick={() => design.applyProposal(e.id)}>
                 Apply {e.label.toLowerCase()} <ArrowRightIcon width={16} height={16} />
               </button>
             ) : (
-              <button type="button" className="btn btn-outline btn-block" disabled>
+              <button type="button" className="btn btn-secondary btn-block" disabled>
                 <CheckIcon width={15} height={15} /> Current design
               </button>
             )}
@@ -463,7 +470,7 @@ function FullPlan({ v, onBack }: { v: VariationsState; onBack: () => void }) {
       </header>
       {open && (
         <button type="button" className="full-plan-thumb" onClick={onBack} aria-label="Back to the full plan">
-          <PlanThumbnail level={v.source.levels[0]} palette="warm" highlight={[v.roomId]} pad={0.4} className="full-plan-svg" />
+          <PlanThumbnail level={floorOf(v)} plan={v.source} palette="warm" highlight={[v.roomId]} pad={0.4} className="full-plan-svg" />
         </button>
       )}
     </section>

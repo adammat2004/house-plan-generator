@@ -32,7 +32,7 @@ describe("room picks", () => {
     const reply: AiReply = {
       reply: "",
       roomChanges: [],
-      brief: { bedrooms: null, bathrooms: 2, addSpaces: ["office"], removeSpaces: [], addPreferences: [], removePreferences: [], roomSizes: [], houseShape: null },
+      brief: { bedrooms: null, bathrooms: 2, addSpaces: ["office"], removeSpaces: [], addPreferences: [], removePreferences: [], roomSizes: [], houseShape: null, storeys: null },
       unclear: [],
     };
     let next = b;

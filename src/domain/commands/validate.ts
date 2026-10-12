@@ -7,6 +7,7 @@ import { pointAtParam } from "../geometry/walls";
 import { LIMITS } from "../plan/defaults";
 import type { Level, PlanDocument } from "../plan/types";
 import { describeEntity } from "./describe";
+import { onFloorIssues, validateStack } from "./stack";
 import type { PlanIssue } from "./types";
 
 /**
@@ -231,10 +232,12 @@ export function validateLevel(level: Level): PlanIssue[] {
   return validateLevelSemantics(level, geometry);
 }
 
-/** Full geometric validation of a structurally parsed document. */
+/** Full geometric validation of a structurally parsed document: every floor, then how the floors fit together. */
 export function validateDocument(document: PlanDocument): PlanIssue[] {
-  if (document.levels.length !== 1) {
-    return [{ code: "invalid-structure", message: "This version supports exactly one level.", entityIds: [] }];
+  if (document.levels.length === 0) return [{ code: "invalid-structure", message: "The plan has no floors.", entityIds: [] }];
+  for (const [i, level] of document.levels.entries()) {
+    const issues = validateLevel(level);
+    if (issues.length) return i > 0 ? onFloorIssues(i, issues) : issues;
   }
-  return validateLevel(document.levels[0]);
+  return validateStack(document);
 }

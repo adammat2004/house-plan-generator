@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { Level } from "@/domain/plan/types";
+import type { Level, PlanDocument } from "@/domain/plan/types";
 import type { Appearance } from "@/domain/project/schema";
 import { renderStill, type StillView } from "../../rendering/three/stills";
 
@@ -16,7 +16,7 @@ interface Size {
   height: number;
 }
 
-const cache = new WeakMap<Level, Map<string, string | null>>();
+const cache = new WeakMap<Level | PlanDocument, Map<string, string | null>>();
 const queue: Array<() => void> = [];
 let pumping = false;
 
@@ -34,15 +34,15 @@ function pump() {
 const keyOf = (view: StillView, size: Size, appearance: Appearance) => `${view.kind === "room" ? view.roomId : "exterior"}|${size.width}x${size.height}|${JSON.stringify(appearance)}`;
 
 /** A cached still, if one was rendered already. */
-export function cachedStill(level: Level, view: StillView, size: Size, appearance: Appearance): string | null | undefined {
+export function cachedStill(level: Level | PlanDocument, view: StillView, size: Size, appearance: Appearance): string | null | undefined {
   return cache.get(level)?.get(keyOf(view, size, appearance));
 }
 
 /** Returns a ref for the element showing the still, and the still once it's ready (null if it can't be rendered). */
-export function useStill(level: Level, view: StillView, size: Size, appearance: Appearance): { ref: (el: Element | null) => void; url: string | null | undefined } {
+export function useStill(level: Level | PlanDocument, view: StillView, size: Size, appearance: Appearance): { ref: (el: Element | null) => void; url: string | null | undefined } {
   const key = keyOf(view, size, appearance);
   const [element, setElement] = useState<Element | null>(null);
-  const [result, setResult] = useState<{ level: Level; key: string; url: string | null } | null>(null);
+  const [result, setResult] = useState<{ level: Level | PlanDocument; key: string; url: string | null } | null>(null);
   const known = cache.get(level)?.get(key);
   const viewKind = view.kind;
   const roomId = view.kind === "room" ? view.roomId : null;

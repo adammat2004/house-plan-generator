@@ -1,6 +1,6 @@
 import { createStore } from "zustand/vanilla";
 import { photoTargets, renderKey, renderViewFor, targetKey, type StillTarget } from "@/domain/design/renderRequest";
-import type { Id, Level } from "@/domain/plan/types";
+import type { Id, Level, PlanDocument, Room } from "@/domain/plan/types";
 import type { Appearance, InteriorStyle } from "@/domain/project/schema";
 import type { RenderRecord, RenderStorage } from "@/persistence/planStorage";
 import type { PhotoRenderer } from "./imageRenderer";
@@ -44,7 +44,7 @@ export interface RenderDeps {
   storage: RenderStorage;
   renderer: PhotoRenderer;
   /** A 3D still of the view as a JPEG, or null where WebGL isn't available. */
-  still(level: Level, target: StillTarget, appearance: Appearance): Promise<Blob | null>;
+  still(plan: Level | PlanDocument, target: StillTarget, appearance: Appearance): Promise<Blob | null>;
   /** Shrinks a returned image for storage; identity where that isn't possible. */
   compress?(blob: Blob): Promise<Blob>;
 }
@@ -109,7 +109,7 @@ export function createRenders(deps: RenderDeps) {
      * Renders photos of a plan's main views that are missing or out of date
      * (or all of them with `force`), two at a time.
      */
-    async renderPlan(planId: Id, level: Level, appearance: Appearance, style: InteriorStyle, options: { targets?: StillTarget[]; force?: boolean } = {}): Promise<number> {
+    async renderPlan(planId: Id, level: Level | PlanDocument, appearance: Appearance, style: InteriorStyle, options: { targets?: StillTarget[]; force?: boolean } = {}): Promise<number> {
       const projectId = store.getState().projectId;
       if (!projectId || store.getState().batch) return 0;
       const existing = store.getState().byPlan[planId] ?? {};
@@ -117,7 +117,8 @@ export function createRenders(deps: RenderDeps) {
       if (!targets.length) return 0;
       abort = new AbortController();
       const signal = abort.signal;
-      const nameOf = (t: StillTarget) => (t.kind === "room" ? (level.rooms[t.roomId]?.name ?? "Room") : t.kind === "aerial" ? "From above" : "Exterior");
+      const rooms: Record<Id, Room> = "levels" in level ? Object.assign({}, ...level.levels.map((l) => l.rooms)) : level.rooms;
+      const nameOf = (t: StillTarget) => (t.kind === "room" ? (rooms[t.roomId]?.name ?? "Room") : t.kind === "aerial" ? "From above" : "Exterior");
       store.setState({ batch: { planId, done: 0, total: targets.length, failed: 0, current: nameOf(targets[0]) }, error: null });
       const queue = [...targets];
       let rendered = 0;
@@ -175,7 +176,7 @@ export function createRenders(deps: RenderDeps) {
      * One photo of a view that isn't a saved plan (the room picker's live
      * preview). Kept for the session only, keyed by what it shows.
      */
-    async renderOne(level: Level, target: StillTarget, appearance: Appearance, style: InteriorStyle): Promise<{ ok: true; url: string } | { ok: false; message: string }> {
+    async renderOne(level: Level | PlanDocument, target: StillTarget, appearance: Appearance, style: InteriorStyle): Promise<{ ok: true; url: string } | { ok: false; message: string }> {
       const key = `${targetKey(target)}:${renderKey(level, target, appearance, style)}`;
       const hit = oneOffs.get(key);
       if (hit) return { ok: true, url: hit };

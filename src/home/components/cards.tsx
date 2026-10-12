@@ -4,13 +4,14 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { Button, Menu, MenuItem } from "@/components/ui/controls";
-import { MoreIcon } from "@/components/ui/icons";
+import { ArrowRightIcon, MoreIcon } from "@/components/ui/icons";
+import { useAreaText } from "@/components/units";
 import type { ProjectTemplate } from "@/domain/project/templates";
 import { templateArea } from "@/domain/project/templates";
 import { PlanThumbnail } from "@/editor/components/designer/PlanThumbnail";
 import { downloadProject } from "@/persistence/jsonFile";
 import type { ProjectSummary } from "@/persistence/planStorage";
-import { createProjectFromTemplate, deleteProject, duplicateProject, editorHref, renameProject } from "../library";
+import { createProjectFromTemplate, deleteProject, duplicateProject, editorHref, renameProject, startDesigning } from "../library";
 import { editedAgo, showHomeNotice } from "../ui";
 import { TemplateExterior, templatePreview } from "./illustrations";
 
@@ -21,7 +22,8 @@ export function ProjectCard({ project }: { project: ProjectSummary }) {
   // Next keeps visited pages mounted but hidden (React Activity); close transient UI when hidden.
   useLayoutEffect(() => () => setDialog(null), []);
   const doc = project.project;
-  const level = doc?.plans.find((p) => p.id === doc.activePlanId)?.document.levels[0];
+  const plan = doc?.plans.find((p) => p.id === doc.activePlanId)?.document;
+  const level = plan?.levels[0];
   const planCount = doc?.plans.length ?? 0;
   const title = (
     <>
@@ -36,7 +38,7 @@ export function ProjectCard({ project }: { project: ProjectSummary }) {
     <article className="home-card project-card" data-testid="project-card">
       {doc ? (
         <Link href={editorHref(project.id)} className="card-link" aria-label={`Open ${project.name || "project"}`}>
-          <div className="card-media plan-paper">{level && <PlanThumbnail level={level} palette="warm" className="card-plan" pad={0.8} detail />}</div>
+          <div className="card-media plan-paper">{level && <PlanThumbnail level={level} plan={plan} palette="warm" className="card-plan" pad={0.8} detail />}</div>
           <div className="card-body">{title}</div>
         </Link>
       ) : (
@@ -109,6 +111,34 @@ export function ProjectCardSkeleton() {
 }
 
 /** Starts a project from a template and opens it. */
+/** Home's main button: straight into choosing rooms (reopening an untouched draft rather than making another). */
+export function StartDesigningButton({ className = "btn btn-primary btn-lg" }: { className?: string }) {
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  // The page stays mounted (hidden) after navigating to the editor, so clear busy when hidden.
+  useLayoutEffect(() => () => setBusy(false), []);
+  return (
+    <button
+      type="button"
+      className={className}
+      disabled={busy}
+      aria-busy={busy}
+      onClick={async () => {
+        setBusy(true);
+        try {
+          router.push(editorHref(await startDesigning(), "rooms"));
+        } catch (error) {
+          fail("Couldn't start a new design")(error);
+          setBusy(false);
+        }
+      }}
+      data-testid="start-rooms"
+    >
+      Start designing <ArrowRightIcon width={18} height={18} />
+    </button>
+  );
+}
+
 export function useStartTemplate() {
   const router = useRouter();
   const [busy, setBusy] = useState<string | null>(null);
@@ -129,15 +159,16 @@ export function useStartTemplate() {
 
 export function TemplateCard({ template, onStart, busy }: { template: ProjectTemplate; onStart: () => void; busy: boolean }) {
   const plan = templatePreview(template);
+  const areaText = useAreaText();
   return (
     <button type="button" className="home-card template-card" onClick={onStart} disabled={busy} aria-busy={busy} data-testid="template-card">
       <div className="card-media template-media">
         <TemplateExterior style={template.style} />
-        <div className="template-plan plan-paper">{plan && <PlanThumbnail level={plan.levels[0]} palette="warm" className="card-plan" pad={0.6} />}</div>
+        <div className="template-plan plan-paper">{plan && <PlanThumbnail level={plan.levels[0]} plan={plan} palette="warm" className="card-plan" pad={0.6} />}</div>
       </div>
       <div className="card-body">
         <span className="card-title">{template.name}</span>
-        <span className="card-meta">{busy ? "Creating project…" : `${templateArea(template)} m² · ${template.brief.bedrooms} bed · ${template.brief.bathrooms} bath`}</span>
+        <span className="card-meta">{busy ? "Creating project…" : `${areaText(templateArea(template))} · ${template.brief.bedrooms} bed · ${template.brief.bathrooms} bath`}</span>
       </div>
     </button>
   );

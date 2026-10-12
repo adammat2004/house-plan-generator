@@ -1,4 +1,4 @@
-import { BRIEF_LIMITS, houseShapeStep, type BriefSpace, type HouseBrief, type HouseShape } from "../brief/schema";
+import { BRIEF_LIMITS, houseShapeStep, storeysStep, type BriefSpace, type HouseBrief, type HouseShape } from "../brief/schema";
 import type { Id, Level, RoomType } from "../plan/types";
 import { assessPlan } from "./analysis";
 import type { RoomGoal } from "./intent";
@@ -65,6 +65,14 @@ function houseShapeIn(clause: string): HouseShape | null {
   return null;
 }
 
+/** Storeys asked for in a clause: "two-storey", "bedrooms upstairs", "a bungalow". Three or more can't be planned yet. */
+function storeysIn(clause: string): 1 | 2 | 3 | null {
+  if (/\b(?:three|3)[- ]?stor(?:e)?(?:y|ies|eys)\b|\bthree floors\b|\bthird (?:floor|storey|story)\b/.test(clause)) return 3;
+  if (/\b(?:two|2)[- ]?stor(?:e)?(?:y|ies|eys)\b|\btwo floors\b|\bsecond (?:floor|storey|story)\b|\bupstairs\b|\bfloor above\b/.test(clause)) return 2;
+  if (/\bbungalow\b|\b(?:single|one|1)[- ]?stor(?:e)?y\b|\bone floor\b|\bon one level\b/.test(clause)) return 1;
+  return null;
+}
+
 /** Which room a clause is about: a room named in it, then a room type, then the fallback. */
 function findRoom(clause: string, level: Level, fallback: Id | null): Id | null {
   const rooms = assessPlan(level).rooms;
@@ -92,6 +100,16 @@ export function interpretRequest(text: string, level: Level, brief: HouseBrief, 
   let next = { ...brief };
 
   for (const clause of clauses) {
+    // So is how many storeys it has.
+    const storeys = storeysIn(clause);
+    if (storeys) {
+      if (storeys === 3) unclear.push(clause);
+      else if ((next.storeys ?? 1) !== storeys) {
+        next = { ...next, storeys };
+        steps.push({ kind: "brief", patch: { storeys }, describe: storeysStep(storeys), clause });
+      }
+      continue;
+    }
     // The shape of the house is part of the brief.
     const shape = houseShapeIn(clause);
     if (shape) {

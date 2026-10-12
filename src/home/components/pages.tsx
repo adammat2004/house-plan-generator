@@ -2,14 +2,17 @@
 
 import Link from "next/link";
 import { useId, useMemo, useState, type ReactNode } from "react";
-import { ArrowRightIcon, BlankCanvasIcon, DimensionsIcon, ImportPlanIcon, PlayCircleIcon, PlusIcon, SparkleIcon } from "@/components/ui/icons";
+import { Toggle } from "@/components/ui/controls";
+import { ArrowRightIcon, PlayCircleIcon } from "@/components/ui/icons";
+import { setAreaUnits, useAreaText, useSquareFeet } from "@/components/units";
 import { PROJECT_TEMPLATES, templateArea } from "@/domain/project/templates";
 import { PlanThumbnail } from "@/editor/components/designer/PlanThumbnail";
 import type { ProjectSummary } from "@/persistence/planStorage";
-import { useLibrary } from "../library";
+import { refreshLibrary, useLibrary } from "../library";
 import { setProfileName, useProfileName } from "../profile";
 import { newProjectHref, useHomeUi } from "../ui";
-import { ProjectCard, ProjectCardSkeleton, TemplateCard, useStartTemplate } from "./cards";
+import { isUntouchedDraft } from "../drafts";
+import { ProjectCard, ProjectCardSkeleton, StartDesigningButton, TemplateCard, useStartTemplate } from "./cards";
 import { HeroIllustration, TemplateExterior, templatePreview } from "./illustrations";
 
 const RECENT_COUNT = 4;
@@ -21,7 +24,9 @@ function useFilteredProjects(sort: Sort): { status: "loading" | "ready" | "error
   const { status, projects, error } = useLibrary((s) => s);
   const query = useHomeUi((s) => s.query.trim().toLowerCase());
   const filtered = useMemo(() => {
-    const list = query ? projects.filter((p) => p.name.toLowerCase().includes(query)) : [...projects];
+    // Drafts nobody has started on yet ("Start designing" reopens them) aren't listed.
+    const real = projects.filter((p) => !(p.project && isUntouchedDraft(p.project)));
+    const list = query ? real.filter((p) => p.name.toLowerCase().includes(query)) : real;
     if (sort === "name") list.sort((a, b) => a.name.localeCompare(b.name));
     if (sort === "created") list.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
     return list;
@@ -44,7 +49,7 @@ export function SectionHeader({ title, href, linkLabel }: { title: string; href?
 }
 
 function ProjectGrid({ limit, sort = "edited" }: { limit?: number; sort?: Sort }) {
-  const { status, error, projects, query } = useFilteredProjects(sort);
+  const { status, projects, query } = useFilteredProjects(sort);
   if (status === "loading") {
     return (
       <div className="card-grid" aria-busy="true">
@@ -57,8 +62,11 @@ function ProjectGrid({ limit, sort = "edited" }: { limit?: number; sort?: Sort }
   if (status === "error") {
     return (
       <div className="empty-state" role="alert">
-        <strong>Projects couldn&rsquo;t be loaded</strong>
-        <span>{error} Projects are stored in this browser, so private windows or blocked site data can hide them.</span>
+        <strong>Couldn&rsquo;t read your saved projects in this browser</strong>
+        <span>Projects are kept in this browser, so private windows or blocked site data can hide them.</span>
+        <button type="button" className="btn btn-secondary" onClick={() => void refreshLibrary()}>
+          Try again
+        </button>
       </div>
     );
   }
@@ -71,11 +79,8 @@ function ProjectGrid({ limit, sort = "edited" }: { limit?: number; sort?: Sort }
     ) : (
       <div className="empty-state" data-testid="no-projects">
         <strong>No projects yet</strong>
-        <span>Start one below — from scratch, from your measurements, or from a template.</span>
-        <Link href={newProjectHref()} className="home-btn home-btn-primary">
-          <PlusIcon width={18} height={18} />
-          New project
-        </Link>
+        <span>Choose your rooms and you&rsquo;ll have three floor plans in seconds.</span>
+        <StartDesigningButton className="btn btn-primary btn-md" />
       </div>
     );
   }
@@ -86,21 +91,6 @@ function ProjectGrid({ limit, sort = "edited" }: { limit?: number; sort?: Sort }
         <ProjectCard key={p.id} project={p} />
       ))}
     </div>
-  );
-}
-
-function StartOption({ Icon, title, text, href, testId }: { Icon: typeof BlankCanvasIcon; title: string; text: string; href: string; testId: string }) {
-  return (
-    <Link href={href} className="start-option" data-testid={testId}>
-      <span className="start-icon" aria-hidden>
-        <Icon width={40} height={40} />
-      </span>
-      <span className="start-text">
-        <span className="start-title">{title}</span>
-        <span className="start-desc">{text}</span>
-      </span>
-      <ArrowRightIcon width={22} height={22} className="start-arrow" />
-    </Link>
   );
 }
 
@@ -117,18 +107,17 @@ export function TemplateRow({ limit }: { limit?: number }) {
 
 export function HomeDashboard() {
   const query = useHomeUi((s) => s.query.trim());
+  // Recent shows once there's something in it (or while it's loading, or a search is on).
+  const showRecent = useLibrary((s) => s.status !== "ready" || s.projects.some((p) => !(p.project && isUntouchedDraft(p.project))));
   return (
     <>
       <section className="home-hero" aria-labelledby="hero-title">
         <div className="hero-copy">
           <h1 id="hero-title">Design your home</h1>
-          <p>Create, explore and refine floor plans with the power of AI.</p>
+          <p>Choose your rooms and get three floor plans in seconds. Then move walls, furnish it and walk round it in 3D.</p>
           <div className="hero-actions">
-            <Link href={newProjectHref()} className="home-btn home-btn-primary home-btn-lg">
-              <PlusIcon width={20} height={20} />
-              New project
-            </Link>
-            <Link href="/help" className="home-btn home-btn-light home-btn-lg">
+            <StartDesigningButton />
+            <Link href="/help" className="btn btn-secondary btn-lg">
               <PlayCircleIcon width={20} height={20} />
               See how it works
             </Link>
@@ -139,20 +128,25 @@ export function HomeDashboard() {
         </div>
       </section>
 
-      <section className="home-section" aria-label={query ? "Search results" : "Recent projects"}>
-        <SectionHeader title={query ? "Search results" : "Recent projects"} href="/projects" linkLabel="View all" />
-        <ProjectGrid limit={RECENT_COUNT} />
-      </section>
+      <nav className="other-starts" aria-label="Other ways to start">
+        <span>Other ways to start:</span>
+        <Link href={newProjectHref("scratch")} data-testid="start-scratch">
+          Draw it yourself
+        </Link>
+        <Link href={newProjectHref("dimensions")} data-testid="start-dimensions">
+          Enter your house&rsquo;s size
+        </Link>
+        <Link href={newProjectHref("import")} data-testid="start-import">
+          Open a saved file
+        </Link>
+      </nav>
 
-      <section className="home-section">
-        <SectionHeader title="Start a new project" />
-        <div className="start-grid">
-          <StartOption Icon={SparkleIcon} title="Pick your rooms" text="Choose bedrooms, bathrooms and spaces. We size the house and lay out options." href={newProjectHref("rooms")} testId="start-rooms" />
-          <StartOption Icon={BlankCanvasIcon} title="Draw from scratch" text="Start with a blank outline and draw your floor plan." href={newProjectHref("scratch")} testId="start-scratch" />
-          <StartOption Icon={DimensionsIcon} title="Enter dimensions" text="Create a plan using your measurements." href={newProjectHref("dimensions")} testId="start-dimensions" />
-          <StartOption Icon={ImportPlanIcon} title="Import floor plan" text="Open a saved floor plan project file to get started." href={newProjectHref("import")} testId="start-import" />
-        </div>
-      </section>
+      {(showRecent || query) && (
+        <section className="home-section" aria-label={query ? "Search results" : "Your projects"}>
+          <SectionHeader title={query ? "Search results" : "Your projects"} href="/projects" linkLabel="View all" />
+          <ProjectGrid limit={RECENT_COUNT} />
+        </section>
+      )}
 
       <section className="home-section">
         <SectionHeader title="Templates" href="/templates" linkLabel="Browse all" />
@@ -198,9 +192,10 @@ export function AllProjectsPage() {
 
 export function TemplatesPage() {
   const { busy, start } = useStartTemplate();
+  const areaText = useAreaText();
   return (
     <>
-      <PageTitle title="Templates" lead="Start from a complete ground-floor layout, then change anything — walls, rooms, doors and windows all stay editable." />
+      <PageTitle title="Templates" lead="Start from a complete ground-floor layout, then change anything: walls, rooms, doors and windows all stay editable." />
       <div className="template-list">
         {PROJECT_TEMPLATES.map((t) => {
           const plan = templatePreview(t);
@@ -208,7 +203,7 @@ export function TemplatesPage() {
             <article key={t.id} className="home-card template-detail">
               <div className="template-detail-media">
                 <TemplateExterior style={t.style} />
-                <div className="plan-paper">{plan && <PlanThumbnail level={plan.levels[0]} palette="warm" className="card-plan" pad={0.6} detail />}</div>
+                <div className="plan-paper">{plan && <PlanThumbnail level={plan.levels[0]} plan={plan} palette="warm" className="card-plan" pad={0.6} detail />}</div>
               </div>
               <div className="template-detail-body">
                 <h2>{t.name}</h2>
@@ -222,7 +217,7 @@ export function TemplatesPage() {
                   </div>
                   <div>
                     <dt>Area</dt>
-                    <dd>{templateArea(t)} m²</dd>
+                    <dd>{areaText(templateArea(t))}</dd>
                   </div>
                   <div>
                     <dt>Rooms</dt>
@@ -231,7 +226,7 @@ export function TemplatesPage() {
                     </dd>
                   </div>
                 </dl>
-                <button type="button" className="home-btn home-btn-primary" disabled={!!busy} onClick={() => void start(t)}>
+                <button type="button" className="btn btn-primary btn-md" disabled={!!busy} onClick={() => void start(t)}>
                   {busy === t.id ? "Creating project…" : "Use this template"}
                 </button>
               </div>
@@ -245,38 +240,42 @@ export function TemplatesPage() {
 
 const STEPS = [
   {
-    title: "Start a project",
-    text: "Enter the outside dimensions of your house, pick a template, or open a saved project file. Every project is saved automatically in this browser.",
+    title: "Rooms",
+    text: "Say how many bedrooms, bathrooms and living spaces you want, and whether the house has one storey or two. The plan beside the list redraws as you go. Add notes about anything else, and a plot size if you have one.",
   },
   {
-    title: "Draw the structure",
-    text: "In the Structure workspace, draw internal walls, click inside a space to name the room and set its use, then place doors and windows on any wall. Drag walls and openings to adjust them; dimensions update as you go.",
+    title: "Layouts",
+    text: "Get three floor plans drawn from your rooms, side by side at the same scale. Each has a name that says how it differs, and things to check. Ask for three more whenever you like.",
   },
   {
-    title: "Explore layouts with AI",
-    text: "In the Design workspace, describe what you need — bedrooms, bathrooms, open-plan living — and the AI Designer lays out alternative plans. Each one is added as a new variation, so your own plan is never overwritten.",
+    title: "Refine",
+    text: "Open the layout you like. Click a room to rename it, resize it or swap it with another, ask for changes in your own words, and add furniture. Switch to Walls to move walls, doors and windows. Add a floor (up to three) and put in stairs from the bar at the bottom.",
   },
   {
-    title: "Compare, refine and export",
-    text: "Switch between variations in the tray, keep refining the one you like, and export a project file or an image of the plan.",
+    title: "3D",
+    text: "Walk round the house, change the light and the finishes, and turn rooms into photos. Export an image of the plan or a project file whenever you want.",
   },
 ];
 
 const SHORTCUTS: Array<[string, string]> = [
+  ["1 2 3 4", "Rooms, Layouts, Refine, 3D"],
   ["V", "Select"],
+  ["U", "Furniture"],
   ["W", "Wall"],
-  ["R", "Room"],
   ["D", "Door"],
   ["N", "Window"],
-  ["1 / 2", "Structure / Design workspace"],
+  ["S", "Stairs, with two or more floors"],
+  ["Page Up / Page Down", "The floor above or below"],
+  ["L", "List of rooms and walls"],
+  ["F", "Fit the plan to the screen"],
   ["⌘Z / ⇧⌘Z", "Undo / redo"],
-  ["Esc", "Finish a wall chain or cancel"],
+  ["Esc", "Cancel, or finish a wall"],
 ];
 
 export function HelpPage() {
   return (
     <>
-      <PageTitle title="How it works" lead="From an empty outline to a set of layouts you can compare, in four steps." />
+      <PageTitle title="How it works" lead="From a list of rooms to a house you can walk round, in four steps. Everything saves as you go, in this browser." />
       <ol className="help-steps">
         {STEPS.map((s, i) => (
           <li key={s.title} className="home-card">
@@ -301,11 +300,9 @@ export function HelpPage() {
           ))}
         </dl>
       </section>
+      <p className="help-next">Coming next: sharing and imperial units.</p>
       <div className="help-cta">
-        <Link href={newProjectHref()} className="home-btn home-btn-primary home-btn-lg">
-          <PlusIcon width={20} height={20} />
-          Start a project
-        </Link>
+        <StartDesigningButton />
       </div>
     </>
   );
@@ -314,6 +311,7 @@ export function HelpPage() {
 export function SettingsPage() {
   const name = useProfileName();
   const count = useLibrary((s) => (s.status === "ready" ? s.projects.length : null));
+  const sqft = useSquareFeet();
   const nameId = useId();
   return (
     <>
@@ -336,10 +334,15 @@ export function SettingsPage() {
         </div>
       </section>
       <section className="home-card settings-card">
+        <h2>Units</h2>
+        <p className="settings-lead">Plans are measured in metres. Areas can show square feet as well.</p>
+        <Toggle label="Show square feet too" hint="e.g. 152 m² · 1,636 sq ft" checked={sqft} onChange={() => setAreaUnits(sqft ? "metric" : "both")} testId="setting-sqft" />
+      </section>
+      <section className="home-card settings-card">
         <h2>Storage</h2>
         <p className="settings-lead">
           Projects are saved automatically in this browser{count !== null ? ` (${count} project${count === 1 ? "" : "s"})` : ""}. They aren&rsquo;t synced to other
-          devices, and clearing site data removes them — download a project file from a project&rsquo;s menu to keep a copy.
+          devices, and clearing site data removes them. To keep a copy, download a project file from a project&rsquo;s menu.
         </p>
       </section>
     </>

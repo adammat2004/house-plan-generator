@@ -1,15 +1,17 @@
 "use client";
 
+import { levelOf } from "@/domain/plan/levels";
 import { useEffect, useRef, useState } from "react";
+import { assessHouse } from "@/domain/design/analysis";
 import { ROOM_GOAL_LABEL, suggestedGoals } from "@/domain/design/intent";
+import { planSuggestions } from "@/domain/design/suggestions";
 import { IconButton } from "@/components/ui/controls";
 import { CheckIcon, ChevronRightIcon, CloseIcon, SendIcon, SparkleIcon } from "@/components/ui/icons";
+import { useAreaText } from "@/components/units";
 import { design, editor, useDocumentState, useSessionState } from "../../state/editor";
 import type { ChatMessage, Proposal } from "../../state/stores";
 import { showConcepts } from "../shell/tools";
 import { PlanThumbnail } from "./PlanThumbnail";
-
-const EXAMPLES = ["Make the kitchen larger", "More light in the living room", "Add a utility room"];
 
 type Tab = "chat" | "suggestions";
 
@@ -39,7 +41,12 @@ function Panel() {
   const running = useSessionState((s) => s.designer.status === "running");
   const ai = useSessionState((s) => s.designer.ai);
   const selection = useSessionState((s) => s.selection);
-  const room = useDocumentState((s) => (selection?.kind === "room" ? s.history.present.levels[0].rooms[selection.id] : undefined));
+  const room = useDocumentState((s) => (selection?.kind === "room" ? levelOf(s.history.present, selection.id)?.rooms[selection.id] : undefined));
+  // The whole house, whichever floor is on show.
+  const plan = useDocumentState((s) => s.history.present);
+  const facts = assessHouse(plan);
+  const areaText = useAreaText();
+  const examples = planSuggestions(plan);
   const [text, setText] = useState("");
   const log = useRef<HTMLDivElement>(null);
 
@@ -77,16 +84,12 @@ function Panel() {
         <div className="ai-log" ref={log} aria-live="polite" data-testid="ai-log">
           {!chat.length && (
             <div className="ai-intro">
-              <p>Ask for changes in your own words. I&rsquo;ll offer options you can apply, undo, or keep as a separate concept.</p>
-              <p className="ai-source" data-testid="ai-source">
-                {ai === "available"
-                  ? "Claude reads your requests. It never draws the plan itself: the planners do, and every option is checked."
-                  : ai === "off"
-                    ? "Using the built-in reader, which understands simple requests. Add an Anthropic API key to have Claude read them."
-                    : ""}
+              <p className="ai-summary" data-testid="ai-summary">
+                {areaText(facts.totalArea)} · {facts.bedrooms} bed · {facts.bathrooms} bath{facts.storeys ? ` · ${facts.storeys} storeys` : ""}
               </p>
+              <p className="ai-note">Try a change, or describe your own below.</p>
               <div className="ai-examples">
-                {EXAMPLES.map((e) => (
+                {examples.map((e) => (
                   <button key={e} type="button" className="suggestion-row" onClick={() => send(e)}>
                     {e}
                     <ChevronRightIcon width={16} height={16} />
@@ -213,17 +216,18 @@ function Message({ message }: { message: ChatMessage }) {
 }
 
 function ProposalCard({ proposal }: { proposal: Proposal }) {
-  const current = useDocumentState((s) => s.history.present);
-  const stale = proposal.state === "open" && proposal.source !== current;
+  // Worked out from the history, so undoing an applied option offers it again.
+  const status = useDocumentState(() => design.statusOf(proposal));
+  const stale = status === "stale";
   return (
-    <div className={`proposal is-${proposal.state}`} data-testid="proposal">
-      <PlanThumbnail level={proposal.document.levels[0]} palette="warm" className="proposal-thumb" highlight={proposal.roomIds} pad={0.4} />
+    <div className={`proposal is-${status}`} data-testid="proposal">
+      <PlanThumbnail level={(proposal.roomIds[0] && levelOf(proposal.document, proposal.roomIds[0])) || proposal.document.levels[0]} plan={proposal.document} palette="warm" className="proposal-thumb" highlight={proposal.roomIds} pad={0.4} />
       <p>{proposal.summary}</p>
-      {proposal.state === "applied" ? (
+      {status === "applied" ? (
         <span className="proposal-state">
           <CheckIcon width={14} height={14} /> Applied
         </span>
-      ) : proposal.state === "saved" ? (
+      ) : status === "saved" ? (
         <span className="proposal-state">
           <CheckIcon width={14} height={14} /> Saved as a concept
         </span>
@@ -234,7 +238,7 @@ function ProposalCard({ proposal }: { proposal: Proposal }) {
           <button type="button" className="btn btn-primary btn-sm" onClick={() => design.applyProposal(proposal.id)} data-testid="apply-proposal">
             Apply
           </button>
-          <button type="button" className="btn btn-outline btn-sm" onClick={() => design.saveProposal(proposal.id)} data-testid="save-proposal">
+          <button type="button" className="btn btn-secondary btn-sm" onClick={() => design.saveProposal(proposal.id)} data-testid="save-proposal">
             Save as concept
           </button>
         </div>

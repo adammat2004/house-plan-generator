@@ -15,12 +15,10 @@ import {
   OutbuildingIcon,
   UploadIcon,
 } from "@/components/ui/icons";
+import { BRAND } from "@/components/brand";
+import { useAreaText } from "@/components/units";
 import { createPlanDocument } from "@/domain/commands";
 import { analyzeEnvelope } from "@/domain/geometry/envelope";
-import { BRIEF_PRESETS, ROOM_PICK_SPECS } from "@/domain/brief/rooms";
-import { DEFAULT_BRIEF, withPicks, type HouseShape } from "@/domain/brief/schema";
-import type { PlotLimits } from "@/domain/design/footprint";
-import { planLayouts } from "@/domain/design/stripPlanner";
 import { DEFAULT_HOUSE } from "@/domain/plan/defaults";
 import type { PlanDocument } from "@/domain/plan/types";
 import {
@@ -33,22 +31,20 @@ import {
 } from "@/domain/project/schema";
 import { HOUSE_FIELDS, parseHouseValues, shapeDefaults, WingFields, type HouseFieldKey, type WingText } from "@/editor/components/CreateHouseDialog";
 import { ShapePicker } from "@/editor/components/ShapePicker";
-import { HouseShapeChips } from "@/editor/components/designer/BriefFields";
 import { describeOutline } from "@/domain/geometry/outlineDescription";
 import { defaultShapeParams, presetOutline, SHAPE_DEFAULT_SIZE, type ShapePreset } from "@/domain/geometry/outlinePresets";
 import { PlanThumbnail } from "@/editor/components/designer/PlanThumbnail";
 import { readProjectFile } from "@/persistence/jsonFile";
-import { createBlankProject, createProjectFromDimensions, createProjectFromImport, createRoomsProject, editorHref } from "../library";
+import { createBlankProject, createProjectFromDimensions, createProjectFromImport, editorHref } from "../library";
 import { MassingPreview } from "./illustrations";
 
-export type StartMethod = "rooms" | "scratch" | "dimensions" | "import";
+export type StartMethod = "scratch" | "dimensions" | "import";
 type PreviewView = "2d" | "split" | "3d";
 
 const METHODS: ReadonlyArray<{ id: StartMethod; title: string; text: string }> = [
-  { id: "rooms", title: "Pick your rooms", text: "Choose the rooms you want and we\u2019ll design layouts around them." },
   { id: "scratch", title: "Draw from scratch", text: "Start with a blank outline and draw the walls yourself." },
   { id: "dimensions", title: "Enter dimensions", text: "Type in the outside size of the house you have." },
-  { id: "import", title: "Import a plan", text: "Open a project file saved from HomeDesign." },
+  { id: "import", title: "Import a plan", text: `Open a project file saved from ${BRAND.name}.` },
 ];
 
 const TYPES: ReadonlyArray<{ id: ProjectType; title: string; text: string; Icon: typeof HouseMark }> = [
@@ -58,32 +54,18 @@ const TYPES: ReadonlyArray<{ id: ProjectType; title: string; text: string; Icon:
 ];
 
 const SUBMIT_LABEL: Record<StartMethod, string> = {
-  rooms: "Choose your rooms",
   scratch: "Start drawing",
   dimensions: "Create the outline",
   import: "Open the plan",
 };
 
 const PREVIEW_CHIP: Record<StartMethod, string> = {
-  rooms: "",
   scratch: "Start from a blank outline",
   dimensions: "Your house outline",
   import: "Your imported plan",
 };
 
-const isMethod = (v: string | null): v is StartMethod => v === "rooms" || v === "scratch" || v === "dimensions" || v === "import";
-
-const PLOT_LIMITS = { min: 5, max: 60 } as const;
-
-/** The rooms a "Pick your rooms" project starts with; changed in the next step. */
-const STARTING_ROOMS = withPicks(DEFAULT_BRIEF, BRIEF_PRESETS.find((p) => p.id === "family-3")!.picks);
-
-/** A plot limit typed in metres, or undefined when left blank. */
-function parsePlot(text: string): number | undefined | "invalid" {
-  if (!text.trim()) return undefined;
-  const v = Number(text.trim());
-  return Number.isFinite(v) && v >= PLOT_LIMITS.min && v <= PLOT_LIMITS.max ? v : "invalid";
-}
+const isMethod = (v: string | null): v is StartMethod => v === "scratch" || v === "dimensions" || v === "import";
 
 /** The "Create a new project" page. The starting method can be preselected with ?method=. */
 export function NewProjectPage() {
@@ -116,11 +98,8 @@ function NewProjectForm({ initialMethod, onCreated }: { initialMethod: StartMeth
     wallHeight: String(DEFAULT_HOUSE.wallHeight),
   });
   const [shape, setShape] = useState<ShapePreset>("rectangle");
-  // New projects sized from the rooms let the planner choose the shape.
-  const [roomsShape, setRoomsShape] = useState<HouseShape>("any");
   const [wings, setWings] = useState<WingText>({ front: "", wing: "" });
   const [imported, setImported] = useState<ImportState>({ status: "empty" });
-  const [plotText, setPlotText] = useState({ width: "", depth: "" });
   const [view, setView] = useState<PreviewView>("split");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -142,29 +121,6 @@ function NewProjectForm({ initialMethod, onCreated }: { initialMethod: StartMeth
     setDims((v) => ({ ...v, width: d.width, depth: d.depth }));
     setWings({ front: d.front, wing: d.wing });
   };
-  const plot = useMemo((): { ok: true; value?: PlotLimits } | { ok: false; error: string } => {
-    const maxWidth = parsePlot(plotText.width);
-    const maxDepth = parsePlot(plotText.depth);
-    if (maxWidth === "invalid" || maxDepth === "invalid") return { ok: false, error: `Plot sizes must be between ${PLOT_LIMITS.min} and ${PLOT_LIMITS.max} m.` };
-    return { ok: true, value: maxWidth || maxDepth ? { ...(maxWidth ? { maxWidth } : {}), ...(maxDepth ? { maxDepth } : {}) } : undefined };
-  }, [plotText]);
-
-  // Picking rooms: a first layout for them, recomputed as the rooms change.
-  const roomsPreview = useMemo((): { plan: PlanDocument; error: null } | { plan: null; error: string } => {
-    if (method !== "rooms") return { plan: null, error: "" };
-    if (!plot.ok) return { plan: null, error: plot.error };
-    const shell = createPlanDocument({ id: "preview" });
-    const brief = { ...STARTING_ROOMS, houseShape: roomsShape };
-    const result = planLayouts({
-      intent: { action: "generate_layouts", brief, count: 1, footprint: "auto", ...(plot.value ? { plot: plot.value } : {}) },
-      source: shell,
-      brief,
-      idPrefix: "preview",
-    });
-    const first = result.candidates[0];
-    return first ? { plan: first.document, error: null } : { plan: null, error: result.issues[0]?.message ?? "These rooms don't fit a house yet." };
-  }, [method, plot, roomsShape]);
-
   // What the project will start from, for the preview.
   const preview = useMemo((): { plan: PlanDocument; wallHeight: number } | null => {
     if (method === "import") {
@@ -173,7 +129,6 @@ function NewProjectForm({ initialMethod, onCreated }: { initialMethod: StartMeth
       const plan = (p.plans.find((v) => v.id === p.activePlanId) ?? p.plans[0]).document;
       return { plan, wallHeight: plan.levels[0].defaultWallHeight };
     }
-    if (method === "rooms") return roomsPreview.plan ? { plan: roomsPreview.plan, wallHeight: DEFAULT_HOUSE.wallHeight } : null;
     if (method === "dimensions" && !parsedDims.ok) return null;
     try {
       const values = method === "dimensions" && parsedDims.ok ? parsedDims.values : DEFAULT_HOUSE;
@@ -190,7 +145,7 @@ function NewProjectForm({ initialMethod, onCreated }: { initialMethod: StartMeth
     } catch {
       return null;
     }
-  }, [method, imported, parsedDims, roomsPreview, scratchOutline]);
+  }, [method, imported, parsedDims, scratchOutline]);
 
   const readFile = async (file: File) => {
     setError(null);
@@ -210,12 +165,7 @@ function NewProjectForm({ initialMethod, onCreated }: { initialMethod: StartMeth
     const projectName = name.trim();
     if (!projectName) return setError("Give the project a name.");
     let create: () => Promise<string>;
-    if (method === "rooms") {
-      if (!plot.ok) return setError(plot.error);
-      if (roomsPreview.error) return setError(roomsPreview.error);
-      const plotValue = plot.value;
-      create = () => createRoomsProject({ name: projectName, details, houseShape: roomsShape, ...(plotValue ? { plot: plotValue } : {}) });
-    } else if (method === "dimensions") {
+    if (method === "dimensions") {
       if (!parsedDims.ok) return setError(parsedDims.error);
       const values = parsedDims.values;
       create = () => createProjectFromDimensions(values, details);
@@ -229,7 +179,7 @@ function NewProjectForm({ initialMethod, onCreated }: { initialMethod: StartMeth
     setBusy(true);
     try {
       const id = await create();
-      router.push(editorHref(id, method === "scratch" ? "draw" : method === "rooms" ? "rooms" : undefined));
+      router.push(editorHref(id, method === "scratch" ? "draw" : undefined));
       onCreated();
     } catch (e) {
       setBusy(false);
@@ -261,7 +211,6 @@ function NewProjectForm({ initialMethod, onCreated }: { initialMethod: StartMeth
           }}
         >
           <header className="new-head">
-            <p className="new-step">Step 1 of 4</p>
             <h1 id={`${ids}-title`} className="new-title">
               Start a new project
             </h1>
@@ -286,7 +235,6 @@ function NewProjectForm({ initialMethod, onCreated }: { initialMethod: StartMeth
                 <span className="method-text">
                   <span className="method-title">
                     {title}
-                    {id === "rooms" && <span className="method-badge">Recommended</span>}
                   </span>
                   <span className="method-desc">{text}</span>
                 </span>
@@ -342,36 +290,6 @@ function NewProjectForm({ initialMethod, onCreated }: { initialMethod: StartMeth
 
             {method === "import" && <ImportDrop state={imported} onFile={(f) => void readFile(f)} />}
 
-            {method === "rooms" && (
-              <fieldset className="dims-fieldset" data-testid="rooms-shape">
-                <legend>House shape</legend>
-                <HouseShapeChips value={roomsShape} onChange={setRoomsShape} testPrefix="rooms" />
-              </fieldset>
-            )}
-
-            {method === "rooms" && (
-              <fieldset className="dims-fieldset" data-testid="rooms-fields">
-                <legend>
-                  Plot size <span className="optional">(optional)</span>
-                </legend>
-                <div className="dims-grid">
-                  {(["width", "depth"] as const).map((key) => (
-                    <NumberField
-                      key={key}
-                      id={`${ids}-plot-${key}`}
-                      label={key === "width" ? "Max width" : "Max depth"}
-                      unit="m"
-                      placeholder="Any"
-                      testId={`rooms-plot-${key}`}
-                      value={plotText[key]}
-                      onChange={(v) => setPlotText({ ...plotText, [key]: v })}
-                    />
-                  ))}
-                </div>
-                <p className="field-hint">The largest house your site allows. Leave blank to size it from the rooms.</p>
-              </fieldset>
-            )}
-
             <details className="new-more" data-testid="new-more">
               <summary>
                 <span>More details</span>
@@ -426,7 +344,7 @@ function NewProjectForm({ initialMethod, onCreated }: { initialMethod: StartMeth
                     ))}
                   </div>
                 </fieldset>
-                <p className="field-hint">Plans are in metres, on one floor. Feet and inches, and more floors, are coming soon.</p>
+                <p className="field-hint">Plans are in metres. Choose two storeys on the Rooms step, or add a floor while you refine.</p>
               </div>
             </details>
           </div>
@@ -437,7 +355,7 @@ function NewProjectForm({ initialMethod, onCreated }: { initialMethod: StartMeth
                 {error}
               </p>
             )}
-            <button type="submit" className="home-btn home-btn-primary home-btn-lg home-btn-block" disabled={busy} data-testid="new-project-submit">
+            <button type="submit" className="btn btn-primary btn-lg btn-block" disabled={busy} data-testid="new-project-submit">
               {busy ? "Creating project…" : SUBMIT_LABEL[method]}
               {!busy && <ArrowRightIcon width={18} height={18} />}
             </button>
@@ -448,18 +366,7 @@ function NewProjectForm({ initialMethod, onCreated }: { initialMethod: StartMeth
           </div>
         </form>
 
-        {method === "rooms" ? (
-          <RoomsIntro plot={plot.ok ? plot.value : undefined} problem={roomsPreview.error} />
-        ) : (
-          <ProjectPreview
-            method={method}
-            preview={preview}
-            view={view}
-            onView={setView}
-            importState={imported}
-            dimsError={parsedDims.ok ? null : parsedDims.error}
-          />
-        )}
+        <ProjectPreview method={method} preview={preview} view={view} onView={setView} importState={imported} dimsError={parsedDims.ok ? null : parsedDims.error} />
       </div>
     </div>
   );
@@ -501,16 +408,6 @@ function NumberField({
 
 /** A small picture of each way to start. */
 function MethodArt({ method }: { method: StartMethod }) {
-  if (method === "rooms") {
-    return (
-      <span className="method-art method-art-rooms" aria-hidden>
-        {(["master_bedroom", "open_plan", "family_bathroom", "office"] as const).map((id) => (
-          // eslint-disable-next-line @next/next/no-img-element -- small static illustrations
-          <img key={id} src={`/rooms/${id}.jpg`} alt="" width={40} height={32} />
-        ))}
-      </span>
-    );
-  }
   return (
     <span className="method-art" aria-hidden>
       <svg viewBox="0 0 80 64" width="80" height="64">
@@ -541,54 +438,6 @@ function MethodArt({ method }: { method: StartMethod }) {
         )}
       </svg>
     </span>
-  );
-}
-
-const INTRO_ROOMS = ["master_bedroom", "open_plan", "double_bedroom", "family_bathroom", "office", "kitchen_dining"] as const;
-
-const INTRO_STEPS: ReadonlyArray<{ title: string; text: string }> = [
-  { title: "Pick your rooms", text: "Bedrooms, bathrooms and living spaces, with a live 3D view as you go." },
-  { title: "Compare layouts", text: "We size the house to fit and lay out several plans to choose from." },
-  { title: "Explore in 3D", text: "Walk through your favourite, then turn rooms into realistic photos." },
-];
-
-/** "Pick your rooms": what comes next, rather than a layout for rooms not chosen yet. */
-function RoomsIntro({ plot, problem }: { plot?: PlotLimits; problem: string | null }) {
-  return (
-    <section className="new-preview rooms-intro" aria-label="What happens next" data-testid="new-project-preview">
-      <div className="intro-rooms" aria-hidden>
-        {INTRO_ROOMS.map((id) => (
-          <figure key={id} className="intro-room">
-            {/* eslint-disable-next-line @next/next/no-img-element -- small static illustrations */}
-            <img src={`/rooms/${id}.jpg`} alt="" width={300} height={250} />
-            <figcaption>{ROOM_PICK_SPECS[id].label}</figcaption>
-          </figure>
-        ))}
-      </div>
-      <div className="intro-card">
-        <h2>What happens next</h2>
-        <ol className="intro-steps">
-          {INTRO_STEPS.map((step, i) => (
-            <li key={step.title}>
-              <span className="intro-number">{i + 1}</span>
-              <span>
-                <strong>{step.title}</strong>
-                <span>{step.text}</span>
-              </span>
-            </li>
-          ))}
-        </ol>
-        {problem ? (
-          <p className="intro-note is-problem" role="status">
-            {problem}
-          </p>
-        ) : plot ? (
-          <p className="intro-note">
-            Houses will fit within {plot.maxWidth ? `${plot.maxWidth} m wide` : "any width"} × {plot.maxDepth ? `${plot.maxDepth} m deep` : "any depth"}.
-          </p>
-        ) : null}
-      </div>
-    </section>
   );
 }
 
@@ -647,7 +496,7 @@ function ImportDrop({ state, onFile }: { state: ImportState; onFile: (file: File
             <span>
               <strong>Choose a file</strong> or drop it here
             </span>
-            <small>A .floorplan.json project file exported from HomeDesign</small>
+            <small>A .floorplan.json project file exported from {BRAND.name}</small>
           </span>
         )}
         {state.status === "reading" && <span>Reading {state.fileName}…</span>}
@@ -705,6 +554,7 @@ function ProjectPreview({
 }) {
   const level = preview?.plan.levels[0];
   const env = level ? analyzeEnvelope(level) : null;
+  const areaText = useAreaText();
   const size = env?.ok ? { width: env.info.width, depth: env.info.depth, area: env.info.grossArea, outline: env.info.isRectangle ? null : env.info.outsideRing, shape: env.info.isRectangle ? null : describeOutline(env.info).words } : null;
   const placeholder =
     method === "import"
@@ -725,7 +575,7 @@ function ProjectPreview({
               <PlanThumbnail level={level} palette="warm" className="preview-drawing" pad={1.2} detail />
               <span className="preview-size">
                 {size.shape && `${size.shape[0].toUpperCase()}${size.shape.slice(1)} · `}
-                {size.width.toFixed(2)} × {size.depth.toFixed(2)} m outside · {size.area.toFixed(0)} m²
+                {size.width.toFixed(2)} × {size.depth.toFixed(2)} m outside · {areaText(size.area)}
               </span>
             </div>
           )}

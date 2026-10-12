@@ -22,7 +22,7 @@ vi.mock("@/server/designInterpreter", async (importOriginal) => {
 const reply: AiReply = {
   reply: "I'll add a utility room to the brief.",
   roomChanges: [],
-  brief: { bedrooms: null, bathrooms: null, addSpaces: ["utility"], removeSpaces: [], addPreferences: [], removePreferences: [], roomSizes: [], houseShape: null },
+  brief: { bedrooms: null, bathrooms: null, addSpaces: ["utility"], removeSpaces: [], addPreferences: [], removePreferences: [], roomSizes: [], houseShape: null, storeys: null },
   unclear: [],
 };
 const answered = { stop_reason: "end_turn", parsed_output: reply, model: MODEL };
@@ -142,20 +142,20 @@ describe("the editor waiting for Claude", () => {
     expect(await httpInterpreter("/api/design/interpret", 20).read(request())).toEqual({ ok: false, offline: false, message: "Claude took too long to answer." });
     const { stores, design, said } = setup();
     await design.ask("add a utility room");
-    expect(said()).toMatch(/Claude took too long to answer\. I'll use the simpler built-in reader instead\./);
+    expect(said()).not.toMatch(/took too long|built-in reader/);
     expect(stores.project.getState().brief.requiredSpaces).toContain("utility");
     // Too slow once isn't "not set up": the next request asks Claude again.
     expect(stores.session.getState().designer.ai).not.toBe("off");
   });
 
-  it("says the same when the server's own call times out", async () => {
+  it("falls back the same way when the server's own call times out", async () => {
     vi.resetModules();
     const { POST } = await import("@/app/api/design/interpret/route");
     vi.stubGlobal("fetch", (url: string, init: RequestInit) => POST(new Request(`http://x${url}`, init)));
     claude.client = throwing(new Anthropic.APIConnectionTimeoutError());
     const { stores, design, said } = setup(httpInterpreter());
     await design.ask("add a utility room");
-    expect(said()).toMatch(/Claude took too long to answer\. I'll use the simpler built-in reader instead\./);
+    expect(said()).not.toMatch(/took too long|built-in reader/);
     expect(stores.project.getState().brief.requiredSpaces).toContain("utility");
   });
 });

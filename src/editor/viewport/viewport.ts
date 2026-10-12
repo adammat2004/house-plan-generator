@@ -85,3 +85,16 @@ export function resizeViewport(v: Viewport, width: number, height: number): View
     offsetY: height / 2 + centre.y * v.scale,
   };
 }
+
+/**
+ * A viewport part way between two others (t from 0 to 1): the point in the
+ * middle of the view travels in a straight line and the zoom changes by the
+ * same proportion each step, so a fit glides rather than swings.
+ */
+export function blendViewports(a: Viewport, b: Viewport, t: number): Viewport {
+  const ca = screenToWorld(a, { x: a.width / 2, y: a.height / 2 });
+  const cb = screenToWorld(b, { x: b.width / 2, y: b.height / 2 });
+  const scale = a.scale * Math.pow(b.scale / a.scale, t);
+  const c = { x: ca.x + (cb.x - ca.x) * t, y: ca.y + (cb.y - ca.y) * t };
+  return { ...b, scale, offsetX: b.width / 2 - c.x * scale, offsetY: b.height / 2 + c.y * scale };
+}

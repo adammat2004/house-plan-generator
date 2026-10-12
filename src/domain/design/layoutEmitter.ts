@@ -7,7 +7,7 @@ import { findFaceIndexContaining } from "../geometry/faces";
 import { EPS, roundToPrecision } from "../geometry/numeric";
 import { OPPOSITE_SIDE } from "../geometry/outline";
 import { pointInRing } from "../geometry/polygons";
-import { dot, sub } from "../geometry/vector";
+import { dot, sub, type Rect } from "../geometry/vector";
 import { axialParam, pointOnAxis } from "../geometry/walls";
 import { DEFAULT_HOUSE, DOOR_PRESET } from "../plan/defaults";
 import type { Level, Opening, PlanDocument, Point2 } from "../plan/types";
@@ -29,12 +29,20 @@ export const WINDOW_WIDTH: Record<WindowSize, number> = { large: 2.4, standard: 
 export const GARDEN_DOOR = 1.6;
 /** Clearance between a corner door and the end of its stretch of wall. */
 const CORNER_GAP = 0.15;
+/** A door swings about this far each side of its wall, so it keeps this far from what it must avoid, m. */
+const AVOID_REACH = 1;
+/** Kept between a door and what it avoids, along the wall, m. */
+const AVOID_GAP = 0.05;
 
 export interface EmitOptions {
   prefix: string;
   hallWidth: number;
   doorWidth: number;
   naturalLight: boolean;
+  /** An upper floor: its hall is a landing, with no front door and no doors to the garden. */
+  upper?: boolean;
+  /** Where doors mustn't go, nor swing: the stairs. */
+  doorAvoid?: Rect[];
 }
 
 export type EmitResult = { ok: true; document: PlanDocument; notes: string[] } | { ok: false; reason: string };
@@ -211,7 +219,7 @@ export function emitLayout(shell: PlanDocument, plan: LayoutPlan, opts: EmitOpti
   let skipped = 0;
   /** Places an opening with fitOpening and adds it; false (and counted as skipped) if it doesn't fit. */
   const place = (kind: "door" | "window", r: Run, width: number, margin: number, size: WindowSize = "standard", toward?: Point2): boolean => {
-    const opening = fitOpening(doc.levels[0], r, kind, width, margin, size, `${opts.prefix}-o${++openingCount}`, toward);
+    const opening = fitOpening(doc.levels[0], r, kind, width, margin, size, `${opts.prefix}-o${++openingCount}`, toward, kind === "door" ? opts.doorAvoid : undefined);
     if (!opening) {
       skipped++;
       return false;
@@ -241,7 +249,9 @@ export function emitLayout(shell: PlanDocument, plan: LayoutPlan, opts: EmitOpti
     if (!shared) return { ok: false, reason: `${room.name} doesn't reach the ${parent >= 0 ? plan.rooms[parent].name.toLowerCase() : "hall"}.` };
     const narrow = room.type === "bathroom" || room.type === "wc" || room.type === "storage" || room.type === "ensuite";
     const width = narrow ? Math.min(opts.doorWidth, 0.8) : opts.doorWidth;
-    if (!place("door", shared, width, room.kind === "ensuite" ? 0.4 : 0.3, "standard", wayIn)) return { ok: false, reason: `there's no room for a door into ${room.name.toLowerCase()}.` };
+    // Where doors must keep clear of something (the stairs), any stretch of the shared wall will do, longest first.
+    const tries = opts.doorAvoid?.length ? [...runsBetween(r, parent)].sort((p, q) => q.hi - q.lo - (p.hi - p.lo)) : [shared];
+    if (!tries.some((run) => place("door", run, width, room.kind === "ensuite" ? 0.4 : 0.3, "standard", wayIn))) return { ok: false, reason: `there's no room for a door into ${room.name.toLowerCase()}.` };
     for (const link of room.links ?? []) {
       const other = plan.rooms.findIndex((x) => x.key === link);
       const run = other >= 0 ? longest(runsBetween(r, other)) : undefined;
@@ -249,7 +259,7 @@ export function emitLayout(shell: PlanDocument, plan: LayoutPlan, opts: EmitOpti
     }
     const outs = [...(outside.get(r) ?? [])].sort((p, q) => q.hi - q.lo - (p.hi - p.lo));
     let doorOut: Run | undefined;
-    if (room.gardenDoor) {
+    if (room.gardenDoor && !opts.upper) {
       const toGarden = outs.find((o) => o.facing === rear && o.hi - o.lo >= GARDEN_DOOR + 0.6);
       if (toGarden && place("door", toGarden, GARDEN_DOOR, 0.6)) doorOut = toGarden;
     }
@@ -265,19 +275,19 @@ export function emitLayout(shell: PlanDocument, plan: LayoutPlan, opts: EmitOpti
   // The front door into the entrance room: on the street side if it reaches it, else a side, else the garden side.
   const hallOuts = [...(hall >= 0 ? (outside.get(hall) ?? []) : [])];
   let entrance: Run | null = null;
-  for (const o of entryOuts) {
+  for (const o of opts.upper ? [] : entryOuts) {
     if (place("door", o, 1, 0.2)) {
       entrance = o;
       break;
     }
   }
-  if (!entrance) {
+  if (!entrance && !opts.upper) {
     const day = plan.rooms.findIndex((x) => x.type === "living" || x.type === "kitchen_dining");
     const o = day >= 0 ? [...(outside.get(day) ?? [])].sort((p, q) => rank(p) - rank(q) || q.hi - q.lo - (p.hi - p.lo))[0] : undefined;
     if (o && place("door", o, 1, 0.3)) notes.push(`The front door opens into the ${plan.rooms[day].name.toLowerCase()}; the hall doesn't reach an outside wall.`);
     else notes.push("There is no front door; the hall doesn't reach an outside wall.");
   }
-  const garden = hallOuts.find((o) => o !== entrance && o.facing === rear);
+  const garden = opts.upper ? undefined : hallOuts.find((o) => o !== entrance && o.facing === rear);
   if (garden) place("door", garden, 0.9, 0.2);
   // Long stretches of hall along the outside get a window.
   for (const o of hallOuts) if (o !== entrance && o !== garden && o.hi - o.lo >= 3) place("window", o, 1.2, 0.6);
@@ -293,7 +303,7 @@ export function emitLayout(shell: PlanDocument, plan: LayoutPlan, opts: EmitOpti
  * less `margin`: centred, or near the end of the clear stretch closest to
  * `toward`, swinging into the room `run.inside` is in. Null if it doesn't fit.
  */
-export function fitOpening(level: Level, r: Run, kind: "door" | "window", width: number, margin: number, size: WindowSize, id: string, toward?: Point2): Opening | null {
+export function fitOpening(level: Level, r: Run, kind: "door" | "window", width: number, margin: number, size: WindowSize, id: string, toward?: Point2, avoid?: readonly Rect[]): Opening | null {
   const mid = (r.lo + r.hi) / 2;
   const p = r.horizontal ? { x: mid, y: r.line } : { x: r.line, y: mid };
   const geometry = deriveLevelGeometry(level);
@@ -302,12 +312,22 @@ export function fitOpening(level: Level, r: Run, kind: "door" | "window", width:
   const s0 = axialParam(axis, r.horizontal ? { x: r.lo, y: r.line } : { x: r.line, y: r.lo });
   const s1 = axialParam(axis, r.horizontal ? { x: r.hi, y: r.line } : { x: r.line, y: r.hi });
   const [lo, hi] = [Math.min(s0, s1), Math.max(s0, s1)];
+  // Stretches kept clear: anything to avoid within a door's swing of the wall.
+  const blocked: Array<[number, number]> = [];
+  for (const q of avoid ?? []) {
+    const [near0, near1] = r.horizontal ? [q.minY, q.maxY] : [q.minX, q.maxX];
+    const gap = r.line < near0 ? near0 - r.line : r.line > near1 ? r.line - near1 : 0;
+    if (gap >= AVOID_REACH) continue;
+    const a = axialParam(axis, r.horizontal ? { x: q.minX, y: r.line } : { x: r.line, y: q.minY });
+    const b = axialParam(axis, r.horizontal ? { x: q.maxX, y: r.line } : { x: r.line, y: q.maxY });
+    blocked.push([Math.min(a, b) - AVOID_GAP, Math.max(a, b) + AVOID_GAP]);
+  }
   // The widest clear stretch of the run between junctions.
   let span: [number, number] | null = null;
   for (const [a, b] of openingHostIntervals(geometry, axis.wallId)) {
-    const x0 = Math.max(a, lo);
-    const x1 = Math.min(b, hi);
-    if (x1 - x0 > EPS && (!span || x1 - x0 > span[1] - span[0])) span = [x0, x1];
+    let pieces: Array<[number, number]> = [[Math.max(a, lo), Math.min(b, hi)]];
+    for (const [c, d] of blocked) pieces = pieces.flatMap(([x0, x1]): Array<[number, number]> => (d <= x0 || c >= x1 ? [[x0, x1]] : [[x0, Math.min(x1, c)], [Math.max(x0, d), x1]]));
+    for (const [x0, x1] of pieces) if (x1 - x0 > EPS && (!span || x1 - x0 > span[1] - span[0])) span = [x0, x1];
   }
   if (!span) return null;
   const w = roundToPrecision(Math.min(width, span[1] - span[0] - margin));

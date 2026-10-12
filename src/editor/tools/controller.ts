@@ -1,33 +1,30 @@
-import { applyCommand } from "@/domain/commands";
+import { applyCommand, type PlanCommand } from "@/domain/commands";
 import { analyzeEnvelope } from "@/domain/geometry/envelope";
 import { checkOutlineRing, normalizeRing, outsideToAxis } from "@/domain/geometry/outline";
 import { deriveLevelGeometry, openingHostInterval, openingHostIntervals, type LevelGeometry } from "@/domain/geometry/derive";
 import { EPS, roundToPrecision } from "@/domain/geometry/numeric";
 import { axialParam, pointAtParam } from "@/domain/geometry/walls";
 import { DEFAULT_HOUSE, LIMITS } from "@/domain/plan/defaults";
-import type { Id, Opening, Point2 } from "@/domain/plan/types";
-import type { EditorActions, EditorStores, Selection, SnapIndicator } from "../state/stores";
+import { staircasePlan } from "@/domain/geometry/stairs";
+import { groundLevel, levelIndex } from "@/domain/plan/levels";
+import { sitePlot } from "@/domain/project/site";
+import type { Id, Opening, Point2, Staircase } from "@/domain/plan/types";
+import { activeLevelOf, inRefine, type EditorActions, type EditorStores, type Selection, type SnapIndicator } from "../state/stores";
 import { newIdPrefix } from "../state/ids";
-import { fitRect, panBy, pixelsToMetres, screenToWorld, zoomAt } from "../viewport/viewport";
-import { hitDesign, hitOpeningEdge, hitTest, hitWall, hitWallEnd, roomAt } from "./hitTest";
+import { blendViewports, fitRect, panBy, pixelsToMetres, screenToWorld, zoomAt, type Insets, type Viewport } from "../viewport/viewport";
+import type { Rect } from "@/domain/geometry/vector";
+import { hitOpeningEdge, hitRefine, hitStairs, hitWall, hitWallEnd, roomAt } from "./hitTest";
 import { FURNITURE_CATALOG } from "@/domain/furniture/catalog";
+import { furnitureRect } from "@/domain/furniture/geometry";
+import { roomEdgeHandles } from "@/domain/design/analysis";
 import { hitFurniture, poseIsClear, snapFurniture, type FurniturePose } from "./furnitureSnap";
 import { snapPoint } from "./snapping";
 
 /** Screen-space acquisition radius for snapping and picking. */
 export const SNAP_RADIUS_PX = 8;
 const DRAG_THRESHOLD_PX = 4;
-/** Keeps a fitted plan clear of the floating toolbar, tool options, view controls and variation tray. */
-/** Screen space kept clear of floating chrome when fitting: tool rail and floors left, inspector right, dock below. */
-const FIT_INSETS = { top: 72, right: 400, bottom: 230, left: 160 };
-const TRAY_HEIGHT = 96;
-/** Right edge of the furniture catalog, with a margin. */
-const CATALOG_LEFT = 124 + 264 + 24;
-/** The 2D plan beside (or instead of) the 3D view: rail on the left, floors and dock below. */
-const PRESENT_INSETS = { top: 90, right: 48, bottom: 230, left: 130 };
-const DESIGN_INSETS = { top: 80, right: 660, bottom: 200, left: 150 };
-/** The brief panel covers the right of the canvas; the plan sits beside it. */
-const BRIEF_INSETS = { top: 72, right: 560, bottom: 220, left: 120 };
+/** Fit's margins when there's no page to measure (tests). */
+const DEFAULT_INSETS: Insets = { top: 72, right: 72, bottom: 72, left: 72 };
 
 export interface PointerInput {
   /** Pointer position in CSS pixels relative to the canvas. */
@@ -39,14 +36,28 @@ export interface PointerInput {
 
 type Gesture =
   | { kind: "pan"; last: Point2 }
-  | { kind: "pending"; downScreen: Point2; downWorld: Point2; target: Selection; end: "start" | "end" | null; corner?: number; alt?: boolean }
+  | {
+      kind: "pending";
+      downScreen: Point2;
+      downWorld: Point2;
+      target: Selection;
+      end: "start" | "end" | null;
+      corner?: number;
+      alt?: boolean;
+      /** Picked, not grabbed: dragging it does nothing. */
+      held?: boolean;
+      /** A corner of the selected piece of furniture: dragging it resizes the piece. */
+      furnitureCorner?: Point2;
+    }
   | { kind: "drag-wall"; wallId: Id; horizontal: boolean; line: number; downWorld: Point2; prefix: string }
   | { kind: "drag-end"; wallId: Id; end: "start" | "end"; horizontal: boolean; fixed: Point2; prefix: string }
   | { kind: "drag-opening"; openingId: Id; grab: number; prefix: string }
   | { kind: "drag-opening-edge"; openingId: Id; edge: "start" | "end"; fixed: number; prefix: string }
   | { kind: "drag-furniture"; furnitureId: Id; grab: Point2; rotation: FurniturePose["rotation"]; prefix: string }
+  | { kind: "drag-furniture-size"; furnitureId: Id; anchor: Point2; quarter: boolean; prefix: string }
   | { kind: "drag-outline"; wallId: Id; normal: Point2; horizontal: boolean; line: number; downWorld: Point2; from?: number; to?: number; prefix: string }
-  | { kind: "drag-corner"; wallId: Id; corner: Point2; dir: Point2; normal: Point2; length: number; prefix: string };
+  | { kind: "drag-corner"; wallId: Id; corner: Point2; dir: Point2; normal: Point2; length: number; prefix: string }
+  | { kind: "drag-stairs"; staircaseId: Id; grab: Point2; prefix: string };
 
 /** Width of the bay or recess an Alt-drag on an outside wall makes, m. */
 const STEP_WIDTH = 3;
@@ -96,8 +107,14 @@ export function snapOpeningOffset(
  * Translates pointer input into previews and commands. Holds only transient
  * gesture state; everything persistent goes through validated commands.
  */
-export function createToolController(stores: EditorStores, actions: EditorActions) {
+export interface ToolControllerOptions {
+  /** Space the floating chrome takes along each canvas edge (see viewport/chrome.ts). */
+  insets?: () => Insets;
+}
+
+export function createToolController(stores: EditorStores, actions: EditorActions, options: ToolControllerOptions = {}) {
   const { documents, session } = stores;
+  const insets = options.insets ?? (() => DEFAULT_INSETS);
   let gesture: Gesture | null = null;
   let chainStart: Point2 | null = null;
   /** Corners of the outline being drawn, on the outside faces. */
@@ -106,8 +123,14 @@ export function createToolController(stores: EditorStores, actions: EditorAction
   /** Alt (Option) places and drags furniture without snapping. */
   let altHeld = false;
 
+  /** The floor being edited, in the committed plan. */
+  const editedLevel = () => activeLevelOf(documents.getState().history.present, session.getState().activeLevelId);
+  /** A command checked without committing acts on the floor being edited, as dispatched ones do. */
+  const onFloor = <T extends PlanCommand>(command: T): T =>
+    documents.getState().history.present.levels.length > 1 ? { ...command, levelId: editedLevel().id } : command;
+
   const context = () => {
-    const level = documents.getState().history.present.levels[0];
+    const level = editedLevel();
     const s = session.getState();
     const radius = pixelsToMetres(s.viewport, SNAP_RADIUS_PX);
     return {
@@ -123,20 +146,87 @@ export function createToolController(stores: EditorStores, actions: EditorAction
 
   const snapTo = (v: number, grid: number | null) => (grid ? roundToPrecision(Math.round(v / grid) * grid) : roundToPrecision(v));
 
+  /** Stairs under the pointer win over the room they stand in. */
+  const preferStairs = (hit: Selection, world: Point2): Selection => {
+    if (hit && hit.kind !== "room") return hit;
+    const id = hitStairs(documents.getState().history.present, editedLevel().id, world);
+    return id ? { kind: "stairs", id } : hit;
+  };
+
+  /** Where stairs land: a side pulled flush against a wall face within reach, else the foot on the grid. */
+  function snapStairsFoot(s: Staircase, foot: Point2): Point2 {
+    const { level, radius, grid } = context();
+    const b = staircasePlan(documents.getState().history.present, { ...s, foot: { x: 0, y: 0 } }).bounds;
+    const at = { minX: b.minX + foot.x, maxX: b.maxX + foot.x, minY: b.minY + foot.y, maxY: b.maxY + foot.y };
+    let dx: number | null = null;
+    let dy: number | null = null;
+    // Stairs settle against a wall from a little further away than points snap.
+    let bestX = radius * 3;
+    let bestY = radius * 3;
+    for (const { rect: r } of deriveLevelGeometry(level).footprints.values()) {
+      if (Math.min(at.maxY, r.maxY) - Math.max(at.minY, r.minY) > 0) {
+        for (const d of [r.maxX - at.minX, r.minX - at.maxX]) if (Math.abs(d) < bestX) [bestX, dx] = [Math.abs(d), d];
+      }
+      if (Math.min(at.maxX, r.maxX) - Math.max(at.minX, r.minX) > 0) {
+        for (const d of [r.maxY - at.minY, r.minY - at.maxY]) if (Math.abs(d) < bestY) [bestY, dy] = [Math.abs(d), d];
+      }
+    }
+    return { x: dx !== null ? roundToPrecision(foot.x + dx) : snapTo(foot.x, grid), y: dy !== null ? roundToPrecision(foot.y + dy) : snapTo(foot.y, grid) };
+  }
+
+  /** A guide along a wall's new line, across the whole floor. */
+  const guideAcross = (horizontal: boolean, at: number) => {
+    const env = analyzeEnvelope(editedLevel());
+    const r = env.ok ? env.info.outsideRect : { minX: at - 10, minY: at - 10, maxX: at + 10, maxY: at + 10 };
+    const reach = 1;
+    return horizontal ? { a: { x: r.minX - reach, y: at }, b: { x: r.maxX + reach, y: at } } : { a: { x: at, y: r.minY - reach }, b: { x: at, y: r.maxY + reach } };
+  };
+
+  // ── Gliding view ───────────────────────────────────────────────────────
+  // Zoom and fit from buttons and keys move the view over 200 ms (DESIGN.md: motion only where it shows
+  // where you've gone). Reduced motion, and any touch of the plan, makes it jump straight there.
+  let glide: number | null = null;
+  const stopGlide = () => {
+    if (glide !== null && typeof cancelAnimationFrame === "function") cancelAnimationFrame(glide);
+    glide = null;
+  };
+  const glideTo = (target: Viewport, animate: boolean) => {
+    stopGlide();
+    const reduced = typeof window === "undefined" || typeof requestAnimationFrame !== "function" || window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    if (!animate || reduced) {
+      session.setState({ viewport: target });
+      return;
+    }
+    const from = session.getState().viewport;
+    const t0 = performance.now();
+    const step = (now: number) => {
+      const t = Math.min(1, (now - t0) / 200);
+      const eased = 1 - Math.pow(1 - t, 3);
+      // The view may have been resized meanwhile: blend towards the target at the current size.
+      const size = session.getState().viewport;
+      session.setState({ viewport: t < 1 ? blendViewports({ ...from, width: size.width, height: size.height }, { ...target, width: size.width, height: size.height }, eased) : target });
+      glide = t < 1 ? requestAnimationFrame(step) : null;
+    };
+    glide = requestAnimationFrame(step);
+  };
+
   // ── Select tool ────────────────────────────────────────────────────────
+  /**
+   * What Select picks under the pointer in Refine. Walls and doors are picked
+   * on their own width plus a little, so a click just inside a room picks the
+   * room; furniture only when it's on show.
+   */
+  function refineHit(world: Point2): Selection {
+    const { level, geometry, session: s, radius } = context();
+    const furnitureId = s.view === "furnished" ? hitFurniture(level, world, radius * 0.5) : null;
+    return preferStairs(hitRefine(level, geometry, world, radius * 0.5, furnitureId), world);
+  }
+
   function selectDown(input: PointerInput) {
     const { level, geometry, session: s, radius } = context();
     const world = toWorld(input.screen);
-    if (s.workspace === "design") {
-      // Rooms and furniture as whole objects; inside walls, doors and windows can be dragged, the outline can't.
-      const target = hitDesign(level, geometry, world, radius, hitFurniture(level, world, radius * 0.5));
-      // Clicking a wall selects the room on that side; dragging it moves the wall.
-      const roomId = target?.kind === "wall" ? roomAt(level, geometry, world) : null;
-      actions.select(target?.kind === "wall" ? (roomId ? { kind: "room", id: roomId } : null) : target);
-      gesture = { kind: "pending", downScreen: input.screen, downWorld: world, target, end: null };
-      return;
-    }
-    if (s.workspace !== "structure") {
+    if (!inRefine(s)) {
+      // Outside Refine the plan is for looking at: clicks pick rooms, drags pan.
       const roomId = roomAt(level, geometry, world);
       const target: Selection = roomId ? { kind: "room", id: roomId } : null;
       actions.select(target);
@@ -144,6 +234,29 @@ export function createToolController(stores: EditorStores, actions: EditorAction
       return;
     }
     const selected = s.selection;
+    // A picked room's edge grips move its walls; the room stays picked, so its sizes show as they change.
+    if (selected?.kind === "room" && level.rooms[selected.id]) {
+      const grip = roomEdgeHandles(level, selected.id).find((h) => Math.hypot(h.point.x - world.x, h.point.y - world.y) <= radius * 1.6);
+      if (grip) {
+        gesture = { kind: "pending", downScreen: input.screen, downWorld: world, target: { kind: "wall", id: grip.wallId }, end: null };
+        return;
+      }
+    }
+    // A picked piece of furniture resizes from its corners.
+    if (selected?.kind === "furniture" && level.furniture[selected.id] && s.view === "furnished") {
+      const r = furnitureRect(level.furniture[selected.id]);
+      const corners = [
+        { x: r.minX, y: r.minY },
+        { x: r.maxX, y: r.minY },
+        { x: r.maxX, y: r.maxY },
+        { x: r.minX, y: r.maxY },
+      ];
+      const i = corners.findIndex((c) => Math.hypot(c.x - world.x, c.y - world.y) <= radius * 1.4);
+      if (i >= 0) {
+        gesture = { kind: "pending", downScreen: input.screen, downWorld: world, target: selected, end: null, furnitureCorner: corners[(i + 2) % 4] };
+        return;
+      }
+    }
     if (selected?.kind === "opening" && level.openings[selected.id]) {
       const edge = hitOpeningEdge(level, geometry, selected.id, world, radius);
       if (edge) {
@@ -167,14 +280,22 @@ export function createToolController(stores: EditorStores, actions: EditorAction
         return;
       }
     }
-    const target = hitTest(level, geometry, world, radius);
+    const target = refineHit(world);
+    // An outside wall moves the whole side of the house, so it drags only once it's selected (or with Alt, for a bay).
+    const held = target?.kind === "wall" && level.walls[target.id]?.role === "external" && !input.altKey && !(selected?.kind === "wall" && selected.id === target.id);
     actions.select(target);
-    gesture = { kind: "pending", downScreen: input.screen, downWorld: world, target, end: null, alt: input.altKey };
+    gesture = { kind: "pending", downScreen: input.screen, downWorld: world, target, end: null, alt: input.altKey, held };
   }
 
   function startDrag(pending: Extract<Gesture, { kind: "pending" }>) {
     const { level, geometry } = context();
     const target = pending.target;
+    if (pending.held) return null;
+    if (pending.furnitureCorner && target?.kind === "furniture") {
+      const item = level.furniture[target.id];
+      if (!item) return null;
+      return { kind: "drag-furniture-size" as const, furnitureId: item.id, anchor: pending.furnitureCorner, quarter: item.rotation === 90 || item.rotation === 270, prefix: newIdPrefix() };
+    }
     if (pending.corner !== undefined) {
       // A corner drags the start of the wall leaving it: pulled in it cuts a notch, pushed out it fills one.
       const env = analyzeEnvelope(level);
@@ -222,6 +343,11 @@ export function createToolController(stores: EditorStores, actions: EditorAction
         };
       }
       return { kind: "drag-wall" as const, wallId: wall.id, horizontal, line: axis.line, downWorld: pending.downWorld, prefix: newIdPrefix() };
+    }
+    if (target.kind === "stairs") {
+      const s = documents.getState().history.present.staircases?.[target.id];
+      if (!s) return null;
+      return { kind: "drag-stairs" as const, staircaseId: s.id, grab: { x: pending.downWorld.x - s.foot.x, y: pending.downWorld.y - s.foot.y }, prefix: newIdPrefix() };
     }
     if (target.kind === "furniture") {
       const item = level.furniture[target.id];
@@ -280,6 +406,7 @@ export function createToolController(stores: EditorStores, actions: EditorAction
       const mid = { x: (axis.start.x + axis.end.x) / 2, y: (axis.start.y + axis.end.y) / 2 };
       session.setState({
         snap: { point: gesture.horizontal ? { x: mid.x, y: target } : { x: target, y: mid.y }, kind },
+        guides: kind === "endpoint" ? [guideAcross(gesture.horizontal, target)] : [],
       });
       actions.preview({ type: "moveWall", wallId: gesture.wallId, delta: roundToPrecision(target - gesture.line), idPrefix: gesture.prefix });
     } else if (gesture.kind === "drag-end") {
@@ -304,6 +431,30 @@ export function createToolController(stores: EditorStores, actions: EditorAction
       const placed = snapOpeningOffset(geometry, opening, axialParam(axis, world) - gesture.grab, radius, grid);
       session.setState({ snap: placed.snap });
       actions.preview({ type: "updateOpening", openingId: opening.id, changes: { offset: placed.offset }, idPrefix: gesture.prefix });
+    } else if (gesture.kind === "drag-furniture-size") {
+      const item = level.furniture[gesture.furnitureId];
+      if (!item) return;
+      // The opposite corner stays put; sizes land on 10 mm (or the grid, when snapping), never under 200 mm.
+      const step = grid ? Math.min(grid, 0.05) : 0.01;
+      const min = 0.2;
+      const along = (v: number, a: number) => Math.sign(v - a || 1) * Math.max(min, snapTo(Math.abs(v - a), step));
+      const dx = along(world.x, gesture.anchor.x);
+      const dy = along(world.y, gesture.anchor.y);
+      const w = Math.abs(dx);
+      const d = Math.abs(dy);
+      const position = { x: roundToPrecision(gesture.anchor.x + dx / 2), y: roundToPrecision(gesture.anchor.y + dy / 2) };
+      session.setState({ snap: null });
+      actions.preview({
+        type: "updateFurniture",
+        furnitureId: item.id,
+        changes: { position, width: roundToPrecision(gesture.quarter ? d : w), depth: roundToPrecision(gesture.quarter ? w : d) },
+        idPrefix: gesture.prefix,
+      });
+    } else if (gesture.kind === "drag-stairs") {
+      const s = documents.getState().history.present.staircases?.[gesture.staircaseId];
+      if (!s) return;
+      const foot = snapStairsFoot(s, { x: world.x - gesture.grab.x, y: world.y - gesture.grab.y });
+      actions.preview({ type: "updateStairs", staircaseId: s.id, changes: { foot }, idPrefix: gesture.prefix });
     } else if (gesture.kind === "drag-furniture") {
       const item = level.furniture[gesture.furnitureId];
       if (!item) return;
@@ -328,7 +479,7 @@ export function createToolController(stores: EditorStores, actions: EditorAction
       const axis = geometry.axes.get(gesture.wallId);
       if (axis) {
         const mid = pointAtParam(axis, ((gesture.from ?? 0) + (gesture.to ?? axis.length)) / 2);
-        session.setState({ snap: { point: gesture.horizontal ? { x: mid.x, y: target } : { x: target, y: mid.y }, kind } });
+        session.setState({ snap: { point: gesture.horizontal ? { x: mid.x, y: target } : { x: target, y: mid.y }, kind }, guides: kind === "endpoint" ? [guideAcross(gesture.horizontal, target)] : [] });
       }
       const outward = roundToPrecision((target - gesture.line) * sign);
       actions.preview({ type: "moveOutlineEdge", wallId: gesture.wallId, outward, ...(gesture.from !== undefined ? { from: gesture.from, to: gesture.to } : {}), idPrefix: gesture.prefix });
@@ -378,7 +529,7 @@ export function createToolController(stores: EditorStores, actions: EditorAction
   }
 
   const outsideThickness = () => {
-    const env = analyzeEnvelope(documents.getState().history.present.levels[0]);
+    const env = analyzeEnvelope(editedLevel());
     return env.ok ? env.info.externalThickness : DEFAULT_HOUSE.externalThickness;
   };
 
@@ -451,14 +602,14 @@ export function createToolController(stores: EditorStores, actions: EditorAction
     }
     outlinePoints = [];
     session.setState({ outlineDraft: null, snap: null });
-    const level = documents.getState().history.present.levels[0];
+    const level = editedLevel();
     const furnished = Object.values(level.walls).some((w) => w.role === "internal") || Object.keys(level.openings).length > 0 || Object.keys(level.furniture).length > 0;
     if (furnished) session.setState({ outlineConfirm: { outline: ring } });
     else replaceOutline(ring);
   }
 
   function replaceOutline(outline: Point2[]) {
-    const level = documents.getState().history.present.levels[0];
+    const level = editedLevel();
     const result = actions.dispatch({ type: "createOutline", outline, externalThickness: outsideThickness(), wallHeight: level.defaultWallHeight, idPrefix: newIdPrefix() });
     session.setState({ outlineConfirm: null });
     if (!result.ok) return;
@@ -475,13 +626,10 @@ export function createToolController(stores: EditorStores, actions: EditorAction
       session.setState({ wallDraft: null });
       return;
     }
-    const result = applyCommand(documents.getState().history.present, {
-      type: "addWall",
-      start: chainStart,
-      end: snapped.point,
-      thickness: s.settings.internalThickness,
-      idPrefix: "draft",
-    });
+    const result = applyCommand(
+      documents.getState().history.present,
+      onFloor({ type: "addWall", start: chainStart, end: snapped.point, thickness: s.settings.internalThickness, idPrefix: "draft" }),
+    );
     session.setState({
       wallDraft: { start: chainStart, end: snapped.point, valid: result.ok },
     });
@@ -503,7 +651,7 @@ export function createToolController(stores: EditorStores, actions: EditorAction
       thickness: s.settings.internalThickness,
     });
     if (result.ok) {
-      const wallId = result.createdIds.find((id) => result.document.levels[0].walls[id]);
+      const wallId = result.createdIds.find((id) => result.document.levels.some((l) => l.walls[id]));
       if (wallId) actions.select({ kind: "wall", id: wallId });
       chainStart = snapped.point;
       session.setState({ wallDraft: { start: chainStart, end: chainStart, valid: false } });
@@ -595,13 +743,57 @@ export function createToolController(stores: EditorStores, actions: EditorAction
     if (result.ok) actions.select({ kind: "furniture", id });
   }
 
+  // ── Stairs tool ────────────────────────────────────────────────────────
+  /** Stairs from the floor on show up to the next (from the top floor, up from the one below), centred on the pointer. */
+  function stairsAt(world: Point2, id = "draft-stairs"): Staircase | null {
+    const doc = documents.getState().history.present;
+    if (doc.levels.length < 2) return null;
+    const i = levelIndex(doc, editedLevel().id);
+    const [from, to] = i + 1 < doc.levels.length ? [i, i + 1] : [i - 1, i];
+    const st = session.getState().settings.stairs;
+    const base: Staircase = {
+      id,
+      fromLevelId: doc.levels[from].id,
+      toLevelId: doc.levels[to].id,
+      shape: st.shape,
+      ...(st.shape === "straight" ? {} : { turn: st.turn }),
+      foot: { x: 0, y: 0 },
+      rotation: st.rotation,
+      width: st.width,
+      going: st.going,
+    };
+    const b = staircasePlan(doc, base).bounds;
+    return { ...base, foot: snapStairsFoot(base, { x: world.x - (b.minX + b.maxX) / 2, y: world.y - (b.minY + b.maxY) / 2 }) };
+  }
+
+  function stairsMove(world: Point2) {
+    const staircase = stairsAt(world);
+    if (!staircase) return;
+    const result = applyCommand(documents.getState().history.present, { type: "addStairs", staircase });
+    session.setState({ stairsDraft: { staircase, valid: result.ok, message: result.ok ? null : (result.issues[0]?.message ?? null) } });
+  }
+
+  function stairsDown(world: Point2) {
+    const staircase = stairsAt(world, `${newIdPrefix()}-stairs`);
+    if (!staircase) {
+      actions.notify("info", "Add a floor first; stairs go up to it.");
+      return;
+    }
+    const result = actions.dispatch({ type: "addStairs", staircase });
+    if (!result.ok) return;
+    actions.setTool("select");
+    actions.select({ kind: "stairs", id: staircase.id });
+  }
+
   // ── Public handlers ────────────────────────────────────────────────────
   return {
     pointerDown(input: PointerInput) {
+      stopGlide();
       const tool = session.getState().tool;
-      // The brief shows the plan for reference only: dragging pans it.
-      const briefing = session.getState().workspace === "brief";
-      if (input.button === 1 || (input.button === 0 && (spaceHeld || briefing))) {
+      const { workspace } = session.getState();
+      // Map and Requirements show the plan for reference, and an option on show isn't the plan: dragging pans.
+      const reference = workspace === "brief" || workspace === "site" || !!documents.getState().staged;
+      if (input.button === 1 || (input.button === 0 && (spaceHeld || reference))) {
         gesture = { kind: "pan", last: input.screen };
         session.setState({ panning: true });
         return;
@@ -622,6 +814,7 @@ export function createToolController(stores: EditorStores, actions: EditorAction
         else actions.notify("info", "Click inside an enclosed room to edit it.");
       } else if (tool === "door" || tool === "window") openingDown(world, tool);
       else if (tool === "furniture") furnitureDown(world);
+      else if (tool === "stairs") stairsDown(world);
       else if (tool === "outline") outlineDown(world);
     },
 
@@ -633,12 +826,18 @@ export function createToolController(stores: EditorStores, actions: EditorAction
         const dx = input.screen.x - gesture.last.x;
         const dy = input.screen.y - gesture.last.y;
         gesture.last = input.screen;
-        session.setState((s) => ({ viewport: panBy(s.viewport, dx, dy) }));
+        session.setState((s) => ({ viewport: panBy(s.viewport, dx, dy), viewportFitted: false }));
         return;
       }
       if (gesture?.kind === "pending") {
         const moved = Math.hypot(input.screen.x - gesture.downScreen.x, input.screen.y - gesture.downScreen.y);
         if (moved < DRAG_THRESHOLD_PX) return;
+        if (session.getState().readOnly || !inRefine(session.getState())) {
+          // Phones, and the plan outside Refine, look but don't edit: dragging pans instead of moving anything.
+          gesture = { kind: "pan", last: input.screen };
+          session.setState({ panning: true });
+          return;
+        }
         gesture = startDrag(gesture);
         if (!gesture) return;
         session.setState({ drag: gesture.kind as Exclude<Gesture["kind"], "pan" | "pending"> });
@@ -648,24 +847,21 @@ export function createToolController(stores: EditorStores, actions: EditorAction
         return;
       }
       const tool = session.getState().tool;
-      if (session.getState().workspace === "brief") return;
+      if (session.getState().workspace === "brief" || session.getState().workspace === "site") return;
       if (tool === "select" || tool === "room") {
-        const { level, geometry, radius, session: s } = context();
-        const designing = tool === "select" && s.workspace === "design";
-        const roomsOnly = tool === "room" || s.workspace !== "structure";
-        const roomId = roomsOnly && !designing ? roomAt(level, geometry, world) : null;
-        const hit: Selection = designing
-          ? hitDesign(level, geometry, world, radius, hitFurniture(level, world, radius * 0.5))
-          : roomsOnly
-            ? roomId
-              ? { kind: "room", id: roomId }
-              : null
-            : hitTest(level, geometry, world, radius);
+        const { level, geometry, session: s } = context();
+        let hit: Selection;
+        if (tool === "select" && inRefine(s)) hit = refineHit(world);
+        else {
+          const roomId = roomAt(level, geometry, world);
+          hit = roomId ? { kind: "room", id: roomId } : null;
+        }
         const hover = session.getState().hover;
         if (hit?.id !== hover?.id || hit?.kind !== hover?.kind) session.setState({ hover: hit });
       } else if (tool === "wall") wallMove(world);
       else if (tool === "door" || tool === "window") openingMove(world, tool);
       else if (tool === "furniture") furnitureMove(world);
+      else if (tool === "stairs") stairsMove(world);
       else if (tool === "outline") outlineMove(world);
     },
 
@@ -693,14 +889,14 @@ export function createToolController(stores: EditorStores, actions: EditorAction
         session.setState({ panning: false });
         return;
       }
-      if (g.kind === "drag-wall" || g.kind === "drag-end" || g.kind === "drag-opening" || g.kind === "drag-opening-edge" || g.kind === "drag-furniture" || g.kind === "drag-outline" || g.kind === "drag-corner") {
+      if (g.kind !== "pending") {
         actions.commitPreview();
-        session.setState({ snap: null, drag: null });
+        session.setState({ snap: null, drag: null, guides: [] });
       }
     },
 
     pointerLeave() {
-      session.setState({ cursor: null, hover: null, snap: null, openingDraft: null, furnitureDraft: null });
+      session.setState({ cursor: null, hover: null, snap: null, openingDraft: null, furnitureDraft: null, stairsDraft: null });
     },
 
     /** Escape: cancel the active gesture, then the wall chain, then the selection. */
@@ -708,7 +904,7 @@ export function createToolController(stores: EditorStores, actions: EditorAction
       if (gesture && gesture.kind !== "pan") {
         gesture = null;
         actions.cancelPreview();
-        session.setState({ snap: null, drag: null });
+        session.setState({ snap: null, drag: null, guides: [] });
         return true;
       }
       if (chainStart) {
@@ -744,47 +940,64 @@ export function createToolController(stores: EditorStores, actions: EditorAction
       spaceHeld = held;
     },
 
-    wheel(screen: Point2, deltaY: number) {
-      const factor = Math.exp(-deltaY * 0.0015);
-      session.setState((s) => ({ viewport: zoomAt(s.viewport, screen, factor) }));
+    /**
+     * Scrolling pans the plan, as in Figma and Miro; with Ctrl or ⌘ held (a
+     * trackpad pinch arrives that way too) it zooms about the pointer.
+     */
+    wheel(screen: Point2, deltaX: number, deltaY: number, zoom: boolean) {
+      stopGlide();
+      if (zoom) {
+        // A pinch sends small steps, a mouse wheel big ones: both should feel the same.
+        const factor = Math.exp(-deltaY * (Math.abs(deltaY) < 30 ? 0.012 : 0.0025));
+        session.setState((s) => ({ viewport: zoomAt(s.viewport, screen, factor), viewportFitted: false }));
+      } else session.setState((s) => ({ viewport: panBy(s.viewport, -deltaX, -deltaY), viewportFitted: false }));
     },
 
-    zoomBy(factor: number) {
-      session.setState((s) => ({
-        viewport: zoomAt(s.viewport, { x: s.viewport.width / 2, y: s.viewport.height / 2 }, factor),
-      }));
+    /** Two-finger zoom and pan on touch screens: scales about the fingers' midpoint, then follows it. */
+    pinch(center: Point2, factor: number, dx: number, dy: number) {
+      stopGlide();
+      session.setState((s) => ({ viewport: panBy(zoomAt(s.viewport, center, factor), dx, dy), viewportFitted: false }));
+    },
+
+    /** Zooms about the middle of the view; `glide` animates it (the zoom buttons and keys). */
+    zoomBy(factor: number, glide = false) {
+      const v = session.getState().viewport;
+      glideTo(zoomAt(v, { x: v.width / 2, y: v.height / 2 }, factor), glide);
+      session.setState({ viewportFitted: false });
     },
 
     /** Refits the plan when the furniture catalog would cover part of the house. */
     revealBesideCatalog() {
-      const level = documents.getState().history.present.levels[0];
+      const level = editedLevel();
       const env = analyzeEnvelope(level);
       if (!env.ok || session.getState().tool !== "furniture") return;
       const { viewport } = session.getState();
       const left = env.info.outsideRect.minX * viewport.scale + viewport.offsetX;
-      if (left < CATALOG_LEFT) this.fitPlan();
+      if (left < insets().left) this.fitPlan();
     },
 
-    fitPlan() {
-      const level = documents.getState().history.present.levels[0];
+    /** Zooms to a part of the plan (a room, say), clear of the floating chrome; `glide` animates it. */
+    zoomTo(rect: Rect, glide = false) {
+      glideTo(fitRect(session.getState().viewport, rect, insets()), glide);
+      session.setState({ viewportFitted: false });
+    },
+
+    /** Shows the whole plan. `glide` animates it (the Fit button and F); fits the editor makes itself are instant. */
+    fitPlan(glide = false) {
+      // The ground floor holds every floor above it.
+      const level = groundLevel(documents.getState().history.present);
       const env = analyzeEnvelope(level);
       if (!env.ok) return;
       const r = env.info.outsideRect;
-      // Leave room for the overall dimension lines (north and west).
+      // On Map, the whole plot when there is one.
+      const rear = (level.rearWallId && env.info.sideOfWall[level.rearWallId]) || "north";
+      const plot = session.getState().workspace === "site" ? sitePlot(r, rear, stores.project.getState().site) : null;
+      // Leave room for the overall dimension lines (north and west) and the GARDEN / STREET labels (either end).
       const pad = 1.2;
-      const { workspace, designer } = session.getState();
-      // In Designs the room card and the AI Designer sit side by side on the right.
-      const base =
-        workspace === "brief" ? BRIEF_INSETS
-        : workspace === "present" ? PRESENT_INSETS
-        : workspace === "design" && designer.panelOpen ? DESIGN_INSETS
-        : FIT_INSETS;
-      const trayed = stores.project.getState().plans.length > 1 ? { ...base, bottom: base.bottom + TRAY_HEIGHT } : base;
-      // The furniture catalog sits beside the tool rail.
-      const insets = session.getState().tool === "furniture" ? { ...trayed, left: Math.max(trayed.left, CATALOG_LEFT) } : trayed;
-      session.setState((s) => ({
-        viewport: fitRect(s.viewport, { minX: r.minX - pad, minY: r.minY - pad * 0.4, maxX: r.maxX + pad * 0.4, maxY: r.maxY + pad }, insets),
-      }));
+      const frame = plot ? { minX: Math.min(plot.minX, r.minX) - 0.6, minY: Math.min(plot.minY, r.minY) - 0.6, maxX: Math.max(plot.maxX, r.maxX) + 0.6, maxY: Math.max(plot.maxY, r.maxY) + 0.6 } : { minX: r.minX - pad, minY: r.minY - pad, maxX: r.maxX + pad * 0.4, maxY: r.maxY + pad };
+      const viewport = fitRect(session.getState().viewport, frame, insets());
+      glideTo(viewport, glide);
+      session.setState({ viewportFitted: true, fitScale: viewport.scale });
     },
   };
 }

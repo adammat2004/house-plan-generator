@@ -7,7 +7,8 @@ import { FAMILY_WORD } from "../geometry/outline";
 import { describeOutline } from "../geometry/outlineDescription";
 import { ROOM_TYPE_LABEL } from "../plan/rooms";
 import { FLOOR_MATERIALS, FURNITURE_KINDS, ROOM_TYPES } from "../plan/schema";
-import type { Id, Level } from "../plan/types";
+import { storeysWord } from "../plan/levels";
+import type { Id, Level, PlanDocument } from "../plan/types";
 import { EXTERIOR_FINISHES, FRAME_FINISHES, INTERIOR_STYLES, ROOF_FINISHES, type Appearance, type InteriorStyle } from "../project/schema";
 import { roomConnections, roomRegion } from "./analysis";
 
@@ -34,10 +35,14 @@ const roomViewSchema = z.object({
   floor: z.enum(FLOOR_MATERIALS).nullable(),
 });
 
+const storeysSchema = z.number().int().min(1).max(3);
+
 const aerialViewSchema = z.object({
   kind: z.literal("aerial"),
   rooms: z.array(z.enum(ROOM_TYPES)).max(40),
   area: z.number().min(0).max(5000),
+  /** Absent for a single storey. */
+  storeys: storeysSchema.optional(),
 });
 
 const exteriorViewSchema = z.object({
@@ -45,7 +50,7 @@ const exteriorViewSchema = z.object({
   exterior: z.enum(EXTERIOR_FINISHES),
   frames: z.enum(FRAME_FINISHES),
   roof: z.enum(ROOF_FINISHES),
-  storeys: z.literal(1),
+  storeys: storeysSchema,
   /** The outline's family when the house isn't a rectangle. */
   shape: z.enum(["L", "T", "U", "Z", "custom"]).optional(),
 });
@@ -61,6 +66,10 @@ export type RenderRequest = z.infer<typeof renderRequestSchema>;
 export type RenderView = RenderRequest["view"];
 export type StillTarget = { kind: "exterior" } | { kind: "aerial" } | { kind: "room"; roomId: Id };
 
+/** A plan's floors, or the one floor given. Photos of a house of one floor work exactly as they did for a Level. */
+const floorsOf = (source: Level | PlanDocument): Level[] => ("levels" in source ? source.levels : [source]);
+const floorOfRoom = (source: Level | PlanDocument, roomId: Id): Level | undefined => floorsOf(source).find((l) => roomId in l.rooms);
+
 const SKIP: ReadonlySet<string> = new Set(["hall", "storage", "garage", "unspecified", "other"]);
 const ORDER: Record<string, number> = { living: 0, kitchen_dining: 1, kitchen: 2, dining: 3, primary_bedroom: 4, office: 5, bedroom: 6, bathroom: 7, ensuite: 8, utility: 9, wc: 10 };
 
@@ -69,9 +78,9 @@ const ORDER: Record<string, number> = { living: 0, kitchen_dining: 1, kitchen: 2
  * garden, then living spaces, bedrooms and bathrooms. Halls, storage and
  * tiny rooms are left out.
  */
-export function photoTargets(level: Level, limit = 10): StillTarget[] {
-  const rooms = Object.values(level.rooms)
-    .map((room) => ({ room, area: roomRegion(level, room.id)?.clearArea ?? 0 }))
+export function photoTargets(source: Level | PlanDocument, limit = 10): StillTarget[] {
+  const rooms = floorsOf(source)
+    .flatMap((level) => Object.values(level.rooms).map((room) => ({ room, area: roomRegion(level, room.id)?.clearArea ?? 0 })))
     .filter(({ room, area }) => !SKIP.has(room.type) && area >= 3)
     .sort((a, b) => (ORDER[a.room.type] ?? 20) - (ORDER[b.room.type] ?? 20) || b.area - a.area || a.room.name.localeCompare(b.room.name, undefined, { numeric: true }));
   return [{ kind: "exterior" as const }, ...rooms.map(({ room }) => ({ kind: "room" as const, roomId: room.id }))].slice(0, limit);
@@ -80,21 +89,23 @@ export function photoTargets(level: Level, limit = 10): StillTarget[] {
 export const targetKey = (target: StillTarget) => (target.kind === "room" ? target.roomId : target.kind);
 
 /** The facts about a view that the prompt is written from. Null if the room has gone. */
-export function renderViewFor(level: Level, target: StillTarget, appearance: Appearance): RenderView | null {
+export function renderViewFor(source: Level | PlanDocument, target: StillTarget, appearance: Appearance): RenderView | null {
+  const floors = floorsOf(source);
   if (target.kind === "exterior") {
-    const env = analyzeEnvelope(level);
+    const env = analyzeEnvelope(floors[0]);
     // A rectangle with a bay is still a rectangle in a photo.
     const shape = env.ok ? (describeOutline(env.info).shape ?? undefined) : undefined;
-    return { kind: "exterior", exterior: appearance.exterior, frames: appearance.frames, roof: appearance.roof, storeys: 1, ...(shape ? { shape } : {}) };
+    return { kind: "exterior", exterior: appearance.exterior, frames: appearance.frames, roof: appearance.roof, storeys: floors.length, ...(shape ? { shape } : {}) };
   }
   if (target.kind === "aerial") {
-    const rooms = Object.values(level.rooms).map((r) => r.type);
-    const area = Object.keys(level.rooms).reduce((sum, id) => sum + (roomRegion(level, id)?.clearArea ?? 0), 0);
-    return { kind: "aerial", rooms: rooms.slice(0, 40), area: Math.round(area) };
+    const rooms = floors.flatMap((level) => Object.values(level.rooms).map((r) => r.type));
+    const area = floors.reduce((total, level) => total + Object.keys(level.rooms).reduce((sum, id) => sum + (roomRegion(level, id)?.clearArea ?? 0), 0), 0);
+    return { kind: "aerial", rooms: rooms.slice(0, 40), area: Math.round(area), ...(floors.length > 1 ? { storeys: floors.length } : {}) };
   }
-  const room = level.rooms[target.roomId];
-  const region = roomRegion(level, target.roomId);
-  if (!room || !region) return null;
+  const level = floorOfRoom(source, target.roomId);
+  const room = level?.rooms[target.roomId];
+  const region = level && roomRegion(level, target.roomId);
+  if (!level || !room || !region) return null;
   const connections = roomConnections(level, target.roomId);
   return {
     kind: "room",
@@ -118,6 +129,7 @@ const STYLE_WORDS: Record<InteriorStyle, string> = {
 
 const FLOOR_WORDS: Record<NonNullable<Extract<RenderView, { kind: "room" }>["floor"]>, string> = {
   timber: "herringbone oak floor",
+  boards: "wide oak floorboards",
   tile: "large porcelain floor tiles",
   stone: "natural stone floor",
   carpet: "soft carpet",
@@ -140,11 +152,11 @@ export function renderPrompt(view: RenderView, style: InteriorStyle): string {
     const counts = new Map<string, number>();
     for (const type of view.rooms) if (type !== "hall" && type !== "unspecified") counts.set(ROOM_TYPE_LABEL[type].toLowerCase(), (counts.get(ROOM_TYPE_LABEL[type].toLowerCase()) ?? 0) + 1);
     const list = [...counts].map(([name, c]) => (c > 1 ? `${c} ${name}s` : `a ${name}`)).join(", ");
-    return `Turn this 3D render into a photorealistic aerial photograph of a furnished single-storey home of about ${view.area} square metres, seen from above at an angle with the roof removed, like an architectural dollhouse cutaway. It has ${list}. Interiors in a ${STYLE_WORDS[style]} style, dark wall tops, a garden, paving and planting around the house, soft daylight. Keep the camera position, perspective and framing exactly as in the image. Keep every wall, room, door, window and piece of furniture where it is; only replace the flat placeholder materials with realistic finishes, textures and lighting. No people, no text, no labels, no watermarks.`;
+    return `Turn this 3D render into a photorealistic aerial photograph of a furnished ${storeysWord(view.storeys ?? 1)} home of about ${view.area} square metres, seen from above at an angle with the roof removed, like an architectural dollhouse cutaway. It has ${list}. Interiors in a ${STYLE_WORDS[style]} style, dark wall tops, a garden, paving and planting around the house, soft daylight. Keep the camera position, perspective and framing exactly as in the image. Keep every wall, room, door, window and piece of furniture where it is; only replace the flat placeholder materials with realistic finishes, textures and lighting. No people, no text, no labels, no watermarks.`;
   }
   if (view.kind === "exterior") {
     const shape = view.shape ? `${view.shape === "L" ? "an" : "a"} ${FAMILY_WORD[view.shape]} ` : "a ";
-    return `Turn this 3D massing render into a photorealistic architectural photograph of ${shape}single-storey house seen from its garden: ${EXTERIOR_WORDS[view.exterior]}, ${view.frames} window frames, a ${view.roof === "zinc" ? "zinc" : "dark flat"} roof, a neat lawn, planting and soft daylight. ${keep}`;
+    return `Turn this 3D massing render into a photorealistic architectural photograph of ${shape}${storeysWord(view.storeys)} house seen from its garden: ${EXTERIOR_WORDS[view.exterior]}, ${view.frames} window frames, a ${view.roof === "zinc" ? "zinc" : "dark flat"} roof, a neat lawn, planting and soft daylight. ${keep}`;
   }
   const items = [...new Set(view.furniture.map((k) => FURNITURE_CATALOG[k].label.toLowerCase()))];
   const room = ROOM_TYPE_LABEL[view.roomType].toLowerCase();
@@ -172,9 +184,20 @@ const r2 = (v: number) => Math.round(v * 100) / 100;
 /**
  * A key for what an image of the view shows: the room's outline, its
  * openings, the furniture in it, its finish, and the style. Editing one room
- * doesn't change another room's key.
+ * doesn't change another room's key; the house from outside and above
+ * changes with every floor.
  */
-export function renderKey(level: Level, target: StillTarget, appearance: Appearance, style: InteriorStyle): string {
+export function renderKey(source: Level | PlanDocument, target: StillTarget, appearance: Appearance, style: InteriorStyle): string {
+  const floors = floorsOf(source);
+  if (target.kind === "room") {
+    const level = floorOfRoom(source, target.roomId);
+    return level ? floorKey(level, target, appearance, style) : "gone";
+  }
+  if (floors.length === 1) return floorKey(floors[0], target, appearance, style);
+  return hash(JSON.stringify([target.kind, floors.length, ...floors.map((l) => floorKey(l, target, appearance, style))]));
+}
+
+function floorKey(level: Level, target: StillTarget, appearance: Appearance, style: InteriorStyle): string {
   if (target.kind === "aerial") {
     const walls = Object.values(level.walls).map((w) => [w.id, level.vertices[w.startVertexId], level.vertices[w.endVertexId]]);
     const openings = Object.values(level.openings).map((o) => [o.wallId, o.kind, r2(o.offset), r2(o.width)]);

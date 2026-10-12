@@ -182,9 +182,10 @@ export function simplifyRing(ring: Ring): Ring {
 /**
  * A point well inside the polygon, suitable for labels and room seeds.
  * Samples centroid and scanline candidates and keeps the one furthest from
- * the boundary.
+ * the boundary; or, given `near`, the one nearest it of those at least
+ * `enough` from the boundary (else the furthest).
  */
-export function interiorPoint(polygon: PolygonWithHoles): Point2 {
+export function interiorPoint(polygon: PolygonWithHoles, near?: { point: Point2; enough: number }): Point2 {
   const bounds = polygonBounds(polygon);
   const candidates: Point2[] = [
     { x: (bounds.minX + bounds.maxX) / 2, y: (bounds.minY + bounds.maxY) / 2 },
@@ -200,7 +201,8 @@ export function interiorPoint(polygon: PolygonWithHoles): Point2 {
   let bestScore = -Infinity;
   for (const c of candidates) {
     if (!pointInPolygon(polygon, c)) continue;
-    const score = distanceToPolygonBoundary(polygon, c);
+    const clearance = distanceToPolygonBoundary(polygon, c);
+    const score = near ? Math.min(clearance, near.enough) - (clearance >= near.enough ? Math.hypot(c.x - near.point.x, c.y - near.point.y) * 1e-3 : 0) : clearance;
     if (score > bestScore) {
       bestScore = score;
       best = c;

@@ -1,27 +1,36 @@
-import type { HouseViewer, PreviewView } from "./viewer";
+import type { HouseViewer } from "./viewer";
 
 /**
- * The mounted 3D viewer, so chrome outside it (export menu, quick views) can
- * use it without importing three.js. Type-only imports keep this module light.
+ * The mounted 3D viewer, so chrome outside it (the export menu) can use it
+ * without importing three.js. Type-only imports keep this module light.
  */
 let current: HouseViewer | null = null;
-const listeners = new Set<() => void>();
+let waiting: Array<() => void> = [];
 
 export function registerViewer(viewer: HouseViewer | null) {
   current = viewer;
-  for (const l of listeners) l();
+  if (viewer) {
+    const ready = waiting;
+    waiting = [];
+    // A frame later, so the first picture is drawn.
+    requestAnimationFrame(() => requestAnimationFrame(() => ready.forEach((resolve) => resolve())));
+  }
 }
 
-/** Called when a viewer mounts or unmounts. */
-export function onViewerChange(listener: () => void): () => void {
-  listeners.add(listener);
-  return () => listeners.delete(listener);
-}
-
-export const viewerReady = () => current !== null;
-
-export function previewImage(view: PreviewView, width: number, height: number): string | null {
-  return current?.preview(view, width, height) ?? null;
+/** Resolves once a 3D viewer is on the page (at once if one is), or false after `timeout` ms. */
+export function whenViewerReady(timeout = 8000): Promise<boolean> {
+  if (current) return Promise.resolve(true);
+  return new Promise((resolve) => {
+    const done = () => {
+      clearTimeout(timer);
+      resolve(true);
+    };
+    const timer = setTimeout(() => {
+      waiting = waiting.filter((w) => w !== done);
+      resolve(false);
+    }, timeout);
+    waiting.push(done);
+  });
 }
 
 export function snapshot3d(): string | null {

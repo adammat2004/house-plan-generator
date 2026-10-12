@@ -5,6 +5,11 @@ import { IconButton } from "@/components/ui/controls";
 import { FitIcon, GridIcon, MagnetIcon, MinusIcon, PlusIcon } from "@/components/ui/icons";
 import { editorStores, useSessionState } from "../../state/editor";
 
+/*
+ * The pannable board used by Room variations inside Refine. The Layouts step
+ * is a plain page (ConceptBoard.tsx): wizard steps are pages, boards are for
+ * the editor.
+ */
 const MIN_ZOOM = 0.35;
 const MAX_ZOOM = 1.6;
 
@@ -15,7 +20,7 @@ export interface BoardView {
 }
 
 /** Elements that take their own pointer input rather than panning the board. */
-const INTERACTIVE = "button, a, input, select, textarea, summary, .board-card, .board-empty";
+const INTERACTIVE = "button, a, input, select, textarea, summary, .board-card";
 
 /**
  * Pan and zoom for a board of cards: wheel pans, pinch (or ctrl/⌘ + wheel)
@@ -130,7 +135,7 @@ export function BoardDock({ k, zoomBy, fit, reserveRight = 370 }: { k: number; z
           <PlusIcon />
         </IconButton>
       </div>
-      <button type="button" className="btn btn-outline dock-fit-outline" onClick={fit} data-testid="board-fit">
+      <button type="button" className="btn btn-secondary dock-fit-outline" onClick={fit} data-testid="board-fit">
         <FitIcon width={18} height={18} /> Fit
       </button>
     </div>

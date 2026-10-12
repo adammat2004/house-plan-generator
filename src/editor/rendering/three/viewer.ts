@@ -3,10 +3,12 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { GLTFExporter } from "three/examples/jsm/exporters/GLTFExporter.js";
 import { CSS2DRenderer } from "three/examples/jsm/renderers/CSS2DRenderer.js";
 import { analyzeEnvelope } from "@/domain/geometry/envelope";
-import type { Id, Level, RoomType } from "@/domain/plan/types";
+import { groundLevel, levelOf } from "@/domain/plan/levels";
+import type { Id, PlanDocument, RoomType } from "@/domain/plan/types";
 import type { Appearance } from "@/domain/project/schema";
 import { PLAN_THEME } from "../konva/theme";
-import { buildHouseModel, type HouseModel, type HouseModelOptions } from "./houseModel";
+import { buildBuildingModel } from "./buildingModel";
+import type { HouseModel, HouseModelOptions } from "./houseModel";
 import { roomCameraPose } from "../scene/roomCamera";
 import { applyLighting, buildHouse, clearGroup, TextureCache, type Ground, type Lighting, type Sky } from "./sceneBuilder";
 
@@ -22,18 +24,20 @@ export type { Lighting };
 export type CameraMode = "orbit" | "pan" | "walk" | "interior" | "aerial" | "exterior";
 
 export interface ViewerState {
-  level: Level;
+  plan: PlanDocument;
+  /** The highest floor shown; every floor when absent. */
+  upTo?: Id | null;
   display: HouseModelOptions;
   appearance: Appearance;
   lighting: Lighting;
   shadows: boolean;
   sunAzimuth: number;
+  /** The site's north, degrees clockwise from up the plan. */
+  north?: number;
   ground: Ground;
   sky: Sky;
   selectedRoomId: Id | null;
 }
-
-export type PreviewView = { kind: "exterior" } | { kind: "room"; roomId: Id };
 
 const EYE = 1.6;
 const DAY_ROOMS: ReadonlySet<RoomType> = new Set(["living", "kitchen", "kitchen_dining", "dining", "office"]);
@@ -59,7 +63,6 @@ export class HouseViewer {
   private down: { x: number; y: number; id: number } | null = null;
   private last = performance.now();
   private active = true;
-  private previewRenderer: THREE.WebGLRenderer | null = null;
   private readonly onSelect: (roomId: Id | null) => void;
 
   constructor(private readonly container: HTMLElement, onSelect: (roomId: Id | null) => void) {
@@ -86,6 +89,8 @@ export class HouseViewer {
     this.sun.shadow.mapSize.set(2048, 2048);
     this.sun.shadow.bias = -0.0004;
     this.sun.shadow.normalBias = 0.02;
+    // Lighter shadows read calmer, and keep the shaded side of the house legible.
+    this.sun.shadow.intensity = 0.7;
     this.scene.add(this.hemi, this.sun, this.sun.target, this.house, this.nightLights);
 
     const el = this.renderer.domElement;
@@ -104,13 +109,14 @@ export class HouseViewer {
     const prev = this.state;
     this.state = state;
     const key = JSON.stringify([state.display, state.appearance, state.ground]);
-    if (!prev || prev.level !== state.level || key !== this.houseKey) {
+    const rebuilt = !prev || prev.plan !== state.plan || prev.upTo !== state.upTo || key !== this.houseKey;
+    if (rebuilt) {
       this.houseKey = key;
       this.rebuild();
       if (!prev) this.setCamera("orbit");
     }
-    if (!prev || prev.lighting !== state.lighting || prev.shadows !== state.shadows || prev.sunAzimuth !== state.sunAzimuth || prev.sky !== state.sky || prev.level !== state.level) this.light();
-    if (!prev || prev.selectedRoomId !== state.selectedRoomId || prev.level !== state.level) this.highlight();
+    if (rebuilt || prev.lighting !== state.lighting || prev.shadows !== state.shadows || prev.sunAzimuth !== state.sunAzimuth || prev.north !== state.north || prev.sky !== state.sky) this.light();
+    if (rebuilt || prev.selectedRoomId !== state.selectedRoomId) this.highlight();
   }
 
   setActive(active: boolean) {
@@ -118,12 +124,12 @@ export class HouseViewer {
     if (active) this.last = performance.now();
   }
 
-  /** Width covered by a panel on the right; the view is centred in what's left. */
-  private insetRight = 0;
+  /** Widths covered by panels on the left and right; the view is centred in what's left. */
+  private insets = { left: 0, right: 0 };
 
-  setInsetRight(px: number) {
-    if (px === this.insetRight) return;
-    this.insetRight = px;
+  setInsets(left: number, right: number) {
+    if (left === this.insets.left && right === this.insets.right) return;
+    this.insets = { left, right };
     this.resize();
   }
 
@@ -134,8 +140,8 @@ export class HouseViewer {
     this.labelRenderer.setSize(w, h);
     this.camera.aspect = w / h;
     // Shift the picture left by half the covered width so the house sits in the visible part.
-    const shift = Math.min(this.insetRight / 2, w / 4);
-    if (shift > 0) this.camera.setViewOffset(w, h, shift, 0, w, h);
+    const shift = Math.max(-w / 4, Math.min((this.insets.right - this.insets.left) / 2, w / 4));
+    if (shift !== 0) this.camera.setViewOffset(w, h, shift, 0, w, h);
     else this.camera.clearViewOffset();
     this.camera.updateProjectionMatrix();
   }
@@ -144,7 +150,7 @@ export class HouseViewer {
   private rebuild() {
     const state = this.state!;
     clearGroup(this.house, this.textures);
-    const model = buildHouseModel(state.level, state.display);
+    const model = buildBuildingModel(state.plan, { ...state.display, upTo: state.upTo });
     this.model = model;
     this.floors = buildHouse(this.house, model, { appearance: state.appearance, ground: state.ground, landscape: state.display.landscape, labels: true }, this.textures);
   }
@@ -168,7 +174,9 @@ export class HouseViewer {
     const o = this.model?.outside ?? { minX: -5, minY: -5, maxX: 5, maxY: 5 };
     const c = new THREE.Vector3((o.minX + o.maxX) / 2, 0, -(o.minY + o.maxY) / 2);
     const size = Math.max(o.maxX - o.minX, o.maxY - o.minY, 4);
-    return { o, c, size };
+    // How much taller than a bungalow the house stands: cameras rise and aim higher by part of it.
+    const extra = Math.max(0, (this.model?.wallHeight ?? 0) - 3);
+    return { o, c, size, extra };
   }
 
   /** Room to stand in: the given one, the selected one, else the largest day room. */
@@ -180,13 +188,15 @@ export class HouseViewer {
 
   /** Where a camera mode stands and looks. */
   private pose(mode: CameraMode, roomId?: Id | null): { position: THREE.Vector3; target: THREE.Vector3 } {
-    const { o, c, size } = this.frame();
-    if (mode === "aerial") return { position: new THREE.Vector3(c.x + size * 0.15, size * 1.9, c.z + size * 0.55), target: c.clone() };
+    const { o, c, size, extra } = this.frame();
+    if (mode === "aerial") return { position: new THREE.Vector3(c.x + size * 0.15, size * 1.9 + extra, c.z + size * 0.55), target: c.clone() };
     if (mode === "interior") {
       const room = this.interiorRoom(roomId);
-      const view = room && this.state ? roomCameraPose(this.state.level, room.roomId, this.camera.aspect || 1.5) : null;
+      const level = room && this.state ? levelOf(this.state.plan, room.roomId) : undefined;
+      const view = room && level ? roomCameraPose(level, room.roomId, this.camera.aspect || 1.5) : null;
       if (view) {
-        return { position: new THREE.Vector3(view.eye.x, view.eye.z, -view.eye.y), target: new THREE.Vector3(view.target.x, view.target.z, -view.target.y) };
+        const z = room!.z ?? 0;
+        return { position: new THREE.Vector3(view.eye.x, view.eye.z + z, -view.eye.y), target: new THREE.Vector3(view.target.x, view.target.z + z, -view.target.y) };
       }
     }
     if (mode === "walk") {
@@ -195,12 +205,13 @@ export class HouseViewer {
     }
     if (mode === "exterior") {
       // From the garden, across the rear corner.
-      const env = this.state ? analyzeEnvelope(this.state.level) : null;
-      const rear = env?.ok && this.state?.level.rearWallId ? env.info.sideOfWall[this.state.level.rearWallId] : "north";
+      const ground = this.state ? groundLevel(this.state.plan) : null;
+      const env = ground ? analyzeEnvelope(ground) : null;
+      const rear = env?.ok && ground?.rearWallId ? env.info.sideOfWall[ground.rearWallId] : "north";
       const dir = { north: [0.45, 1], south: [-0.45, -1], east: [1, -0.45], west: [-1, 0.45] }[rear];
-      return { position: new THREE.Vector3(c.x + dir[0] * size * 1.7, 3.2, c.z - dir[1] * size * 1.7), target: new THREE.Vector3(c.x, 1.2, c.z) };
+      return { position: new THREE.Vector3(c.x + dir[0] * size * 1.7, 3.2 + extra * 0.6, c.z - dir[1] * size * 1.7), target: new THREE.Vector3(c.x, 1.2 + extra / 2, c.z) };
     }
-    return { position: new THREE.Vector3(c.x + size * 0.85, size * 1.05, c.z + size * 1.25), target: new THREE.Vector3(c.x, 0.6, c.z) };
+    return { position: new THREE.Vector3(c.x + size * 0.85, size * 1.05 + extra * 0.6, c.z + size * 1.25), target: new THREE.Vector3(c.x, 0.6 + extra / 2, c.z) };
   }
 
   setCamera(mode: CameraMode, roomId?: Id | null) {
@@ -290,27 +301,6 @@ export class HouseViewer {
   };
 
   // ── Output ───────────────────────────────────────────────────────────
-  /** A small still from a preset camera, as a data URL. */
-  preview(view: PreviewView, width: number, height: number): string | null {
-    if (!this.model) return null;
-    if (!this.previewRenderer) {
-      this.previewRenderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
-      this.previewRenderer.shadowMap.enabled = true;
-      this.previewRenderer.outputColorSpace = THREE.SRGBColorSpace;
-      this.previewRenderer.toneMapping = THREE.ACESFilmicToneMapping;
-    }
-    const r = this.previewRenderer;
-    r.setPixelRatio(1);
-    r.setSize(width, height, false);
-    r.toneMappingExposure = this.renderer.toneMappingExposure;
-    const camera = new THREE.PerspectiveCamera(view.kind === "exterior" ? 40 : 60, width / height, 0.1, 400);
-    const pose = view.kind === "exterior" ? this.pose("exterior") : this.pose("interior", view.roomId);
-    camera.position.copy(pose.position);
-    camera.lookAt(pose.target);
-    r.render(this.scene, camera);
-    return r.domElement.toDataURL("image/jpeg", 0.85);
-  }
-
   /** The current view as a PNG data URL. */
   snapshot(): string {
     this.renderer.render(this.scene, this.camera);
@@ -341,7 +331,6 @@ export class HouseViewer {
     clearGroup(this.nightLights, this.textures);
     this.textures.dispose();
     this.renderer.dispose();
-    this.previewRenderer?.dispose();
     el.remove();
     this.labelRenderer.domElement.remove();
   }

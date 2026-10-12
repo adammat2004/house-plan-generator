@@ -1,79 +1,113 @@
 "use client";
 
-import { roomBounds } from "@/domain/design/analysis";
 import { Menu, MenuItem } from "@/components/ui/controls";
-import { ArrowLeftIcon, SwapIcon, TargetIcon, VariationsIcon } from "@/components/ui/icons";
-import { design, editorStores, useDocumentState, useProjectState, useSessionState } from "../../state/editor";
-import { displayedDocument } from "../../state/stores";
-import { toolController } from "../../tools/instance";
-import { fitRect, worldToScreen } from "../../viewport/viewport";
-import { showConcepts } from "../shell/tools";
-import { useConcepts } from "./concepts";
+import { ArrowLeftIcon, CheckIcon, ChevronDownIcon, CopyIcon, SplitIcon } from "@/components/ui/icons";
+import { editor, useProjectState, useSessionState } from "../../state/editor";
+import { inRefine } from "../../state/stores";
+import { goToStep, openConcept } from "../shell/tools";
+import { conceptName as nameOf, useConcepts, type Concept } from "./concepts";
+import { PlanThumbnail } from "./PlanThumbnail";
 
-const inPlanView = (s: { workspace: string; designView: string }) => s.workspace === "design" && s.designView === "plan";
+/** A copy the user saved, or a room variation kept as a plan: listed under the plan it came from. */
+const isCopy = (c: Concept) => c.meta.origin.kind === "user" || c.meta.scope.kind === "rooms";
 
-/** Where you are while refining: back to all concepts, and which one this is. */
-export function DesignBreadcrumb() {
-  const shown = useSessionState(inPlanView);
-  const activePlanId = useProjectState((s) => s.activePlanId);
-  const { concepts, shells } = useConcepts();
-  if (!shown) return null;
-  const concept = concepts.find((c) => c.meta.id === activePlanId);
-  const name = concept ? `${concept.letter}. ${concept.title}` : (shells.find((s) => s.meta.id === activePlanId)?.meta.label ?? "Plan");
-  return (
-    <nav className="design-crumb floating" aria-label="Design">
-      <button type="button" onClick={showConcepts} data-testid="back-to-concepts">
-        <ArrowLeftIcon width={16} height={16} /> All concepts
-      </button>
-      <span className="crumb-sep" aria-hidden>
-        /
-      </span>
-      <span className="crumb-current" data-testid="current-concept">
-        {name}
-      </span>
-    </nav>
-  );
+/**
+ * The project's plans in groups: the layouts, then the user's own house,
+ * each with the copies made from it underneath.
+ */
+function groupPlans(concepts: Concept[]): Array<{ label: string; items: Array<{ concept: Concept; depth: number }> }> {
+  const ids = new Set(concepts.map((c) => c.meta.id));
+  const child = (c: Concept) => isCopy(c) && !!c.meta.parentId && ids.has(c.meta.parentId) && c.meta.parentId !== c.meta.id;
+  const withCopies = (c: Concept, depth: number, seen: Set<string>): Array<{ concept: Concept; depth: number }> => {
+    if (seen.has(c.meta.id)) return [];
+    seen.add(c.meta.id);
+    return [{ concept: c, depth }, ...concepts.filter((o) => child(o) && o.meta.parentId === c.meta.id).flatMap((o) => withCopies(o, Math.min(depth + 1, 2), seen))];
+  };
+  const seen = new Set<string>();
+  const roots = concepts.filter((c) => !child(c));
+  return [
+    { label: "Layouts", items: roots.filter((c) => c.meta.origin.kind === "generated").flatMap((c) => withCopies(c, 0, seen)) },
+    { label: "Your house", items: roots.filter((c) => c.meta.origin.kind !== "generated").flatMap((c) => withCopies(c, 0, seen)) },
+  ].filter((g) => g.items.length > 0);
 }
 
-/** Quick actions floating above the selected room. */
-export function RoomQuickBar() {
-  const shown = useSessionState(inPlanView);
-  const selection = useSessionState((s) => s.selection);
-  const viewport = useSessionState((s) => s.viewport);
-  const tool = useSessionState((s) => s.tool);
-  const drag = useSessionState((s) => s.drag);
-  const running = useSessionState((s) => s.designer.status === "running");
-  const level = useDocumentState((s) => displayedDocument(s).levels[0]);
-  if (!shown || selection?.kind !== "room" || tool !== "select" || drag || !level.rooms[selection.id]) return null;
-  const b = roomBounds(level, selection.id);
-  if (!b) return null;
-  const at = worldToScreen(viewport, { x: b.minX, y: b.maxY });
-  const roomId = selection.id;
-  const others = Object.values(level.rooms).filter((r) => r.id !== roomId);
+/**
+ * Which plan Refine is working on, top left: back to all the layouts, and a
+ * menu of the project's other plans to switch to, or a copy of this one to
+ * try something without losing it.
+ */
+export function PlanPill() {
+  const shown = useSessionState(inRefine);
+  const activePlanId = useProjectState((s) => s.activePlanId);
+  const { concepts, shells, recommendedId } = useConcepts();
+  if (!shown) return null;
+  const concept = concepts.find((c) => c.meta.id === activePlanId);
+  const name = concept ? nameOf(concept) : (shells.find((s) => s.meta.id === activePlanId)?.meta.label ?? "Plan");
   return (
-    <div className="room-quickbar floating" style={{ left: Math.max(8, at.x), top: Math.max(8, at.y - 64) }} role="toolbar" aria-label="Room" data-testid="room-quickbar">
-      <button type="button" disabled={running} onClick={() => void design.openRoomVariations(roomId)} data-tooltip="Generate variations" data-tooltip-side="top" aria-label="Generate variations">
-        <VariationsIcon width={18} height={18} />
+    <nav className="design-crumb plan-pill floating" aria-label="Plan" data-chrome="top">
+      <button type="button" className="plan-back" onClick={() => goToStep("explore")} aria-label="All layouts" data-tooltip="All layouts" data-tooltip-side="bottom" data-testid="back-to-concepts">
+        <ArrowLeftIcon width={16} height={16} />
       </button>
-      <Menu label="Swap with another room" className="quick-swap" summary={<SwapIcon width={18} height={18} />}>
-        {others.map((r) => (
-          <MenuItem key={r.id} onSelect={() => design.swapRooms(roomId, r.id)}>
-            Swap with {r.name}
-          </MenuItem>
-        ))}
-      </Menu>
-      <button
-        type="button"
-        onClick={() => editorStores.session.setState((s) => ({ viewport: fitRect(s.viewport, { minX: b.minX - 1, minY: b.minY - 1, maxX: b.maxX + 1, maxY: b.maxY + 1 }, { top: 120, right: 680, bottom: 200, left: 160 }) }))}
-        data-tooltip="Zoom to room"
-        data-tooltip-side="top"
-        aria-label="Zoom to room"
+      <Menu
+        label="Switch plan"
+        className="plan-menu"
+        testId="plan-menu"
+        summary={
+          <span className="plan-name">
+            <span className="crumb-current" data-testid="current-concept">
+              {name}
+            </span>
+            <ChevronDownIcon width={16} height={16} />
+          </span>
+        }
       >
-        <TargetIcon width={18} height={18} />
-      </button>
-      <button type="button" onClick={() => toolController.fitPlan()} data-tooltip="Show whole plan" data-tooltip-side="top" aria-label="Show whole plan" className="quick-text">
-        Fit
-      </button>
-    </div>
+        {groupPlans(concepts).map((group) => (
+          <div key={group.label} role="group" aria-label={group.label}>
+            <p className="menu-label">{group.label}</p>
+            {group.items.map(({ concept: c, depth }) => (
+              <MenuItem
+                key={c.meta.id}
+                className={depth ? `plan-copy depth-${depth}` : undefined}
+                onSelect={() => c.meta.id !== activePlanId && openConcept(c.meta.id)}
+                aria-current={c.meta.id === activePlanId || undefined}
+                data-testid={`plan-option-${c.meta.label}`}
+              >
+                <span className="plan-option">
+                  <PlanThumbnail level={c.level} plan={c.plan} palette="finish" className="plan-option-thumb" pad={0.3} />
+                  <span className="plan-option-name">{nameOf(c)}</span>
+                  {c.meta.id === activePlanId && <CheckIcon width={16} height={16} />}
+                </span>
+              </MenuItem>
+            ))}
+          </div>
+        ))}
+        <hr />
+        {concepts.length > 1 && (
+          <MenuItem
+            onSelect={() => {
+              const others = concepts.filter((c) => c.meta.id !== activePlanId);
+              const other = others.find((c) => c.meta.id === recommendedId) ?? others[0];
+              editor.comparePlansSideBySide(activePlanId, other.meta.id);
+            }}
+            data-testid="compare-plans"
+          >
+            <span className="menu-item-main">
+              <SplitIcon width={16} height={16} /> Compare with another plan
+            </span>
+          </MenuItem>
+        )}
+        <MenuItem
+          onSelect={() => {
+            const id = editor.duplicatePlan();
+            if (id) openConcept(id);
+          }}
+          data-testid="new-variation"
+        >
+          <span className="menu-item-main">
+            <CopyIcon width={16} height={16} /> Save a copy as a variation
+          </span>
+        </MenuItem>
+      </Menu>
+    </nav>
   );
 }

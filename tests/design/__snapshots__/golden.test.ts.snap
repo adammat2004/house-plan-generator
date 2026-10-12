@@ -61,11 +61,22 @@ exports[`golden layouts > builds the templates 4`] = `
 ]
 `;
 
+exports[`golden layouts > builds the templates 5`] = `
+[
+  "house: 7.5 × 9.5 m rectangle, 59.6 m² of rooms, hall 12.7 m² (21%)",
+  "doors out: N→Kitchen / Dining, S→Hall",
+  "  Hall                       hall              12.7 m²  4.3×5.3 (not rectangular)  doors: Kitchen / Dining, Living Room, WC, outside  windows: W",
+  "  Living Room                living            17.8 m²  5.5×3.2  doors: Hall  windows: E S",
+  "  Kitchen / Dining           kitchen_dining    24.1 m²  6.9×3.5  doors: Hall, outside  windows: E W",
+  "  WC                         wc                 5.0 m²  2.5×2.0  doors: Hall  windows: E",
+]
+`;
+
 exports[`golden layouts > creates an empty house 1`] = `"3c4e45f7468e064b"`;
 
 exports[`golden layouts > creates an empty house 2`] = `"3c35f55bcc8ac390"`;
 
-exports[`golden layouts > draws the 3D model, dimensions and photo keys 1`] = `"899ae88d054b6de3"`;
+exports[`golden layouts > draws the 3D model, dimensions and photo keys 1`] = `"a1079cf760800719"`;
 
 exports[`golden layouts > draws the 3D model, dimensions and photo keys 2`] = `"0c8f4ab273eff140"`;
 
@@ -81,7 +92,7 @@ exports[`golden layouts > draws the 3D model, dimensions and photo keys 7`] = `"
 
 exports[`golden layouts > draws the 3D model, dimensions and photo keys 8`] = `"11e9svt"`;
 
-exports[`golden layouts > draws the 3D model, dimensions and photo keys 9`] = `"22bdc18e7db37ac8"`;
+exports[`golden layouts > draws the 3D model, dimensions and photo keys 9`] = `"a9da5234ea07fda8"`;
 
 exports[`golden layouts > draws the 3D model, dimensions and photo keys 10`] = `"47fe4d98f834bf09"`;
 

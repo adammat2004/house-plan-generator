@@ -2,12 +2,14 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { IconButton, Menu, MenuItem } from "@/components/ui/controls";
-import { ArrowRightIcon, ChevronDownIcon, CloudIcon, DownloadIcon, HouseMark, RedoIcon, UndoIcon, UsersIcon } from "@/components/ui/icons";
-import { editor, useDocumentState, useProjectState, useSessionState } from "../../state/editor";
+import { Logo } from "@/components/brand";
+import { Menu, MenuItem, SegmentedControl } from "@/components/ui/controls";
+import { CheckIcon, ChevronDownIcon, CloudIcon, CubeIcon, DownloadIcon, RoomIcon, SofaIcon } from "@/components/ui/icons";
+import { editor, useProjectState, useSessionState } from "../../state/editor";
 import { useSaveStatus } from "../../state/saveStatus";
-import type { Workspace } from "../../state/stores";
-import { nextStep, selectWorkspace } from "./tools";
+import { STEP_UNAVAILABLE, STEPS, stepAvailable, stepOf } from "../../state/steps";
+import { in3d, inRefine } from "../../state/stores";
+import { chooseView, goToStep, VIEW_CHOICES, viewChoiceOf, type ViewChoice } from "./tools";
 
 export interface TopBarActions {
   onNew: () => void;
@@ -16,18 +18,23 @@ export interface TopBarActions {
   onRecover: () => void;
   onExportJson: () => void;
   onExportPng: () => void;
+  onExportPresentation: () => void;
   onExport3dPng: () => void;
   onExport3dModel: () => void;
 }
 
-/** Slim project bar: identity and save state on the left, workspaces in the centre, history and output on the right. */
+/**
+ * Slim project bar: identity and save state on the left, the five steps in
+ * the centre, and on the right how the plan is shown (in Refine and Review)
+ * and Export.
+ */
 export function TopBar(actions: TopBarActions) {
-  const presenting = useSessionState((s) => s.workspace === "present");
+  const showing3d = useSessionState(in3d);
   return (
     <header className="top-bar">
       <div className="top-bar-start">
         <Link href="/" className="brand" aria-label="All projects" data-tooltip="All projects" data-tooltip-side="bottom" data-testid="home-link">
-          <HouseMark />
+          <Logo size={30} />
         </Link>
         <div className="project-title">
           <ProjectName />
@@ -36,12 +43,10 @@ export function TopBar(actions: TopBarActions) {
         <span className="top-bar-divider" aria-hidden />
         <SaveStatus />
       </div>
-      <WorkspaceSwitcher />
+      <Stepper />
+      <CompactStepper />
       <div className="top-bar-end">
-        <HistoryControls />
-        <button type="button" className="btn btn-outline" aria-disabled="true" data-tooltip="Sharing is coming soon" data-tooltip-side="bottom" data-testid="share">
-          <UsersIcon width={18} height={18} /> Share
-        </button>
+        <ViewSwitch />
         <Menu
           label="Export"
           align="right"
@@ -49,7 +54,7 @@ export function TopBar(actions: TopBarActions) {
           className="export-menu"
           summary={
             <span className="btn btn-primary">
-              <DownloadIcon width={18} height={18} /> Export <ChevronDownIcon width={16} height={16} />
+              <DownloadIcon width={18} height={18} /> <span className="export-label">Export</span> <ChevronDownIcon width={16} height={16} />
             </span>
           }
         >
@@ -59,7 +64,10 @@ export function TopBar(actions: TopBarActions) {
           <MenuItem onSelect={actions.onExportPng} data-testid="export-png">
             Plan image <small>.png</small>
           </MenuItem>
-          {presenting && (
+          <MenuItem onSelect={actions.onExportPresentation} data-testid="export-presentation">
+            Presentation image <small>.png</small>
+          </MenuItem>
+          {showing3d && (
             <>
               <hr />
               <MenuItem onSelect={actions.onExport3dPng} data-testid="export-3d-png">
@@ -71,7 +79,6 @@ export function TopBar(actions: TopBarActions) {
             </>
           )}
         </Menu>
-        <NextStep />
       </div>
     </header>
   );
@@ -83,9 +90,6 @@ function ProjectMenu({ onNew, onHouse, onImport, onRecover }: TopBarActions) {
     <Menu label="Project menu" testId="file-menu" className="project-menu" summary={<ChevronDownIcon width={18} height={18} />}>
       <MenuItem onSelect={onHouse} data-testid="house-settings">
         House dimensions…
-      </MenuItem>
-      <MenuItem onSelect={() => editor.duplicatePlan()} data-testid="new-variation">
-        New variation of this plan
       </MenuItem>
       <MenuItem onSelect={onNew}>New house…</MenuItem>
       <hr />
@@ -124,67 +128,73 @@ function ProjectName() {
   );
 }
 
-const WORKSPACES: ReadonlyArray<{ id: Workspace; label: string; key: string; testId: string }> = [
-  { id: "structure", label: "Structure", key: "1", testId: "workspace-structure" },
-  { id: "brief", label: "Rooms", key: "2", testId: "workspace-brief" },
-  { id: "design", label: "Design", key: "3", testId: "workspace-design" },
-  { id: "present", label: "3D", key: "4", testId: "workspace-3d" },
-];
-
-/** The next step: Structure → Rooms → Design (generating layouts if there are none) → 3D. */
-function NextStep() {
-  const workspace = useSessionState((s) => s.workspace);
-  const running = useSessionState((s) => s.designer.status === "running");
-  if (workspace === "present") return null;
+/** The five steps. Steps with nothing to show yet are dimmed and say why. */
+export function Stepper() {
+  const current = useSessionState(stepOf);
+  const plans = useProjectState((s) => s.plans);
+  const sizing = useProjectState((s) => s.sizing);
+  const index = STEPS.findIndex((st) => st.id === current);
   return (
-    <button type="button" className="btn btn-primary next-step" disabled={running} onClick={() => void nextStep()} data-testid="next-step">
-      {running ? "Generating…" : "Next"} <ArrowRightIcon width={17} height={17} />
-    </button>
+    <nav className="stepper" aria-label="Steps">
+      <ol>
+        {STEPS.map(({ id, label, key }, i) => {
+          const available = stepAvailable({ plans, sizing }, id);
+          const isCurrent = id === current;
+          const done = i < index && available;
+          return (
+            <li key={id}>
+              <button
+                type="button"
+                className={isCurrent ? "is-current" : done ? "is-done" : undefined}
+                aria-current={isCurrent ? "step" : undefined}
+                aria-disabled={!available || undefined}
+                data-tooltip={available ? `${label}  ${key}` : STEP_UNAVAILABLE}
+                data-tooltip-side="bottom"
+                onClick={() => goToStep(id)}
+                data-testid={`step-${id}`}
+              >
+                <span className="step-number" aria-hidden>
+                  {done ? <CheckIcon width={12} height={12} /> : i + 1}
+                </span>
+                <span className="step-label">{label}</span>
+                {done && <span className="visually-hidden"> (done)</span>}
+              </button>
+            </li>
+          );
+        })}
+      </ol>
+    </nav>
   );
 }
 
-export function WorkspaceSwitcher() {
-  const workspace = useSessionState((s) => s.workspace);
+const VIEW_ICON: Record<ViewChoice, typeof RoomIcon> = { plan: RoomIcon, "3d": CubeIcon, furnished: SofaIcon };
+
+/** How the plan is shown, apart from the steps: the 2D plan, the house in 3D, or the plan furnished. */
+function ViewSwitch() {
+  const shown = useSessionState((s) => inRefine(s) || s.workspace === "review");
+  const value = useSessionState(viewChoiceOf);
+  if (!shown) return null;
   return (
-    <div className="workspace-switcher" role="radiogroup" aria-label="Workspace">
-      {WORKSPACES.map(({ id, label, key, testId }) => {
-        const active = workspace === id;
-        return (
-          <button
-            key={id}
-            type="button"
-            role="radio"
-            aria-checked={active}
-            className={active ? "is-active" : undefined}
-            data-testid={testId}
-            data-tooltip={`${label}  ${key}`}
-            data-tooltip-side="bottom"
-            onClick={() => selectWorkspace(id)}
-          >
-            <span className="step-number" aria-hidden>
-              {key}
+    <SegmentedControl
+      label="View"
+      size="md"
+      className="plan-view-switch"
+      value={value}
+      options={VIEW_CHOICES.map(({ value: v, label, key }) => {
+        const Icon = VIEW_ICON[v];
+        return {
+          value: v,
+          label: (
+            <span className="view-choice" data-tooltip={`${label}  ${key}`} data-tooltip-side="bottom">
+              <Icon width={16} height={16} />
+              <span className="view-label">{label}</span>
             </span>
-            {label}
-          </button>
-        );
+          ),
+        };
       })}
-    </div>
-  );
-}
-
-function HistoryControls() {
-  const canUndo = useDocumentState((s) => s.history.past.length > 0 && !s.preview);
-  const canRedo = useDocumentState((s) => s.history.future.length > 0 && !s.preview);
-  const mod = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform) ? "⌘" : "Ctrl+";
-  return (
-    <div className="history-controls" role="toolbar" aria-label="History">
-      <IconButton label="Undo" shortcut={`${mod}Z`} disabled={!canUndo} onClick={() => editor.undo()} data-testid="undo">
-        <UndoIcon />
-      </IconButton>
-      <IconButton label="Redo" shortcut={`${mod}⇧Z`} disabled={!canRedo} onClick={() => editor.redo()} data-testid="redo">
-        <RedoIcon />
-      </IconButton>
-    </div>
+      onChange={chooseView}
+      testIdPrefix="view"
+    />
   );
 }
 
@@ -200,11 +210,11 @@ function SaveStatus() {
           ? ["Unsaved changes", "Changes will save in a moment"]
           : status.state === "idle"
             ? ["Not saved", "Not saved yet"]
-            : ["Not saved", `Not saved — ${status.message}`];
+            : ["Not saved", "Not saved. Your browser's storage is full or blocked. Export a project file to keep a copy."];
   return (
     <div className={`save-status save-${status.state}`} role="status" aria-live="polite" data-testid="save-status" data-tooltip={detail} data-tooltip-side="bottom">
       <CloudIcon width={18} height={18} />
-      {text}
+      <span className="save-text">{text}</span>
     </div>
   );
 }
@@ -226,4 +236,36 @@ function useNow(interval: number | null) {
     return () => clearInterval(t);
   }, [interval]);
   return now;
+}
+
+/** Phones: "Step 3 of 5 · Explore", opening the list of steps. */
+function CompactStepper() {
+  const current = useSessionState(stepOf);
+  const plans = useProjectState((s) => s.plans);
+  const sizing = useProjectState((s) => s.sizing);
+  const index = STEPS.findIndex((st) => st.id === current);
+  return (
+    <Menu
+      label={`Step ${index + 1} of ${STEPS.length}: ${STEPS[index]?.label}. Change step`}
+      className="compact-stepper"
+      testId="compact-stepper"
+      summary={
+        <span className="compact-step">
+          <span className="compact-step-count">
+            Step {index + 1} of {STEPS.length} ·{" "}
+          </span>
+          <strong>{STEPS[index]?.label}</strong> <ChevronDownIcon width={16} height={16} />
+        </span>
+      }
+    >
+      {STEPS.map(({ id, label }, i) => {
+        const available = stepAvailable({ plans, sizing }, id);
+        return (
+          <MenuItem key={id} onSelect={() => goToStep(id)} disabled={!available} aria-current={id === current ? "step" : undefined} title={available ? undefined : STEP_UNAVAILABLE} data-testid={`compact-step-${id}`}>
+            {i + 1}. {label}
+          </MenuItem>
+        );
+      })}
+    </Menu>
+  );
 }

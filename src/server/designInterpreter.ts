@@ -28,12 +28,14 @@ export type ClaudeClient = { beta: { messages: Pick<Anthropic["beta"]["messages"
 const ATTEMPT_MS = 20_000;
 const DEADLINE_MS = 28_000;
 const TOO_SLOW = "Claude took too long to answer.";
+/** Setup problems name the key to fix outside production; the editor quietly uses its built-in reader either way. */
+const setupHint = (hint: string) => (process.env.NODE_ENV === "production" ? "The AI isn't available right now." : hint);
 
 const goals = ROOM_GOALS.map((g) => `- ${g}: ${ROOM_GOAL_LABEL[g]}${SUPPORTED_ROOM_GOALS.has(g) ? "" : " (recorded, but the planner can't do this yet)"}`).join("\n");
 const preferences = PREFERENCE_IDS.map((p) => `- ${p}: ${PREFERENCE_LABEL[p]}`).join("\n");
 
 /** Kept byte-for-byte stable so it caches; everything that varies goes in the user turn. */
-const SYSTEM = `You are the design assistant in a floor-plan editor for single-storey homes. You read what the user writes and turn it into structured changes that the editor's own planners carry out. You never describe geometry or coordinates; the planners decide where walls, doors and furniture go.
+const SYSTEM = `You are the design assistant in a floor-plan editor for homes of one or two storeys. You read what the user writes and turn it into structured changes that the editor's own planners carry out. You never describe geometry or coordinates; the planners decide where walls, doors and furniture go.
 
 There are two kinds of change.
 
@@ -47,13 +49,15 @@ ${goals}
 ${preferences}
 - roomSizes: living, kitchen or bedrooms as compact, standard or generous
 - houseShape: L, T or U for a house of that shape (a courtyard house is a U), rectangle for a simple box, any to let the planner choose, or null to leave unchanged. It shapes houses sized from the rooms; a house the user drew keeps its shape.
+- storeys: 2 for a two-storey house with the bedrooms upstairs, 1 for a single-storey house (a bungalow), or null to leave unchanged. Two-storey layouts are rectangular. A house of three or more storeys can't be planned yet: put those words in unclear.
 
 How to decide:
 - Asking for a room the plan doesn't have (a utility room, an office, another bedroom) is a brief change, because adding a room needs a new layout.
 - Asking to change a room that exists (bigger, brighter, an island, storage, an ensuite, garden doors) is a room change for that room.
 - When the user doesn't name a room, use the selected room if there is one; otherwise pick the room the words clearly refer to. If you can't tell which room is meant, put the words in unclear rather than guessing.
 - Only include what the user asked for. Leave everything else empty or null.
-- Anything that neither kind of change can express (colours, budgets, a second storey, specific products) goes in unclear, quoted briefly in the user's words.
+- Anything that neither kind of change can express (colours, budgets, a third storey, specific products) goes in unclear, quoted briefly in the user's words.
+- In a house of several floors, each room in the plan summary says which floor it is on.
 - When the mode is "instructions", the text is free-form notes from the brief, written before any layout exists: express them only as brief changes, and leave roomChanges empty.
 
 reply: one or two short, friendly sentences saying what you understood and what will happen next. Plain language, no lists, no markdown. Don't promise anything the changes above don't do.`;
@@ -76,13 +80,14 @@ function userTurn(request: AiRequest): string {
       spaces: context.brief.requiredSpaces,
       preferences: context.brief.preferences,
       roomSizes: context.brief.roomSizes ?? {},
+      storeys: context.brief.storeys ?? 1,
     },
   };
   return `Mode: ${request.mode}\n\nPlan summary (JSON):\n${JSON.stringify(summary)}\n\nThe user wrote:\n<user_text>\n${request.text}\n</user_text>`;
 }
 
 export async function interpret(request: AiRequest, client?: ClaudeClient): Promise<InterpretResult> {
-  if (!client && !interpreterAvailable()) return { ok: false, status: 503, message: "The AI layer isn't set up: add ANTHROPIC_API_KEY to .env.local." };
+  if (!client && !interpreterAvailable()) return { ok: false, status: 503, message: setupHint("The AI layer isn't set up: add ANTHROPIC_API_KEY to .env.local.") };
   const claude = client ?? (shared ??= new Anthropic({ timeout: ATTEMPT_MS, maxRetries: 1 }));
   try {
     const response = await claude.beta.messages.parse({
@@ -108,7 +113,7 @@ export async function interpret(request: AiRequest, client?: ClaudeClient): Prom
   } catch (error) {
     // Before APIError, which both extend. An abort is the deadline above.
     if (error instanceof Anthropic.APIConnectionTimeoutError || error instanceof Anthropic.APIUserAbortError) return { ok: false, status: 504, message: TOO_SLOW };
-    if (error instanceof Anthropic.AuthenticationError) return { ok: false, status: 503, message: "The API key was rejected. Check ANTHROPIC_API_KEY in .env.local." };
+    if (error instanceof Anthropic.AuthenticationError) return { ok: false, status: 503, message: setupHint("The API key was rejected. Check ANTHROPIC_API_KEY in .env.local.") };
     if (error instanceof Anthropic.PermissionDeniedError) return { ok: false, status: 503, message: "This API key can't use that model." };
     if (error instanceof Anthropic.RateLimitError) return { ok: false, status: 429, message: "The AI is busy (rate limited). Try again in a minute." };
     if (error instanceof Anthropic.BadRequestError) return { ok: false, status: 502, message: `The AI request was rejected: ${error.message}` };

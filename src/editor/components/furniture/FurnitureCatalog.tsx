@@ -5,7 +5,7 @@ import { roomAtPoint } from "@/domain/design/analysis";
 import { FURNITURE_BY_CATEGORY, FURNITURE_CATALOG, FURNITURE_CATEGORY_LABEL, ROOM_FURNITURE, type FurnitureCategory } from "@/domain/furniture/catalog";
 import { ROOM_TYPE_LABEL } from "@/domain/plan/rooms";
 import type { FurnitureKind, Level } from "@/domain/plan/types";
-import { editor, useDocumentState, useSessionState } from "../../state/editor";
+import { editor, useActiveLevel, useSessionState } from "../../state/editor";
 import type { Selection } from "../../state/stores";
 import { FurnitureArt } from "./FurnitureArt";
 
@@ -22,7 +22,7 @@ function workingRoom(level: Level, selection: Selection): string | null {
 
 /** The Furniture tool's options: what to place, grouped by room, with the working room's usual pieces first. */
 export function FurnitureCatalog() {
-  const level = useDocumentState((s) => s.history.present.levels[0]);
+  const level = useActiveLevel();
   const selection = useSessionState((s) => s.selection);
   const chosen = useSessionState((s) => s.settings.furniture.kind);
   const roomId = workingRoom(level, selection);

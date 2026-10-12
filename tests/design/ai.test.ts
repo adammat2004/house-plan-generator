@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_BRIEF } from "@/domain/brief/schema";
 import { aiRequestSchema, designContext, interpretationFromReply, type AiReply, type AiRequest } from "@/domain/design/aiInterpretation";
+import { interpretRequest } from "@/domain/design/request";
 import { createStripPlanner } from "@/domain/design/stripPlanner";
 import type { AiInterpreter, AiResult } from "@/editor/state/aiInterpreter";
 import { createDesignActions } from "@/editor/state/design";
@@ -10,7 +11,7 @@ import { apply, level, newHouse } from "../helpers";
 const empty: AiReply = {
   reply: "",
   roomChanges: [],
-  brief: { bedrooms: null, bathrooms: null, addSpaces: [], removeSpaces: [], addPreferences: [], removePreferences: [], roomSizes: [], houseShape: null },
+  brief: { bedrooms: null, bathrooms: null, addSpaces: [], removeSpaces: [], addPreferences: [], removePreferences: [], roomSizes: [], houseShape: null, storeys: null },
   unclear: [],
 };
 const reply = (over: Partial<Omit<AiReply, "brief">> & { brief?: Partial<AiReply["brief"]> } = {}): AiReply => ({ ...empty, ...over, brief: { ...empty.brief, ...over.brief } });
@@ -119,7 +120,7 @@ describe("AI Designer with Claude", () => {
     expect(asked).toHaveLength(1);
   });
 
-  it("falls back to the built-in reader when the AI isn't set up, and says so when it fails", async () => {
+  it("falls back to the built-in reader without comment when the AI isn't set up or fails", async () => {
     const offline = scripted([{ ok: false, offline: true, message: "not set up" }]);
     const a = setup(offline.interpreter);
     await a.design.ask("add a utility room");
@@ -132,7 +133,32 @@ describe("AI Designer with Claude", () => {
     const failing = scripted([{ ok: false, offline: false, message: "The AI is busy (rate limited)." }]);
     const b = setup(failing.interpreter);
     await b.design.ask("add a utility room");
-    expect(lastSaid(b.stores).join(" ")).toMatch(/rate limited.*built-in reader/);
+    expect(lastSaid(b.stores).join(" ")).not.toMatch(/rate limited|built-in reader/);
     expect(b.stores.project.getState().brief.requiredSpaces).toContain("utility");
+  });
+});
+
+describe("storeys", () => {
+  it("reads two storeys and bungalows, and leaves three storeys unclear", () => {
+    const lvl = level(newHouse());
+    const read = (text: string, brief = DEFAULT_BRIEF) => interpretRequest(text, lvl, brief, null);
+    expect(read("make it a two-storey house").steps).toEqual([{ kind: "brief", patch: { storeys: 2 }, describe: "The brief now asks for a two-storey house, with the bedrooms upstairs", clause: "make it a two-storey house" }]);
+    expect(read("put the bedrooms upstairs").steps[0]).toMatchObject({ patch: { storeys: 2 } });
+    expect(read("a bungalow please", { ...DEFAULT_BRIEF, storeys: 2 }).steps[0]).toMatchObject({ patch: { storeys: 1 } });
+    expect(read("a bungalow please").steps).toEqual([]);
+    expect(read("three storeys").unclear).toEqual(["three storeys"]);
+  });
+
+  it("takes storeys from Claude's reply, and sees every floor", () => {
+    expect(interpretationFromReply(reply({ brief: { storeys: 2 } }), null, DEFAULT_BRIEF, "request").steps[0]).toMatchObject({ patch: { storeys: 2 } });
+    const three = interpretationFromReply(reply({ brief: { storeys: 3 } }), null, DEFAULT_BRIEF, "request");
+    expect(three.steps).toEqual([]);
+    expect(three.unclear[0]).toMatch(/3 storeys/);
+    const doc = apply(newHouse(), { type: "addLevel" });
+    const context = designContext(doc, DEFAULT_BRIEF, null);
+    expect(context.rooms.map((r) => r.floor)).toEqual(["Ground floor", "First floor"]);
+    const upstairs = Object.keys(doc.levels[1].rooms)[0];
+    const change = interpretationFromReply(reply({ roomChanges: [{ roomId: upstairs, goals: ["make_larger"], clause: "bigger" }] }), doc, DEFAULT_BRIEF, "request");
+    expect(change.steps[0]).toMatchObject({ kind: "room", roomId: upstairs });
   });
 });

@@ -117,3 +117,42 @@ function programFromPicks(brief: HouseBrief, picks: RoomPicks, relax: Relaxation
   for (let i = 0; i < count("wc"); i++) add("wc", i === 0 ? "WC" : "WC 2");
   return { spaces, preferences: prefs, notes };
 }
+
+/** A two-storey house's rooms, floor by floor. */
+export interface StoreyPrograms {
+  ground: Program;
+  upper: Program;
+  notes: string[];
+}
+
+const areaOf = (spaces: SpaceSpec[]) => spaces.reduce((sum, s) => sum + s.target, 0);
+
+/**
+ * The rooms of a two-storey house: the living spaces, utility, garage and a
+ * WC downstairs (one is added if none was picked: a convenience, not a
+ * regulation); bedrooms, ensuites, bathrooms and any other WCs upstairs. An
+ * office goes up as a study when the ground floor would be much the bigger.
+ */
+export function storeyPrograms(brief: HouseBrief, relax: Relaxation = 0): StoreyPrograms {
+  const all = programFromBrief(brief, relax);
+  const notes = [...all.notes];
+  const ground: SpaceSpec[] = [];
+  const upper: SpaceSpec[] = [];
+  for (const s of all.spaces) {
+    if (s.zone === "day") ground.push(s);
+    else if (s.type === "wc" && !ground.some((g) => g.type === "wc")) ground.push({ ...s, zone: "day" });
+    else upper.push(s);
+  }
+  if (!ground.some((s) => s.type === "wc")) {
+    const { type, target, minSlot } = ROOM_KINDS.wc;
+    ground.push({ key: "s-wc", type, name: "WC", target, minWidth: minSlot, zone: "day", window: ROOM_RULES.wc.window, ensuite: false });
+    notes.push("A WC is added downstairs, as two-storey houses usually have one.");
+  }
+  const office = ground.find((s) => s.type === "office");
+  if (office && areaOf(ground) > areaOf(upper) * 1.25) {
+    ground.splice(ground.indexOf(office), 1);
+    upper.push({ ...office, name: office.name.replace("Office", "Study"), zone: "night" });
+    notes.push("The study is upstairs, which keeps the two floors about the same size.");
+  }
+  return { ground: { ...all, spaces: ground, notes: [] }, upper: { ...all, spaces: upper, notes: [] }, notes };
+}

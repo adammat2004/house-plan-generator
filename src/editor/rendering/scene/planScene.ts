@@ -1,14 +1,14 @@
-import { deriveLevelGeometry, deriveRoomRegions, deriveWallMass, openingHostInterval, roomFaceIndices } from "@/domain/geometry/derive";
+import { deriveLevelGeometry, deriveRoomRegions, deriveWallMassCut, openingHostInterval, roomFaceIndices } from "@/domain/geometry/derive";
 import { analyzeEnvelope } from "@/domain/geometry/envelope";
 import { formatArea } from "@/domain/geometry/numeric";
-import type { MultiPolygon, Ring } from "@/domain/geometry/polygons";
+import { intersection, type MultiPolygon, type Ring } from "@/domain/geometry/polygons";
 import type { Rect } from "@/domain/geometry/vector";
 import { pointAtParam, type WallAxis } from "@/domain/geometry/walls";
 import { roomAtPoint, roomBounds } from "@/domain/design/analysis";
 import { furnitureRect } from "@/domain/furniture/geometry";
 import { furnitureIssues, type FurnitureProblem } from "@/domain/furniture/issues";
 import type { FloorMaterial, FurnitureKind, Id, Level, Opening, Point2, RoomType } from "@/domain/plan/types";
-import { furnitureSymbol, type SymbolPart } from "./furnitureSymbols";
+import { furnitureRug, furnitureSymbol, type SymbolPart } from "./furnitureSymbols";
 
 /**
  * Pure derivation from a Level to drawable 2D primitives in world metres.
@@ -40,10 +40,21 @@ export interface OpeningPrimitive {
   /** Door leaf (hinge → open tip) and swing arc. */
   leaf?: [Point2, Point2];
   arc?: Point2[];
+  /** The door leaf as a thin panel, standing open. */
+  panel?: Ring;
+  /** Wide outside doors slide: two glazed panels in the wall instead of a leaf and a swing. */
+  sliders?: Ring[];
   /** Window frame outline and glazing lines. */
   frame?: Ring;
   glazing?: Array<[Point2, Point2]>;
+  /** A window's sill, just proud of the outside face. */
+  sill?: Ring;
+  /** The room whose floor shows in a doorway: the one the door opens into, else either side's. */
+  floorRoomId?: Id | null;
 }
+
+/** Garden doors this wide or wider slide rather than swing. */
+export const SLIDING_DOOR_WIDTH = 1.5;
 
 export interface FurniturePrimitive {
   id: Id;
@@ -68,6 +79,8 @@ export interface PlanScene {
   rooms: RoomPrimitive[];
   openings: OpeningPrimitive[];
   furniture: FurniturePrimitive[];
+  /** Rugs under the furniture that has them, kept inside their rooms. */
+  rugs: MultiPolygon;
   axes: AxisPrimitive[];
   /** Bounding box of the outline's outside faces. */
   outsideRect: Rect | null;
@@ -110,7 +123,15 @@ export function buildPlanScene(level: Level): PlanScene {
   const openings: OpeningPrimitive[] = [];
   for (const opening of Object.values(level.openings)) {
     const axis = geometry.axes.get(opening.wallId);
-    if (axis) openings.push(openingPrimitive(opening, axis));
+    if (!axis) continue;
+    // What's on each side of the opening: a room, or outside.
+    const mid = opening.offset + opening.width / 2;
+    const reach = axis.wall.thickness / 2 + 0.2;
+    const roomOn = (side: 1 | -1) => roomAtPoint(level, offsetPoint(axis, mid, side * reach));
+    const [left, right] = [roomOn(1), roomOn(-1)];
+    const outside: 1 | -1 | 0 = axis.wall.role === "external" ? (left && !right ? -1 : right && !left ? 1 : 0) : 0;
+    const swing = opening.kind === "door" && opening.swingSide === "right" ? right : left;
+    openings.push(openingPrimitive(opening, axis, { outside, floorRoomId: swing ?? left ?? right ?? null }));
   }
 
   const problems = furnitureIssues(level);
@@ -120,6 +141,12 @@ export function buildPlanScene(level: Level): PlanScene {
     ...furnitureSymbol(item),
     problem: problems.get(item.id) ?? null,
   }));
+  const rugs: MultiPolygon = [];
+  for (const item of Object.values(level.furniture)) {
+    const ring = furnitureRug(item);
+    const room = ring && rooms.find((r) => r.id === roomAtPoint(level, item.position));
+    if (ring && room) for (const floor of room.clear) rugs.push(...intersection({ outer: ring, holes: [] }, floor));
+  }
 
   const axes: AxisPrimitive[] = [];
   for (const axis of geometry.axes.values()) {
@@ -135,10 +162,11 @@ export function buildPlanScene(level: Level): PlanScene {
   }
 
   const scene: PlanScene = {
-    wallMass: deriveWallMass(level),
+    wallMass: deriveWallMassCut(level),
     rooms,
     openings,
     furniture,
+    rugs,
     axes,
     outsideRect: env.ok ? env.info.outsideRect : null,
     outsideRing: env.ok ? env.info.outsideRing : null,
@@ -167,7 +195,16 @@ const offsetPoint = (axis: WallAxis, s: number, side: number): Point2 => {
   return { x: p.x + axis.normal.x * side, y: p.y + axis.normal.y * side };
 };
 
-export function openingPrimitive(opening: Pick<Opening, "id" | "kind" | "wallId" | "offset" | "width"> & Partial<Opening>, axis: WallAxis): OpeningPrimitive {
+/**
+ * How an opening is drawn. `context` says which side of the wall is outside
+ * (along the axis normal, against it, or neither) and which room's floor
+ * shows in a doorway; drafts drawn while placing have none.
+ */
+export function openingPrimitive(
+  opening: Pick<Opening, "id" | "kind" | "wallId" | "offset" | "width"> & Partial<Opening>,
+  axis: WallAxis,
+  context: { outside: 1 | -1 | 0; floorRoomId: Id | null } = { outside: 0, floorRoomId: null },
+): OpeningPrimitive {
   const half = axis.wall.thickness / 2;
   const s0 = opening.offset;
   const s1 = opening.offset + opening.width;
@@ -176,7 +213,15 @@ export function openingPrimitive(opening: Pick<Opening, "id" | "kind" | "wallId"
     [offsetPoint(axis, s0, -half), offsetPoint(axis, s0, half)],
     [offsetPoint(axis, s1, -half), offsetPoint(axis, s1, half)],
   ];
-  const base = { id: opening.id, kind: opening.kind, wallId: opening.wallId, cut, jambs };
+  const base = { id: opening.id, kind: opening.kind, wallId: opening.wallId, cut, jambs, floorRoomId: context.floorRoomId };
+  if (opening.kind === "door" && context.outside !== 0 && opening.width >= SLIDING_DOOR_WIDTH) {
+    // Two panels, each a little over half the width, one either side of the wall's centre.
+    const t = 0.035;
+    const lap = 0.05;
+    const midS = (s0 + s1) / 2;
+    const panel = (from: number, to: number, side: number): Ring => [offsetPoint(axis, from, side), offsetPoint(axis, to, side), offsetPoint(axis, to, side + t), offsetPoint(axis, from, side + t)];
+    return { ...base, sliders: [panel(s0, midS + lap, -t), panel(midS - lap, s1, 0)] };
+  }
   if (opening.kind === "door") {
     const hingeAtStart = (opening as { hinge?: string }).hinge !== "end";
     const sign = (opening as { swingSide?: string }).swingSide === "right" ? -1 : 1;
@@ -197,9 +242,19 @@ export function openingPrimitive(opening: Pick<Opening, "id" | "kind" | "wallId"
       const a = a0 + (sweep * i) / steps;
       arc.push({ x: hinge.x + Math.cos(a) * opening.width, y: hinge.y + Math.sin(a) * opening.width });
     }
-    return { ...base, leaf: [hinge, open], arc };
+    // The leaf as a 40 mm panel, on the closing side of the line from the hinge.
+    const t = 0.04;
+    const toward = hingeAtStart ? 1 : -1;
+    const d = { x: axis.dir.x * toward * t, y: axis.dir.y * toward * t };
+    const panel: Ring = [hinge, open, { x: open.x + d.x, y: open.y + d.y }, { x: hinge.x + d.x, y: hinge.y + d.y }];
+    return { ...base, leaf: [hinge, open], arc, panel };
   }
   const g = half * 0.3;
+  // A sill 40 mm proud of the outside face, a little wider than the window.
+  const out = context.outside;
+  const sill: Ring | undefined = out
+    ? [offsetPoint(axis, s0 - 0.04, out * half), offsetPoint(axis, s1 + 0.04, out * half), offsetPoint(axis, s1 + 0.04, out * (half + 0.04)), offsetPoint(axis, s0 - 0.04, out * (half + 0.04))]
+    : undefined;
   return {
     ...base,
     frame: cut,
@@ -207,6 +262,7 @@ export function openingPrimitive(opening: Pick<Opening, "id" | "kind" | "wallId"
       [offsetPoint(axis, s0, -g), offsetPoint(axis, s1, -g)],
       [offsetPoint(axis, s0, g), offsetPoint(axis, s1, g)],
     ],
+    ...(sill ? { sill } : {}),
   };
 }
 

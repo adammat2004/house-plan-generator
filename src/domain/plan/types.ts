@@ -7,6 +7,7 @@ import type {
   planDocumentSchema,
   point2Schema,
   roomSchema,
+  staircaseSchema,
   wallSchema,
   windowSchema,
   EXTERNAL_WALL_PREFERENCES,
@@ -14,6 +15,7 @@ import type {
   FURNITURE_ROTATIONS,
   FLOOR_MATERIALS,
   ROOM_TYPES,
+  STAIR_SHAPES,
 } from "./schema";
 
 export type Id = string;
@@ -33,3 +35,5 @@ export type PlanDocument = z.infer<typeof planDocumentSchema>;
 export type Furniture = z.infer<typeof furnitureSchema>;
 export type FurnitureKind = (typeof FURNITURE_KINDS)[number];
 export type FurnitureRotation = (typeof FURNITURE_ROTATIONS)[number];
+export type Staircase = z.infer<typeof staircaseSchema>;
+export type StairShape = (typeof STAIR_SHAPES)[number];

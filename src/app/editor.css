@@ -1,0 +1,1339 @@
+/*
+ * The editor's steps and views: the top bar's view switch, the 3D view over
+ * or beside the plan, the floating chrome round the plan, and the Map and
+ * Review panels. Tokens only, as in globals.css
+ * (tests/design/css-tokens.test.ts checks this sheet too).
+ *
+ * home.css stays loaded after moving from Home into the editor, so class
+ * names here must not reuse Home's (it has its own .view-switch).
+ */
+
+/* ── Top bar: how the plan is shown, beside Export ─────────────────────── */
+.plan-view-switch.segmented {
+  padding: 3px;
+  border-radius: var(--r-pill);
+  background: var(--surface-3);
+}
+
+.plan-view-switch.segmented button {
+  padding: 0 var(--space-4);
+  border-radius: var(--r-pill);
+}
+
+.plan-view-switch.segmented button.is-active {
+  background: var(--brand);
+  color: var(--on-brand);
+  box-shadow: none;
+}
+
+.view-choice {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* Words while there's room; the icons stand in for them on narrow screens. */
+.view-choice svg {
+  display: none;
+}
+
+.view-choice[data-tooltip]::after {
+  display: none;
+}
+
+.top-bar-end > * {
+  flex-shrink: 0;
+}
+
+/* Five steps and the view switch share the bar: below 1600px only the current step keeps its name. */
+@media (max-width: 1599px) {
+  .stepper button:not(.is-current) .step-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .stepper button:not(.is-current) {
+    padding: 0 var(--space-2);
+  }
+
+  .doc-name {
+    max-width: 180px;
+  }
+
+  .top-bar-divider {
+    margin: 0 var(--space-3);
+  }
+}
+
+@media (max-width: 1179px) {
+  .save-status .save-text {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+
+@media (max-width: 1399px) {
+  .plan-view-switch .view-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .view-choice svg {
+    display: block;
+  }
+
+  .view-choice[data-tooltip]::after {
+    display: block;
+  }
+
+  .plan-view-switch.segmented button {
+    padding: 0 var(--space-3);
+  }
+}
+
+/* ── Which plan Refine is on, top left ─────────────────────────────────── */
+.plan-pill {
+  gap: var(--space-1);
+  padding: var(--space-1);
+}
+
+.design-crumb > button.plan-back {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  background: none;
+}
+
+.design-crumb > button.plan-back:hover {
+  background: var(--surface-2);
+}
+
+.plan-menu > summary {
+  border-radius: var(--r-md);
+}
+
+.plan-name {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  max-width: 360px;
+  height: 34px;
+  padding: 0 var(--space-2) 0 var(--space-3);
+  border-radius: var(--r-md);
+}
+
+.plan-name:hover,
+.plan-menu[open] .plan-name {
+  background: var(--surface-2);
+}
+
+.plan-menu .menu-panel {
+  min-width: 300px;
+  max-height: 440px;
+  overflow-y: auto;
+}
+
+.plan-option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+}
+
+.plan-option-thumb {
+  flex-shrink: 0;
+  width: 56px;
+  height: 44px;
+  border-radius: var(--r-sm);
+  background: var(--canvas);
+}
+
+.plan-option-name {
+  flex: 1;
+  text-align: left;
+}
+
+.plan-menu .menu-panel button[aria-current] {
+  font-weight: 600;
+}
+
+.plan-menu .menu-label {
+  margin: var(--space-2) var(--space-3) var(--space-1);
+  color: var(--ink-3);
+  font-size: var(--fs-caption);
+  font-weight: 600;
+}
+
+/* Copies sit under the plan they came from. */
+.plan-menu .plan-copy.depth-1 {
+  padding-left: var(--space-6);
+}
+
+.plan-menu .plan-copy.depth-2 {
+  padding-left: var(--space-8);
+}
+
+/* ── Floors, bottom left ───────────────────────────────────────────────── */
+.floor-card {
+  bottom: var(--gutter);
+  left: var(--gutter);
+  z-index: var(--z-chrome);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  width: 176px;
+  padding: var(--space-2);
+}
+
+.floor-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.floor-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 6px;
+  border: 0;
+  border-radius: var(--r-md);
+  background: none;
+  color: var(--ink-2);
+  font-size: var(--fs-small);
+  text-align: left;
+  cursor: pointer;
+}
+
+.floor-row:hover {
+  background: var(--surface-2);
+}
+
+.floor-row.is-active {
+  background: var(--surface-2);
+  color: var(--ink);
+  font-weight: 600;
+  box-shadow: 0 0 0 1px var(--line-strong);
+}
+
+.floor-thumb {
+  flex-shrink: 0;
+  width: 48px;
+  height: 40px;
+  border-radius: var(--r-sm);
+  background: var(--canvas);
+}
+
+.floor-add {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 6px;
+  border: 0;
+  border-radius: var(--r-md);
+  background: none;
+  color: var(--accent-ink);
+  font-size: var(--fs-small);
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.floor-add:hover:not([aria-disabled="true"]) {
+  background: var(--surface-2);
+}
+
+.floor-add[aria-disabled="true"] {
+  color: var(--ink-disabled);
+  cursor: default;
+}
+
+/* ── Inspector: actions first, sizes after ─────────────────────────────── */
+/* Section headings in sentence case, as everywhere else (DESIGN.md). */
+.inspector-card .card-section h3 {
+  color: var(--ink);
+  font-size: var(--fs-small);
+  font-weight: 600;
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+/* Four tabs across a 340px card. */
+.inspector-card .panel-tabs {
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.section-head .link-btn {
+  font-size: var(--fs-small);
+}
+
+.quick-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.quick-action {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: var(--fs-small);
+  text-align: left;
+  cursor: pointer;
+}
+
+.quick-action span {
+  flex: 1;
+}
+
+.quick-action > svg:first-child {
+  color: var(--ink-2);
+}
+
+.quick-action > svg:last-child,
+.action-row-end {
+  margin-left: auto;
+  color: var(--ink-3);
+}
+
+.quick-action:hover:not(:disabled) {
+  border-color: var(--line-strong);
+  background: var(--surface-2);
+}
+
+.quick-action:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.room-actions .action-row {
+  padding: 10px 12px;
+  font-size: var(--fs-small);
+}
+
+.quick-action.is-active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.quick-action span small {
+  display: block;
+}
+
+.quick-action-why {
+  margin-top: 2px;
+  color: var(--ink-3);
+  font-size: var(--fs-caption);
+}
+
+.quick-action.is-unavailable:disabled {
+  opacity: 1;
+  color: var(--ink-3);
+  background: var(--surface-2);
+}
+
+.quick-action-meta {
+  flex-shrink: 0;
+  color: var(--ink-3);
+  font-size: var(--fs-caption);
+  font-variant-numeric: tabular-nums;
+}
+
+.quick-action-meta.is-gain {
+  color: var(--accent-ink);
+  font-weight: 600;
+}
+
+/* ── The AI Designer in the inspector: an insight, options, apply ──────── */
+.ai-options {
+  gap: var(--space-3);
+}
+
+.insight-card {
+  display: flex;
+  gap: var(--space-3);
+  margin: 0;
+  padding: var(--space-3);
+  border: 1px solid var(--accent-line);
+  border-radius: var(--r-md);
+  background: var(--accent-soft);
+  color: var(--ink);
+  font-size: var(--fs-small);
+}
+
+.insight-card svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+  color: var(--accent);
+}
+
+.option-cards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.option-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+  padding: 0 0 var(--space-1);
+  border: 0;
+  background: none;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+
+.option-card:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.option-picture {
+  display: block;
+  aspect-ratio: 1 / 1;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--canvas);
+}
+
+.option-card:hover:not(:disabled) .option-picture {
+  border-color: var(--line-strong);
+}
+
+.option-card.is-active .option-picture {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.option-preview {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.option-title {
+  overflow: hidden;
+  font-size: var(--fs-caption);
+  font-weight: 600;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.option-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-2);
+  color: var(--ink-3);
+  font-size: var(--fs-caption);
+  font-variant-numeric: tabular-nums;
+}
+
+.option-meta strong {
+  color: var(--accent-ink);
+  font-weight: 600;
+}
+
+.option-worse {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  color: var(--warning-ink);
+}
+
+.room-ask {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-1) var(--space-1) var(--space-3);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-md);
+  background: var(--surface);
+}
+
+.room-ask:focus-within {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.room-ask input {
+  flex: 1;
+  min-width: 0;
+  height: 30px;
+  border: 0;
+  background: none;
+  font-size: var(--fs-small);
+}
+
+.room-ask input:focus {
+  outline: none;
+}
+
+.room-ask button {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: var(--brand);
+  color: var(--on-brand);
+  cursor: pointer;
+}
+
+.room-ask button:disabled {
+  background: var(--surface-3);
+  color: var(--ink-disabled);
+  cursor: default;
+}
+
+/* ── An option on show, across the top of the plan ─────────────────────── */
+.staged-banner {
+  top: var(--gutter);
+  left: 50%;
+  z-index: var(--z-panel);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  max-width: calc(100% - 2 * var(--gutter));
+  padding: var(--space-2) var(--space-2) var(--space-2) var(--space-4);
+  border-color: var(--accent-line);
+  transform: translateX(-50%);
+  box-shadow: var(--shadow-3);
+}
+
+.staged-text {
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--fs-small);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.staged-kicker {
+  color: var(--ink-3);
+}
+
+.staged-delta {
+  margin-left: var(--space-2);
+  color: var(--accent-ink);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── The toolbar over the selection ────────────────────────────────────── */
+.selection-toolbar {
+  box-shadow: var(--shadow-3);
+}
+
+.selection-toolbar > button:disabled {
+  color: var(--ink-disabled);
+  cursor: default;
+}
+
+.selection-toolbar > button.is-active {
+  color: var(--accent-ink);
+  background: var(--accent-soft);
+}
+
+.selection-toolbar .quick-text {
+  font-size: var(--fs-small);
+  font-weight: 500;
+}
+
+.selection-toolbar-divider {
+  width: 1px;
+  height: 22px;
+  margin: 0 var(--space-1);
+  background: var(--line);
+}
+
+/* ── Right column: the inspector on top, the AI Designer under it ──────── */
+.right-stack {
+  flex-direction: column;
+  align-items: flex-end;
+  width: 340px;
+}
+
+.right-stack > .inspector-card {
+  order: -1;
+  flex: 0 1 auto;
+  min-height: 0;
+}
+
+/* The header stays; what's under it scrolls. */
+.inspector-card .card-body {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.right-stack > .ai-panel {
+  flex: 1 1 0;
+  width: 100%;
+  min-height: 260px;
+}
+
+/* With both open, the inspector leaves the chat room to talk. */
+.right-stack:has(.ai-panel) > .inspector-card {
+  max-height: 58%;
+}
+
+/* ── The 3D view, over the plan or beside it ───────────────────────────── */
+.three-pane.is-hidden {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.canvas-area.is-split .plan-canvas {
+  right: 50%;
+}
+
+/* Side by side, the plan's own controls stay over the plan. */
+.canvas-area.is-split .bottom-centre {
+  left: 25%;
+  width: calc(50% - 2 * var(--gutter));
+  min-width: 0;
+}
+
+.canvas-area.is-split .design-crumb {
+  max-width: calc(50% - 148px);
+}
+
+/* With the plan covered there's no tool rail, so the breadcrumb takes its corner. */
+.canvas-area.is-3d:not(.is-split) .design-crumb {
+  left: var(--gutter);
+}
+
+.three-chrome {
+  position: absolute;
+  top: var(--gutter);
+  bottom: var(--gutter);
+  left: var(--gutter);
+  z-index: var(--z-chrome);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  min-height: 0;
+  pointer-events: none;
+}
+
+/* In Refine the breadcrumb sits above it. */
+.canvas-area.is-designing.is-3d:not(.is-split) .three-chrome {
+  top: 84px;
+}
+
+.three-chrome > .floating {
+  position: relative;
+  pointer-events: auto;
+}
+
+.three-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1);
+  border-radius: var(--r-md);
+}
+
+.three-bar .btn.is-active {
+  background: var(--surface-3);
+}
+
+.three-chrome .present-panel {
+  top: auto;
+  right: auto;
+  bottom: auto;
+  flex: 0 1 auto;
+  min-height: 0;
+}
+
+/* ── Map: the house on its plot ────────────────────────────────────────── */
+.map-panel {
+  top: var(--gutter);
+  bottom: var(--gutter);
+  left: var(--gutter);
+  z-index: var(--z-chrome);
+  display: flex;
+  flex-direction: column;
+  width: 360px;
+  overflow: hidden;
+}
+
+.map-panel-scroll {
+  flex: 1;
+  min-height: 0;
+  padding: var(--space-6);
+  overflow-y: auto;
+}
+
+.map-title {
+  margin: 0;
+  font-family: var(--font-serif);
+  font-size: var(--fs-display-s);
+  font-weight: 400;
+  line-height: 1.15;
+}
+
+.map-lead {
+  margin: var(--space-2) 0 var(--space-5);
+  color: var(--ink-2);
+}
+
+.map-section {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-5);
+}
+
+.map-fact {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: var(--fs-small);
+}
+
+.map-fact strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.map-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.map-facts span {
+  padding: 5px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  color: var(--ink-2);
+  font-size: var(--fs-caption);
+}
+
+.map-facts strong {
+  margin-left: var(--space-1);
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.map-panel .plot-fields {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  width: 100%;
+}
+
+.map-panel .input-with-unit input {
+  width: 100%;
+  min-width: 0;
+  height: 36px;
+  padding: 0 32px 0 var(--space-3);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-md);
+  background: var(--surface);
+}
+
+.map-panel .input-with-unit input:focus {
+  border-color: var(--accent);
+}
+
+.map-panel .gap-fields {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.site-issues {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  width: 100%;
+  margin: 0;
+  padding: var(--space-3);
+  border: 1px solid var(--warning-line);
+  border-radius: var(--r-md);
+  background: var(--warning-soft);
+  color: var(--warning-ink);
+  font-size: var(--fs-small);
+  list-style: none;
+}
+
+.site-issues li {
+  display: flex;
+  gap: var(--space-2);
+  align-items: flex-start;
+}
+
+.site-issues svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.north-field {
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.north-field legend {
+  margin-bottom: var(--space-3);
+  font-weight: 600;
+}
+
+.north-row {
+  display: flex;
+  gap: var(--space-4);
+  align-items: center;
+}
+
+.north-dial {
+  flex-shrink: 0;
+  border-radius: 50%;
+  width: 92px;
+  height: 92px;
+  cursor: grab;
+  touch-action: none;
+}
+
+.north-face {
+  fill: var(--surface);
+  stroke: var(--line-strong);
+  stroke-width: 1;
+}
+
+.north-tick {
+  stroke: var(--ink-3);
+  stroke-width: 1;
+}
+
+.north-needle path {
+  fill: var(--ink);
+}
+
+.north-needle .north-tail {
+  fill: var(--surface);
+  stroke: var(--ink-3);
+  stroke-width: 1;
+}
+
+.north-dial.is-unset .north-needle,
+.north-dial.is-unset .north-letter {
+  opacity: 0.35;
+}
+
+.north-letter {
+  fill: var(--ink);
+  font-size: var(--fs-caption);
+  font-weight: 600;
+  text-anchor: middle;
+}
+
+.north-words {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+  font-size: var(--fs-small);
+}
+
+.north-words strong {
+  font-weight: 600;
+}
+
+.map-footer {
+  padding: var(--space-4) var(--space-6) var(--space-6);
+  border-top: 1px solid var(--line);
+}
+
+.garden-side {
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.garden-side legend {
+  margin-bottom: var(--space-3);
+  font-weight: 600;
+}
+
+/* The four sides round a little house, so the choice reads as a picture. */
+.garden-side-picker {
+  display: grid;
+  grid-template-columns: 1fr 1.3fr 1fr;
+  grid-template-rows: auto 76px auto;
+  gap: var(--space-2);
+  align-items: center;
+  justify-items: center;
+  margin-bottom: var(--space-2);
+}
+
+.garden-side-picker button {
+  padding: 6px 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  color: var(--ink-2);
+  font-size: var(--fs-small);
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.garden-side-picker button:hover:not(:disabled):not(.is-active) {
+  background: var(--surface-2);
+  color: var(--ink);
+}
+
+.garden-side-picker button.is-active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  font-weight: 600;
+}
+
+.garden-side-picker button:disabled {
+  color: var(--ink-disabled);
+  cursor: default;
+}
+
+.garden-side-north {
+  grid-area: 1 / 2;
+}
+
+.garden-side-west {
+  grid-area: 2 / 1;
+}
+
+.garden-side-east {
+  grid-area: 2 / 3;
+}
+
+.garden-side-south {
+  grid-area: 3 / 2;
+}
+
+.garden-side-house {
+  display: grid;
+  grid-area: 2 / 2;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  border: 2px solid var(--ink-2);
+  border-radius: var(--r-xs);
+  background: var(--surface-2);
+  color: var(--ink-3);
+  font-size: var(--fs-caption);
+}
+
+/* ── Review: the chosen design, summed up ──────────────────────────────── */
+.review-panel {
+  top: var(--gutter);
+  right: var(--gutter);
+  bottom: var(--gutter);
+  z-index: var(--z-chrome);
+  display: flex;
+  flex-direction: column;
+  width: 380px;
+  overflow: hidden;
+}
+
+.review-header {
+  padding: var(--space-6) var(--space-6) var(--space-3);
+}
+
+.review-kicker {
+  color: var(--ink-3);
+  font-size: var(--fs-caption);
+  font-weight: 500;
+}
+
+.review-header h2 {
+  margin: var(--space-1) 0 0;
+  font-family: var(--font-serif);
+  font-size: var(--fs-display-s);
+  font-weight: 400;
+  line-height: 1.15;
+}
+
+.review-facts {
+  margin: var(--space-2) 0 0;
+  color: var(--ink-2);
+  font-size: var(--fs-small);
+  font-variant-numeric: tabular-nums;
+}
+
+.review-style {
+  margin: var(--space-1) 0 0;
+  color: var(--ink-3);
+  font-size: var(--fs-caption);
+}
+
+.review-body {
+  flex: 1;
+  min-height: 0;
+  padding: var(--space-2) var(--space-6) var(--space-5);
+  overflow-y: auto;
+}
+
+.review-checks,
+.room-schedule ul {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.review-checks button,
+.room-schedule button {
+  width: 100%;
+  padding: var(--space-2);
+  border: 0;
+  border-radius: var(--r-sm);
+  background: none;
+  color: var(--ink);
+  font-size: var(--fs-small);
+  text-align: left;
+  cursor: pointer;
+}
+
+.review-checks button {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+.review-checks button:disabled {
+  cursor: default;
+}
+
+.review-checks svg {
+  flex-shrink: 0;
+  color: var(--warning);
+}
+
+.review-checks button:hover:not(:disabled),
+.room-schedule button:hover,
+.room-schedule button.is-active {
+  background: var(--surface-2);
+}
+
+.room-schedule button {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: baseline;
+  gap: var(--space-3);
+}
+
+.room-schedule button.is-active {
+  box-shadow: 0 0 0 1px var(--accent-line);
+}
+
+.schedule-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.schedule-finish {
+  color: var(--ink-3);
+  font-size: var(--fs-caption);
+}
+
+.schedule-area {
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.schedule-total {
+  display: flex;
+  justify-content: space-between;
+  margin: var(--space-2) 0 var(--space-5);
+  padding: var(--space-3) var(--space-2) 0;
+  border-top: 1px solid var(--line);
+  font-size: var(--fs-small);
+  font-variant-numeric: tabular-nums;
+}
+
+.schedule-total strong {
+  font-weight: 600;
+}
+
+.review-footer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-6) var(--space-6);
+  border-top: 1px solid var(--line);
+}
+
+.review-downloads {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-2);
+}
+
+.rooms-map-note {
+  margin: 0 0 var(--space-3);
+  color: var(--ink-2);
+  font-size: var(--fs-small);
+}
+
+/* ── Two plans side by side ────────────────────────────────────────────── */
+.plan-compare {
+  position: absolute;
+  inset: 0;
+  z-index: 8;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  padding: var(--gutter);
+  overflow: auto;
+  background: var(--canvas);
+  animation: variations-in var(--dur-base) var(--ease-out);
+}
+
+.plan-compare-head h2 {
+  margin: 0;
+  font-family: var(--font-serif);
+  font-size: var(--fs-display-s);
+  font-weight: 400;
+}
+
+.plan-compare-lead {
+  margin: var(--space-1) 0 0;
+  color: var(--ink-2);
+  font-size: var(--fs-small);
+}
+
+.plan-compare-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr minmax(280px, 340px);
+  gap: var(--space-5);
+  align-items: start;
+}
+
+.plan-compare-side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.plan-compare-pick {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.plan-compare-pick select {
+  max-width: 100%;
+  height: 36px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  font-size: var(--fs-body);
+  font-weight: 600;
+}
+
+.plan-compare-pick select:focus {
+  border-color: var(--accent);
+}
+
+.plan-compare-facts {
+  color: var(--ink-2);
+  font-size: var(--fs-caption);
+  font-variant-numeric: tabular-nums;
+}
+
+.plan-compare-media {
+  position: relative;
+  height: clamp(320px, calc(100vh - 340px), 640px);
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-1);
+  cursor: grab;
+  touch-action: none;
+}
+
+.plan-compare-media:active {
+  cursor: grabbing;
+}
+
+.plan-compare-stage {
+  width: 100%;
+  height: 100%;
+  transform-origin: 0 0;
+}
+
+.plan-compare-drawing,
+.plan-compare-drawing svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.plan-compare-drawing.house-floors {
+  display: flex;
+  gap: var(--space-3);
+}
+
+.plan-compare-fit {
+  position: absolute;
+  right: var(--space-3);
+  bottom: var(--space-3);
+}
+
+.plan-compare-numbers {
+  padding: var(--space-4) var(--space-5);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-1);
+}
+
+.plan-compare-numbers .compare-table td {
+  font-variant-numeric: tabular-nums;
+}
+
+.plan-compare-numbers .compare-table td.is-better {
+  color: var(--accent-ink);
+}
+
+.plan-compare-numbers .compare-table td.is-better svg {
+  margin-left: var(--space-1);
+  vertical-align: -2px;
+}
+
+@media (max-width: 1179px) {
+  .plan-compare-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .plan-compare-numbers {
+    grid-column: 1 / -1;
+  }
+}
+
+/* ── Phones and narrow windows (under 1024px) ──────────────────────────── */
+@media (max-width: 1023px) {
+  /* Map and Review are sheets along the bottom here; the plan pinches and drags, so the zoom pill stays out of their way. */
+  .canvas-area.is-mapping .bottom-centre,
+  .canvas-area.is-reviewing .bottom-centre {
+    display: none;
+  }
+
+  .plan-view-switch.segmented button {
+    padding: 0 var(--space-2);
+  }
+
+  /* The note and its button share the width, or the button goes under the words. */
+  .read-only-note {
+    flex-wrap: wrap;
+  }
+
+  /* Floors: names only, in a row under the top of the canvas. */
+  .floor-card {
+    top: 76px;
+    bottom: auto;
+    left: var(--space-3);
+    width: auto;
+    padding: var(--space-1);
+  }
+
+  .floor-rows {
+    flex-direction: row;
+  }
+
+  .floor-thumb,
+  .floor-add {
+    display: none;
+  }
+
+  .map-panel,
+  .review-panel {
+    top: auto;
+    right: var(--space-3);
+    bottom: var(--space-3);
+    left: var(--space-3);
+    width: auto;
+    max-height: 55%;
+  }
+
+  .three-chrome {
+    top: auto;
+    right: var(--space-3);
+    bottom: var(--space-3);
+    left: var(--space-3);
+    align-items: stretch;
+    max-height: 50%;
+  }
+
+  .canvas-area.is-designing.is-3d:not(.is-split) .three-chrome {
+    top: auto;
+  }
+
+  .three-chrome .three-bar {
+    align-self: flex-start;
+  }
+
+  .three-chrome .present-panel {
+    width: auto;
+  }
+}
+
+/* Phones: the step's name is enough beside the view switch and Export ("Step 4 of 5" stays for screen readers). */
+@media (max-width: 519px) {
+  .plan-compare-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .compact-step-count {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .top-bar {
+    gap: var(--space-1);
+  }
+}

@@ -148,6 +148,15 @@ Pins and laying out again:
 - **Lay out again**: in a room's AI tab, tick the rooms beside it and choose *Lay out these rooms again*. The same rooms come back in other orders and sizes, in the space they share, as options in the AI Designer; nothing else in the plan changes. The rooms must together make a rectangle (rooms side by side along the hall, say).
 - Swapping two rooms lays both out again for their new use, and says if the swap made either worse.
 
+Floors and stairs:
+
+- **+ Floor** in the canvas dock adds a floor above, a copy of the outline below with nothing inside; a house can have up to three. The floor switcher (or PageUp and PageDown) picks the floor on show, and new walls, rooms and furniture go on it. The floor below shows faded underneath.
+- An upper floor can be pulled in, to leave a single-storey extension with a flat roof, but never overhangs. Pulling a ground-floor wall in pulls in the walls above it; pushing one out changes only that floor.
+- The **Stairs** tool (S) places a straight, L or U flight that snaps to a wall; Shift+R turns it. The inspector sets its shape, width and going, and says how many steps of what height it needs. Walls can't cross stairs, and furniture keeps off them.
+- The house card's **Floors** section names the floor on show and sets its ceiling height and floor thickness; the floors above move with them.
+- In 3D, **Floors** in the Show tab shows the ground floor, the floors up to the first, or all of them.
+- On the **Rooms** step, **Two storeys** generates houses with living spaces and a WC downstairs and the bedrooms upstairs, joined by a straight flight from the hall to the landing. Typing "a two-storey house" sets it. Two-storey layouts are rectangular for now, and three-storey houses aren't generated yet (ADR 0010).
+
 Variations:
 
 - The tray appears once a project has more than one plan. Click a plan to edit it; each plan keeps its own undo history.
@@ -232,6 +241,7 @@ docs/adr/0006-rooms-step.md                The Rooms step
 docs/adr/0007-orthogonal-outlines.md       Right-angle outlines, the wing planner, shapes from rooms, outline editing
 docs/adr/0008-zone-layouts-and-plan-sense.md  Room rules, plan sense, the access graph, zone layouts
 docs/adr/0009-pins-and-regenerate-selection.md  Pins, laying rooms out again, editing in Design, swaps
+docs/adr/0010-floors-and-stairs.md         Floors, stairs, two-storey 3D and two-storey generation
 ```
 
 Domain code must not import React, Konva, browser APIs or editor state. ESLint enforces this.
@@ -244,5 +254,4 @@ Domain code must not import React, Konva, browser APIs or editor state. ESLint e
 - Address lookup
 - Costing
 - BIM/CAD export
-- Multiple storeys
 - Angled walls (outlines are right-angle only)

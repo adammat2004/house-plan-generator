@@ -12,10 +12,30 @@ export default defineConfig({
   use: {
     baseURL: `http://localhost:${PORT}`,
     trace: "retain-on-failure",
-    ...devices["Desktop Chrome"],
-    viewport: { width: 1440, height: 900 },
     // Allow software WebGL as a fallback, so the 3D view renders on machines without a GPU.
     launchOptions: { args: ["--enable-unsafe-swiftshader"] },
+  },
+  projects: [
+    {
+      name: "desktop",
+      testIgnore: /(phone|screens)\.spec\.ts/,
+      use: { ...devices["Desktop Chrome"], viewport: { width: 1440, height: 900 } },
+    },
+    {
+      // Pixel baselines, Linux only: npm run test:screens runs them in the Playwright Docker image.
+      name: "screens",
+      testMatch: /screens\.spec\.ts/,
+      use: { ...devices["Desktop Chrome"], viewport: { width: 1440, height: 900 } },
+    },
+    {
+      // A touch-only phone: one column, and Refine and 3D read-only.
+      name: "phone",
+      testMatch: /phone\.spec\.ts/,
+      use: { ...devices["Desktop Chrome"], viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true },
+    },
+  ],
+  expect: {
+    toHaveScreenshot: { maxDiffPixelRatio: 0.01, animations: "disabled", caret: "hide", stylePath: "tests/e2e/screens.css" },
   },
   webServer: {
     command: `npx next start --port ${PORT}`,

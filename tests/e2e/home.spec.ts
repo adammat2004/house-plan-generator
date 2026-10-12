@@ -139,6 +139,6 @@ test.describe("Home screen and project library", () => {
     await page.goto("/editor?project=does-not-exist");
     await expect(page.getByTestId("project-unavailable")).toContainText("doesn't exist");
     await page.getByRole("link", { name: "Back to projects" }).click();
-    await expect(page.getByTestId("no-projects")).toBeVisible();
+    await expect(page.getByTestId("start-rooms")).toBeVisible();
   });
 });

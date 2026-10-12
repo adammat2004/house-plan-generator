@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { deriveLevelGeometry } from "@/domain/geometry/derive";
-import { hitTest } from "@/editor/tools/hitTest";
+import { hitRefine } from "@/editor/tools/hitTest";
 import { SNAP_RADIUS_PX } from "@/editor/tools/controller";
 import { snapPoint } from "@/editor/tools/snapping";
 import { DEFAULT_VIEWPORT, fitRect, pixelsToMetres, screenToWorld, worldToScreen, zoomAt, panBy } from "@/editor/viewport/viewport";
@@ -81,8 +81,8 @@ describe("snapping", () => {
 describe("hit testing", () => {
   it("picks walls, then rooms, by world position", () => {
     const tol = pixelsToMetres(DEFAULT_VIEWPORT, SNAP_RADIUS_PX);
-    expect(hitTest(lvl, geometry, { x: 4.02, y: 5 }, tol)).toEqual({ kind: "wall", id: "v" });
-    expect(hitTest(lvl, geometry, { x: 2, y: 5 }, tol)?.kind).toBe("room");
-    expect(hitTest(lvl, geometry, { x: 20, y: 20 }, tol)).toBeNull();
+    expect(hitRefine(lvl, geometry, { x: 4.02, y: 5 }, tol)).toEqual({ kind: "wall", id: "v" });
+    expect(hitRefine(lvl, geometry, { x: 2, y: 5 }, tol)?.kind).toBe("room");
+    expect(hitRefine(lvl, geometry, { x: 20, y: 20 }, tol)).toBeNull();
   });
 });

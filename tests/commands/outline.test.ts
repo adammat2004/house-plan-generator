@@ -3,6 +3,7 @@ import { applyCommand, createPlanDocument, parsePlanDocumentJson, serializePlanD
 import { analyzeEnvelope } from "@/domain/geometry/envelope";
 import { normalizeRing } from "@/domain/geometry/outline";
 import { polygonArea } from "@/domain/geometry/polygons";
+import { CURRENT_SCHEMA_VERSION } from "@/domain/plan/schema";
 import type { PlanDocument } from "@/domain/plan/types";
 import { OUTLINES, randomOutline, rectRing } from "../fixtures/outlines";
 import { addWall, apply, envelope, faceCount, level, newHouse, newOutlineHouse, reject, rooms } from "../helpers";
@@ -136,9 +137,9 @@ describe("plan files", () => {
     const doc = newOutlineHouse(OUTLINES.T);
     const parsed = parsePlanDocumentJson(serializePlanDocument(doc));
     expect(parsed.ok && parsed.document).toEqual(doc);
-    const future = parsePlanDocumentJson(JSON.stringify({ ...doc, schemaVersion: 5 }));
+    const future = parsePlanDocumentJson(JSON.stringify({ ...doc, schemaVersion: CURRENT_SCHEMA_VERSION + 1 }));
     expect(future.ok).toBe(false);
-    if (!future.ok) expect(future.issues[0].message).toMatch(/newer than this editor supports \(version 4\)/);
+    if (!future.ok) expect(future.issues[0].message).toMatch(new RegExp(`newer than this editor supports \\(version ${CURRENT_SCHEMA_VERSION}\\)`));
   });
 });
 
