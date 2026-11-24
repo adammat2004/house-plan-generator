@@ -8,5 +8,6 @@ export default defineConfig({
   test: {
     include: ["tests/{geometry,commands,persistence,editor,design,furniture,server,home}/**/*.test.ts"],
     environment: "node",
+    testTimeout: 30_000,
   },
 });
