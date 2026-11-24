@@ -5815,6 +5815,37 @@ button.action-row:hover:not(:disabled),
   max-height: none;
 }
 
+.backup-reminder {
+  position: fixed;
+  left: var(--space-4);
+  bottom: var(--space-4);
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  max-width: 340px;
+  padding: var(--space-3);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.backup-reminder p {
+  margin: 0;
+}
+
+.backup-reminder-actions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.open-backup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
 .preset-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -5854,4 +5885,130 @@ button.action-row:hover:not(:disabled),
 .preset-blurb {
   font-size: 0.75rem;
   color: var(--ink-muted, var(--ink));
+}
+
+/* ── Exterior gallery and elevations (over the 3D view) ─────────────────── */
+.present-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  overflow: auto;
+  padding: 140px var(--space-4) var(--space-4);
+  background: var(--canvas);
+}
+
+.present-tabs {
+  display: flex;
+  gap: 2px;
+}
+
+.exterior-gallery > header,
+.elevations-view > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.exterior-gallery h2,
+.elevations-view h2 {
+  margin: 0;
+}
+
+.exterior-gallery-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.exterior-gallery-note {
+  margin: 0 0 var(--space-3);
+  color: var(--ink-3);
+}
+
+.exterior-gallery-note.is-error {
+  color: var(--danger);
+}
+
+.exterior-gallery-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.exterior-gallery-tile {
+  overflow: hidden;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-md);
+  background: var(--surface);
+}
+
+.exterior-gallery-tile img,
+.exterior-gallery-empty {
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+}
+
+.exterior-gallery-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink-3);
+}
+
+.exterior-gallery-caption {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+}
+
+.exterior-gallery-badge {
+  margin-right: auto;
+  color: var(--ink-3);
+}
+
+.elevations-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: var(--space-4);
+}
+
+.elevation {
+  margin: 0;
+  padding: var(--space-3);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-md);
+  background: var(--surface);
+}
+
+.elevation svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 320px;
+}
+
+.elevation figcaption {
+  margin-top: var(--space-2);
+  color: var(--ink-3);
+  text-align: center;
+}
+
+.elevation-ground {
+  stroke: var(--ink-3);
+  stroke-width: 0.05;
+}
+
+.elevation-wall,
+.elevation-band,
+.elevation-roof {
+  stroke: color-mix(in srgb, var(--ink) 35%, transparent);
+  stroke-width: 0.04;
 }
