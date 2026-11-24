@@ -6012,3 +6012,114 @@ button.action-row:hover:not(:disabled),
   stroke: color-mix(in srgb, var(--ink) 35%, transparent);
   stroke-width: 0.04;
 }
+
+/* ── Describe your dream home ──────────────────────────────────────────── */
+.describe {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 10vh var(--space-6) var(--space-8);
+}
+
+.describe h1 {
+  margin: var(--space-4) 0 0;
+  font-family: var(--font-serif);
+  font-size: var(--fs-display-m);
+  font-weight: 400;
+  line-height: 1.1;
+}
+
+.describe-lede,
+.describe-alt p,
+.describe-reply {
+  margin: 0;
+  color: var(--ink-2);
+  line-height: 1.5;
+}
+
+.describe-form {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+.describe-form textarea {
+  width: 100%;
+  min-height: 120px;
+  padding: var(--space-4);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  font-size: var(--fs-body-l, var(--fs-body));
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.describe-examples {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.describe-unavailable,
+.describe-brief {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface);
+}
+
+.describe-unavailable p {
+  margin: 0;
+}
+
+.describe-error,
+.describe-fit.is-short {
+  margin: 0;
+  color: var(--danger, var(--ink));
+}
+
+.describe-notes {
+  margin: 0;
+  padding-left: var(--space-4);
+  color: var(--ink-2);
+}
+
+.describe-counts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-5);
+}
+
+.describe-counts label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.describe-counts .field {
+  width: 140px;
+}
+
+.describe-fit {
+  margin: 0;
+  color: var(--ink-2);
+}
+
+.describe-alt {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.describe-alt p {
+  margin: 0;
+}
