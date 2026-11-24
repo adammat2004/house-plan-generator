@@ -14,7 +14,6 @@ import { levelIndex } from "@/domain/plan/levels";
 import { roomEdgeHandles } from "@/domain/design/analysis";
 import { furnitureRect } from "@/domain/furniture/geometry";
 import type { Level, Point2 } from "@/domain/plan/types";
-import type { InteriorStyle } from "@/domain/project/schema";
 import { useActiveLevel, useDocumentState, useProjectState, useSessionState } from "../../state/editor";
 import { displayedDocument, inRefine, showsSchematic, type OutlineDraft, type Selection, type SnapIndicator } from "../../state/stores";
 import { worldToScreen, type Viewport } from "../../viewport/viewport";
@@ -26,7 +25,8 @@ import { buildGarden } from "../scene/garden";
 import { buildableRect, sitePlot, type Site } from "@/domain/project/site";
 import { registerStage } from "./stageRegistry";
 import { spriteFor, useFurnitureSprites } from "./sprites";
-import { FINISH_TONE, roomFinish } from "../scene/finishes";
+import { FINISH_TONE, floorTinted, roomFinish } from "../scene/finishes";
+import { styleOfItem, styleResolver, type StyleArg } from "@/domain/interior/itemStyles";
 import { finishPattern, patternDensity } from "./patterns";
 import { Poly, ringsOf } from "./Poly";
 import { planFurnitureFill, type FurnitureMaterial } from "../scene/style";
@@ -145,7 +145,7 @@ const PlanContent = memo(function PlanContent({
   /** Furniture colours for the interior style. */
   fills: Record<FurnitureMaterial, string>;
   /** The interior style, which picks the furniture pictures. */
-  style: InteriorStyle | undefined;
+  style: StyleArg;
   /** Changes as furniture pictures arrive, so the plan redraws with them. */
   sprites: number;
   stairs: StairPrimitive[];
@@ -155,7 +155,7 @@ const PlanContent = memo(function PlanContent({
   density: number;
 }) {
   const floorOf = (room: PlanScene["rooms"][number] | undefined) => {
-    if (schematic) return { pattern: null, fill: room ? roomColour(room.type) : T.roomFill };
+    if (schematic) return { pattern: null, fill: room ? floorTinted(roomColour(room.type), room.floorMaterial) : T.roomFill };
     const finish = room ? roomFinish(room) : null;
     return { pattern: finish ? finishPattern(finish, density) : null, fill: room ? (finish ? FINISH_TONE[finish] : roomColour(room.type)) : T.roomFill };
   };
@@ -184,7 +184,7 @@ const PlanContent = memo(function PlanContent({
         scene.furniture.map((f) => {
           // The library's picture of the piece from above where there is one; else its drawn symbol.
           const sprite = spriteFor(f.item, style);
-          return sprite ? <KonvaImage key={f.id} name="furniture-sprite" listening={false} perfectDrawEnabled={false} {...sprite} /> : <FurnitureShape key={f.id} parts={f.parts} fills={fills} />;
+          return sprite ? <KonvaImage key={f.id} name="furniture-sprite" listening={false} perfectDrawEnabled={false} {...sprite} /> : <FurnitureShape key={f.id} parts={f.parts} fills={planFurnitureFill(styleOfItem(style, f.item))} />;
         })}
       {/* The walls, with a soft shadow at their feet that lifts them off the floor. */}
       <Poly rings={ringsOf(scene.wallMass)} fill={T.wallFill} stroke={T.wallStroke} strokeWidth={1} glow={{ color: T.wallShadow, blur: 0.16 }} />
@@ -890,7 +890,8 @@ export function PlanStage({ width, height, look, onStage }: { width: number; hei
   const scene = useMemo(() => buildPlanScene(level), [level]);
   const interiorStyle = useProjectState((s) => s.appearance?.interiorStyle);
   const furnitureItems = useMemo(() => Object.values(level.furniture), [level.furniture]);
-  const sprites = useFurnitureSprites(furnitureItems, interiorStyle, furnished || !refining);
+  const styleOf = useMemo(() => styleResolver([level], interiorStyle), [level, interiorStyle]);
+  const sprites = useFurnitureSprites(furnitureItems, styleOf, furnished || !refining);
   // The garden and the house's shadow go round the ground floor, which holds every floor above.
   const groundScene = buildPlanScene(doc.levels[0]);
   const site = useProjectState((s) => s.site);
@@ -1004,7 +1005,7 @@ export function PlanStage({ width, height, look, onStage }: { width: number; hei
       </Layer>
       <Layer listening={false}>
         <Group {...transform}>
-          <PlanContent scene={scene} schematic={schematic} showFurniture={showFurniture} fills={fills} style={interiorStyle} sprites={sprites} stairs={stairs} underlay={underlay} density={density} />
+          <PlanContent scene={scene} schematic={schematic} showFurniture={showFurniture} fills={fills} style={styleOf} sprites={sprites} stairs={stairs} underlay={underlay} density={density} />
         </Group>
       </Layer>
       <Layer listening={false}>
