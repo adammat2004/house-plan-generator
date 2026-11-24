@@ -2,7 +2,9 @@ import * as THREE from "three";
 import { groundLevel, levelOf } from "@/domain/plan/levels";
 import type { Rect } from "@/domain/geometry/vector";
 import type { Level, PlanDocument } from "@/domain/plan/types";
+import { effectiveRoofPitch } from "@/domain/project/exterior";
 import type { Appearance } from "@/domain/project/schema";
+import { exteriorAnglePose } from "../scene/exteriorAngles";
 import { aerialCameraPose, exteriorCameraPose, roomCameraPose, spotCameraPose, type CameraPose } from "../scene/roomCamera";
 import type { StillTarget } from "@/domain/design/renderRequest";
 import { buildBuildingModel, planOf } from "./buildingModel";
@@ -88,7 +90,7 @@ function prepare(plan: PlanDocument, appearance: Appearance, mode: StillView["ki
   scene.add(hemi, sun, sun.target, group, nightLights);
   // A roof gives rooms a ceiling; dimensions and cutaways are for the interactive view.
   // From above the roof comes off, to see into the rooms.
-  const model = buildBuildingModel(plan, { cutaway: false, roof: mode !== "aerial", dimensions: false, landscape: true, furniture: true, roofForm: appearance.roofForm });
+  const model = buildBuildingModel(plan, { cutaway: false, roof: mode !== "aerial", dimensions: false, landscape: true, furniture: true, roofForm: appearance.roofForm, roofPitch: effectiveRoofPitch(appearance) });
   buildHouse(group, model, { appearance, ground: "lawn", landscape: true, labels: false }, textures, furnitureModels);
   if (interior) {
     // A plain white ceiling on every floor, as rooms have, and none over the garden.
@@ -132,7 +134,8 @@ function poseFor(plan: PlanDocument, model: HouseModel, view: StillView, aspect:
   if (view.kind === "aerial") return raise(aerialCameraPose(ground, aspect), extra, 0);
   const pose = raise(exteriorCameraPose(ground, aspect), extra * 0.6, extra / 2);
   // A tall house, or one under a pitched roof, is framed by its full height.
-  return pose && (extra > 0 || model.roofs) && model.outside ? backedOff(pose, model.outside, model.roofs ? (model.top ?? model.wallHeight) : model.wallHeight + PARAPET_TOP) : pose;
+  const framed = pose && (extra > 0 || model.roofs) && model.outside ? backedOff(pose, model.outside, model.roofs ? (model.top ?? model.wallHeight) : model.wallHeight + PARAPET_TOP) : pose;
+  return framed && exteriorAnglePose(framed, view.angle);
 }
 
 /** Roof slab and parapet above the tallest wall. */

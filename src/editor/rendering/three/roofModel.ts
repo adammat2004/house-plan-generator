@@ -85,14 +85,14 @@ export function maximalRects(xs: readonly number[], ys: readonly number[], insid
 const lines = (rings: readonly Ring[], key: "x" | "y") => [...new Set(rings.flatMap((r) => r.map((p) => p[key])))].sort((a, b) => a - b);
 
 /** A hipped roof over an outline (its outside faces), with the eaves at `z0`. */
-export function hippedRoof(outline: Ring, z0: number): RoofPiece[] {
+export function hippedRoof(outline: Ring, z0: number, pitch = ROOF_PITCH): RoofPiece[] {
   const eaves = offsetRing(outline, ROOF_OVERHANG);
   const all = { minX: true, maxX: true, minY: true, maxY: true };
   return maximalRects(lines([eaves], "x"), lines([eaves], "y"), (x, y) => pointInRing(eaves, { x, y })).map((rect) => ({
     rect,
     z0,
     skirt: ROOF_FASCIA,
-    slope: Math.tan(ROOF_PITCH),
+    slope: Math.tan(pitch),
     eaves: all,
   }));
 }
@@ -103,7 +103,7 @@ export function hippedRoof(outline: Ring, z0: number): RoofPiece[] {
  * ends flush with the walls on its short ones (along the street when square).
  * Where wings cross, the higher roof shows, which makes the valleys.
  */
-export function gabledRoof(outline: Ring, z0: number): RoofPiece[] {
+export function gabledRoof(outline: Ring, z0: number, pitch = ROOF_PITCH): RoofPiece[] {
   const rects = maximalRects(lines([outline], "x"), lines([outline], "y"), (x, y) => pointInRing(outline, { x, y }));
   return rects.map((r) => {
     const alongX = r.maxX - r.minX >= r.maxY - r.minY - TINY;
@@ -113,7 +113,7 @@ export function gabledRoof(outline: Ring, z0: number): RoofPiece[] {
       rect: { minX: r.minX - out("minX"), maxX: r.maxX + out("maxX"), minY: r.minY - out("minY"), maxY: r.maxY + out("maxY") },
       z0,
       skirt: ROOF_FASCIA,
-      slope: Math.tan(ROOF_PITCH),
+      slope: Math.tan(pitch),
       eaves,
       gable: true,
     };
@@ -121,7 +121,10 @@ export function gabledRoof(outline: Ring, z0: number): RoofPiece[] {
 }
 
 /** A pitched roof of either form over an outline. */
-export const pitchedRoof = (form: "hipped" | "gabled", outline: Ring, z0: number): RoofPiece[] => (form === "gabled" ? gabledRoof(outline, z0) : hippedRoof(outline, z0));
+export const pitchedRoof = (form: "hipped" | "gabled", outline: Ring, z0: number, pitch = ROOF_PITCH): RoofPiece[] => (form === "gabled" ? gabledRoof(outline, z0, pitch) : hippedRoof(outline, z0, pitch));
+
+/** Degrees to the radians the roof functions take. */
+export const pitchRadians = (degrees: number) => (degrees * Math.PI) / 180;
 
 /**
  * A lean-to over the part of a lower floor that the floor above leaves

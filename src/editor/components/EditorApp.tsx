@@ -39,6 +39,7 @@ import { SelectionToolbar } from "./shell/SelectionToolbar";
 import { StagedBanner } from "./shell/StagedBanner";
 import { FloatingToolbar } from "./shell/FloatingToolbar";
 import { LayersPanel } from "./shell/LayersPanel";
+import { BackupReminder } from "./shell/BackupReminder";
 import { NoticeToast, StatusHint } from "./shell/StatusHint";
 import { ToolOptions } from "./shell/ToolOptions";
 import { useReadOnlySync } from "./shell/phone";
@@ -332,7 +333,7 @@ export default function EditorApp({ projectId, start }: EditorAppProps) {
           <LayersPanel />
         </div>
         {!refining && (
-          <div className={`right-stack ai-dock${workspace === "design" || workspace === "review" ? " is-left" : ""}`} data-chrome={workspace === "design" || workspace === "review" ? "left" : "right"}>
+          <div className={`right-stack ai-dock${workspace === "design" || workspace === "review" ? " is-left" : ""}${workspace === "brief" ? " is-above-create" : ""}`} data-chrome={workspace === "design" || workspace === "review" ? "left" : "right"}>
             <AiDesignerPanel />
           </div>
         )}
@@ -357,6 +358,7 @@ export default function EditorApp({ projectId, start }: EditorAppProps) {
         )}
         <ReadOnlyNote />
         <NoticeToast />
+        <BackupReminder />
       </main>
       {ready && <OutlineConfirmDialog />}
       {ready && dialogOpen && (
