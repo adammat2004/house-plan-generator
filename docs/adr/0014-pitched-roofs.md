@@ -37,6 +37,6 @@ Every house had a flat roof with a parapet. Drafted's V2 (July 2026) switches be
 
 ## Not done
 
-- Gables, and a pitch per wing.
+- A pitch per wing. (Gables were built on 2026-10-25, and a house-wide pitch in ADR 0019.)
   - A gable uses the same machinery: eaves on the long sides only, with the short sides as walls.
 - Roof lights and chimneys.
