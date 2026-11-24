@@ -55,6 +55,10 @@ test("the assistant changes the plan, lists what it did, and undoes it", async (
   await expect(page.getByTestId("assistant-changes")).toContainText("Reading nook");
   await expect(page.getByTestId("assistant-unsupported")).toContainText("paint it blue");
   const names = async () => (await getDoc(page)).levels[0] && Object.values((await getDoc(page)).levels[0].rooms).map((r) => r.name);
+  // The change waits as a preview until accepted.
+  await expect(page.getByTestId("assistant-pending")).toBeVisible();
+  expect(await names()).not.toContain("Reading nook");
+  await page.getByTestId("assistant-accept").click();
   expect(await names()).toContain("Reading nook");
 
   await page.getByTestId("assistant-undo").click();
@@ -81,6 +85,46 @@ test("a request that changes nothing says so", async ({ page }) => {
   await page.getByTestId("assistant-input").press("Enter");
   await expect(page.getByTestId("assistant-no-changes")).toBeVisible();
   await expect(page.getByTestId("assistant-undo")).toHaveCount(0);
+});
+
+test("a turn waits as a preview on the plan; discard leaves the plan alone", async ({ page }) => {
+  await page.route("**/api/design/agent", async (route) => {
+    if (route.request().method() === "GET") return route.fulfill({ json: { available: true } });
+    const { document } = route.request().postDataJSON();
+    const level = document.levels[0];
+    const [id] = Object.keys(level.rooms);
+    level.rooms[id].name = "Reading nook";
+    const summary = `Renamed to "Reading nook".`;
+    return route.fulfill({
+      contentType: "application/x-ndjson",
+      body: ndjson([
+        { type: "result", result: { reply: "Renamed it.", document, changes: [{ tool: "rename_room", summary, roomIds: [id] }], failures: [], unsupported: [], stopped: "done", iterations: 2 } },
+      ]),
+    });
+  });
+  await openRefine(page);
+  await page.getByTestId("open-ai").click();
+  const names = async () => Object.values((await getDoc(page)).levels[0].rooms).map((r) => r.name);
+
+  await page.getByTestId("assistant-input").fill("rename a room");
+  await page.getByTestId("assistant-send").click();
+  await expect(page.getByTestId("staged-banner")).toContainText("Assistant's changes");
+  await expect(page.getByTestId("assistant-changes")).toContainText("Reading nook");
+  await expect(page.getByTestId("assistant-input")).toBeDisabled();
+  expect(await names()).not.toContain("Reading nook");
+  await page.screenshot({ path: "test-results/turn-preview.png" });
+
+  await page.getByTestId("assistant-discard").click();
+  await expect(page.getByTestId("staged-banner")).toHaveCount(0);
+  await expect(page.getByTestId("assistant-discarded")).toBeVisible();
+  expect(await names()).not.toContain("Reading nook");
+
+  await page.getByTestId("assistant-input").fill("rename a room");
+  await page.getByTestId("assistant-send").click();
+  await page.getByTestId("staged-apply").click();
+  expect(await names()).toContain("Reading nook");
+  await expect(page.getByTestId("assistant-undo").last()).toBeVisible();
+  await page.screenshot({ path: "test-results/turn-accepted.png" });
 });
 
 test("without an AI key the assistant says it's unavailable and the quick chat still works", async ({ page }) => {
