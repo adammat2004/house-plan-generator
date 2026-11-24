@@ -1,3 +1,4 @@
+import { styleResolver } from "@/domain/interior/itemStyles";
 import * as THREE from "three";
 import { groundLevel, levelOf } from "@/domain/plan/levels";
 import type { Rect } from "@/domain/geometry/vector";
@@ -181,7 +182,7 @@ export function prepareStillModels(source: Level | PlanDocument, appearance: App
   const plan = planOf(source);
   return ensureFurnitureModels(
     plan.levels.flatMap((level) => Object.values(level.furniture)),
-    appearance.interiorStyle,
+    styleResolver(plan.levels, appearance.interiorStyle),
   );
 }
 

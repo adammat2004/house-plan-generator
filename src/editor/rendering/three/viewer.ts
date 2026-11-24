@@ -9,7 +9,7 @@ import { effectiveRoofPitch } from "@/domain/project/exterior";
 import type { Appearance } from "@/domain/project/schema";
 import { PLAN_THEME } from "../konva/theme";
 import { buildBuildingModel } from "./buildingModel";
-import { ensureFurnitureModels, furnitureModels, furnitureModelsReady, placedItems } from "./furnitureAssets";
+import { ensureFurnitureModels, furnitureModels, furnitureModelsReady, placedItems, placementStyles } from "./furnitureAssets";
 import type { HouseModel, HouseModelOptions } from "./houseModel";
 import { roomCameraPose } from "../scene/roomCamera";
 import { applyLighting, buildHouse, clearGroup, TextureCache, type Ground, type Lighting, type Sky } from "./sceneBuilder";
@@ -167,7 +167,7 @@ export class HouseViewer {
     this.floors = buildHouse(this.house, model, { appearance: state.appearance, ground: state.ground, landscape: state.display.landscape, labels: true }, this.textures, furnitureModels);
     // Furniture shows as boxes until its models arrive, then the house is built again with them.
     const items = placedItems(model.furniture);
-    const style = state.appearance.interiorStyle;
+    const style = placementStyles(model.furniture, state.appearance.interiorStyle);
     this.modelsReady = furnitureModelsReady(items, style)
       ? Promise.resolve()
       : ensureFurnitureModels(items, style).then(() => {
