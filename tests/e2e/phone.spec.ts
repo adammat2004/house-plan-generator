@@ -86,6 +86,8 @@ test("picks rooms and compares layouts on a phone, then sends one to a computer"
   const desktop = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   const computer = await desktop.newPage();
   computer.on("pageerror", (e) => errors.push(e.message));
+  // This check is about the layout arriving editable; Simple mode has no wall tool.
+  await computer.addInitScript(() => localStorage.setItem("homedesign.refine.mode", "advanced"));
   await computer.goto(url);
   await expect(computer.getByTestId("step-refine")).toHaveAttribute("aria-current", "step");
   expect(computer.url()).not.toContain("/start");
