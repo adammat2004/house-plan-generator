@@ -18,6 +18,7 @@ import { worldToScreen } from "../viewport/viewport";
 import { roomBounds } from "@/domain/design/analysis";
 import { CreateHouseDialog, type CreateHouseValues } from "./CreateHouseDialog";
 import { OutlineConfirmDialog } from "./OutlineConfirmDialog";
+import { FurnishInStyleDialog } from "./furniture/FurnishInStyleDialog";
 import { AiDesignerPanel } from "./designer/AiDesignerPanel";
 import { ThreeCard } from "./designer/ThreeCard";
 import { FurnishRenderButton, RenderPanel } from "./designer/RenderPanel";
@@ -354,6 +355,7 @@ export default function EditorApp({ projectId, start }: EditorAppProps) {
         <BackupReminder />
       </main>
       {ready && <OutlineConfirmDialog />}
+      {ready && <FurnishInStyleDialog />}
       {ready && dialogOpen && (
         <CreateHouseDialog
           mode="replace"

@@ -8,8 +8,9 @@ import { deriveRoomRegions, roomFaceIndices } from "@/domain/geometry/derive";
 import { formatArea } from "@/domain/geometry/numeric";
 import { isGeneratedRoomName, ROOM_TYPE_LABEL, suggestRoomName } from "@/domain/plan/rooms";
 import { CIRCULATION_LABEL } from "@/domain/design/circulation";
-import { EXTERNAL_WALL_PREFERENCES, FLOOR_MATERIALS, ROOM_TYPES } from "@/domain/plan/schema";
-import type { ExternalWallPreference, FloorMaterial, Level, RoomType } from "@/domain/plan/types";
+import { EXTERNAL_WALL_PREFERENCES, FLOOR_MATERIALS, ROOM_TYPES, PAINT_COLOURS } from "@/domain/plan/schema";
+import { PAINT_SWATCH } from "@/domain/interior/paint";
+import type { ExternalWallPreference, FloorMaterial, Level, Room, RoomType } from "@/domain/plan/types";
 import { describeEntity } from "@/domain/commands";
 import { ROOM_FURNITURE } from "@/domain/furniture/catalog";
 import { canFurnish } from "@/domain/furniture/furnish";
@@ -39,6 +40,7 @@ import { MATERIAL_SWATCH } from "../../rendering/konva/theme";
 import { design, editor, useDocumentState, useProjectState, useSessionState } from "../../state/editor";
 import type { InspectorTab } from "../../state/stores";
 import { FurnitureArt } from "../furniture/FurnitureArt";
+import { StyleNote } from "../furniture/FurnishInStyleDialog";
 import { AiOptions, QuickActions } from "./RoomOptions";
 import { pickFurniture } from "../shell/tools";
 import { InspectorFrame, MoreSettings, run, Section } from "./frame";
@@ -169,7 +171,7 @@ function DesignTab({ level, roomId, focusKey }: { level: Level; roomId: string; 
       <AiOptions level={level} roomId={roomId} picked={picked} onPick={setPicked} />
       <RoomActions level={level} roomId={roomId} />
       <RegenerateArea level={level} roomId={roomId} />
-      <StyleAndFinishes roomId={roomId} value={room.floorMaterial ?? null} />
+      <StyleAndFinishes roomId={roomId} room={room} />
       <Section title="This room">
         <div className="field-row">
           <SelectField label="Used as" value={room.type} options={ROOM_TYPE_OPTIONS} testId="room-type" onChange={setType} />
@@ -245,6 +247,9 @@ function Dimensions({ level, roomId, area }: { level: Level; roomId: string; are
   );
 }
 
+/** Which arrangement "Try another arrangement" has reached in each room; 0 is the usual layout. */
+const arrangements = new Map<string, number>();
+
 /** What's in the room, and quick ways to lay it out or add to it. */
 function RoomFurniture({ level, roomId }: { level: Level; roomId: string }) {
   const room = level.rooms[roomId];
@@ -252,6 +257,7 @@ function RoomFurniture({ level, roomId }: { level: Level; roomId: string }) {
   const problems = furnitureIssues(level);
   const standard = canFurnish(room.type);
   const usual = ROOM_FURNITURE[room.type] ?? [];
+  const houseStyle = useProjectState((s) => s.appearance?.interiorStyle) ?? DEFAULT_INTERIOR_STYLE;
   return (
     <Section>
       {items.length ? (
@@ -283,6 +289,25 @@ function RoomFurniture({ level, roomId }: { level: Level; roomId: string }) {
           <PlusIcon width={16} height={16} /> Add a piece
         </Button>
       </div>
+      {standard && (
+        <div className="button-row">
+          <Button onClick={() => editor.openFurnishDialog([roomId])} data-testid="furnish-room-in-style">
+            <SparkleIcon width={16} height={16} /> Furnish in a style…
+          </Button>
+          {items.length > 0 && (
+            <Button
+              onClick={() => {
+                const seed = (arrangements.get(roomId) ?? 0) + 1;
+                arrangements.set(roomId, seed);
+                editor.furnishInStyle(room.interiorStyle ?? houseStyle, [roomId], seed);
+              }}
+              data-testid="furnish-room-another"
+            >
+              <RefreshIcon width={16} height={16} /> Try another
+            </Button>
+          )}
+        </div>
+      )}
       {items.length > 0 && (
         <button type="button" className="link-btn" onClick={() => editor.clearFurniture(roomId)} data-testid="clear-room-furniture">
           Remove all furniture from this room
@@ -292,19 +317,49 @@ function RoomFurniture({ level, roomId }: { level: Level; roomId: string }) {
   );
 }
 
-/** How the room looks: the house's interior style, and this room's floor. */
-function StyleAndFinishes({ roomId, value }: { roomId: string; value: FloorMaterial | null }) {
-  const style = useProjectState((s) => s.appearance?.interiorStyle) ?? DEFAULT_INTERIOR_STYLE;
+/** How the room looks: the house's interior style, this room's own style, its walls and its floor. */
+function StyleAndFinishes({ roomId, room }: { roomId: string; room: Room }) {
+  const houseStyle = useProjectState((s) => s.appearance?.interiorStyle) ?? DEFAULT_INTERIOR_STYLE;
+  const floor = room.floorMaterial ?? null;
+  const paint = room.wallColour ?? null;
+  const shown = room.interiorStyle ?? houseStyle;
   return (
     <Section title="Style and finishes">
       <SelectField
-        label="Style"
-        value={style}
+        label="House style"
+        value={houseStyle}
         options={INTERIOR_STYLES.map((v) => ({ value: v, label: INTERIOR_STYLE_LABEL[v] }))}
         testId="room-style"
         onChange={(interiorStyle: InteriorStyle) => editor.setAppearance({ interiorStyle })}
       />
-      <p className="field-hint">For the whole house: its furniture, floors and photos.</p>
+      <SelectField
+        label="This room"
+        value={room.interiorStyle ?? NOT_SET}
+        options={[{ value: NOT_SET, label: `Same as the house (${INTERIOR_STYLE_LABEL[houseStyle]})` }, ...INTERIOR_STYLES.map((v) => ({ value: v, label: INTERIOR_STYLE_LABEL[v] }))]}
+        testId="room-style-override"
+        onChange={(v: string) => run({ type: "updateRoom", roomId, changes: { interiorStyle: v === NOT_SET ? null : (v as InteriorStyle) } })}
+      />
+      <StyleNote style={shown} />
+      <span className="field-label" id={`paint-${roomId}`}>
+        Wall paint
+      </span>
+      <div className="swatch-grid" role="radiogroup" aria-labelledby={`paint-${roomId}`} data-testid="room-wall">
+        {PAINT_COLOURS.map((c) => (
+          <button
+            key={c}
+            type="button"
+            role="radio"
+            aria-checked={paint === c}
+            className={paint === c ? "is-active" : undefined}
+            onClick={() => run({ type: "updateRoom", roomId, changes: { wallColour: paint === c ? null : c } })}
+            data-testid={`paint-${c}`}
+          >
+            <span className="swatch" style={{ background: PAINT_SWATCH[c].shade }} aria-hidden />
+            {PAINT_SWATCH[c].label}
+          </button>
+        ))}
+      </div>
+      {!paint && <p className="field-hint">No paint chosen: the walls stay the house&apos;s off-white.</p>}
       <span className="field-label" id={`floor-${roomId}`}>
         Flooring
       </span>
@@ -314,9 +369,9 @@ function StyleAndFinishes({ roomId, value }: { roomId: string; value: FloorMater
             key={m}
             type="button"
             role="radio"
-            aria-checked={value === m}
-            className={value === m ? "is-active" : undefined}
-            onClick={() => run({ type: "updateRoom", roomId, changes: { floorMaterial: value === m ? null : m } })}
+            aria-checked={floor === m}
+            className={floor === m ? "is-active" : undefined}
+            onClick={() => run({ type: "updateRoom", roomId, changes: { floorMaterial: floor === m ? null : m } })}
             data-testid={`finish-${m}`}
           >
             <span className="swatch" style={{ background: MATERIAL_SWATCH[m] }} aria-hidden />
@@ -324,7 +379,7 @@ function StyleAndFinishes({ roomId, value }: { roomId: string; value: FloorMater
           </button>
         ))}
       </div>
-      {!value && <p className="field-hint">Not chosen yet: the plan shows the floor this kind of room usually has.</p>}
+      {!floor && <p className="field-hint">Not chosen yet: the plan shows the floor this kind of room usually has.</p>}
     </Section>
   );
 }
