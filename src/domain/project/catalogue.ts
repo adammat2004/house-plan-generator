@@ -6,6 +6,9 @@ import { planLayouts } from "../design/stripPlanner";
 import type { PlanDocument } from "../plan/types";
 import { EXTERIOR_STYLES, type Appearance, type ExteriorStyle } from "./schema";
 
+/** The styles the catalogue cycles through; later-added styles stay out so its houses keep their looks. */
+const CATALOGUE_STYLES = EXTERIOR_STYLES.slice(0, 6);
+
 /**
  * The house-plan catalogue: a fixed set of named houses, each a starting
  * brief (a room preset), a shape and a number of storeys, with an exterior
@@ -54,7 +57,7 @@ export const CATALOGUE: readonly CatalogueEntry[] = BRIEF_PRESETS.flatMap((prese
           brief,
           shape,
           storeys,
-          style: EXTERIOR_STYLES[i % EXTERIOR_STYLES.length],
+          style: CATALOGUE_STYLES[i % CATALOGUE_STYLES.length],
           bedrooms: pickedBedrooms(preset.picks),
           bathrooms: pickedBathrooms(preset.picks),
         },
