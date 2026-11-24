@@ -1,4 +1,5 @@
 import { parseProjectJson, serializeProject, type ProjectDocument, type ProjectLoadResult } from "@/domain/project/schema";
+import { recordBackup } from "./backupReminder";
 
 export const PROJECT_FILE_EXTENSION = ".floorplan.json";
 
@@ -23,6 +24,7 @@ export function downloadProject(project: ProjectDocument): void {
   const url = URL.createObjectURL(blob);
   downloadUrl(url, projectFileName(project.name));
   setTimeout(() => URL.revokeObjectURL(url), 1000);
+  recordBackup();
 }
 
 const MAX_FILE_BYTES = 20 * 1024 * 1024;
