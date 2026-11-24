@@ -5813,6 +5813,7 @@ button.action-row:hover:not(:disabled),
   width: 300px;
   height: min(440px, 60vh);
   max-height: none;
+}
 
 .preset-grid {
   display: grid;
