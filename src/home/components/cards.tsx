@@ -92,7 +92,7 @@ export function ProjectCard({ project }: { project: ProjectSummary }) {
             <MenuItem onSelect={() => setDialog("rename")}>Rename…</MenuItem>
             <MenuItem onSelect={() => void duplicateProject(project.id).catch(fail("Couldn't duplicate the project"))}>Duplicate</MenuItem>
             <MenuItem onSelect={() => downloadProject(doc)}>
-              Download file <small>.json</small>
+              Download backup <small>.json</small>
             </MenuItem>
             <hr />
           </>

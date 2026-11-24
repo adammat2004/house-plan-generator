@@ -39,6 +39,7 @@ import { SelectionToolbar } from "./shell/SelectionToolbar";
 import { StagedBanner } from "./shell/StagedBanner";
 import { FloatingToolbar } from "./shell/FloatingToolbar";
 import { LayersPanel } from "./shell/LayersPanel";
+import { BackupReminder } from "./shell/BackupReminder";
 import { NoticeToast, StatusHint } from "./shell/StatusHint";
 import { ToolOptions } from "./shell/ToolOptions";
 import { useReadOnlySync } from "./shell/phone";
@@ -350,6 +351,7 @@ export default function EditorApp({ projectId, start }: EditorAppProps) {
         )}
         <ReadOnlyNote />
         <NoticeToast />
+        <BackupReminder />
       </main>
       {ready && <OutlineConfirmDialog />}
       {ready && dialogOpen && (
