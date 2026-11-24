@@ -142,8 +142,7 @@ describe("wing planner", () => {
     }
     console.info(`random outlines laid out: ${laid} of ${tried}`);
     expect(laid / tried).toBeGreaterThan(0.5);
-    // 60 seeds take about 8 s, over vitest's 5 s default.
-  }, 30_000);
+  });
 
   it("lays a wing of living spaces out as a row reached from the hall, with no hall of its own", () => {
     // A main wing running back from the street, the bedrooms in it beside a hall from the front door,
