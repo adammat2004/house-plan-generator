@@ -1,6 +1,6 @@
 import { DEFAULT_INTERIOR_STYLE } from "@/domain/design/renderRequest";
 import type { Furniture, FurnitureKind } from "@/domain/plan/types";
-import type { InteriorStyle } from "@/domain/project/schema";
+import { INTERIOR_STYLE_LABEL, type InteriorStyle } from "@/domain/project/schema";
 import data from "./furnitureAssets.json";
 
 /**
@@ -35,6 +35,12 @@ export interface FurnitureAssetManifest {
 
 const manifest = data as FurnitureAssetManifest;
 const byKey = new Map(manifest.entries.map((e) => [`${e.style}/${e.kind}`, e]));
+
+/** Says so when a style has no pieces of its own and is shown with the default style's; null when it has them. */
+export function borrowedStyleNote(style: InteriorStyle): string | null {
+  if (style === DEFAULT_INTERIOR_STYLE || manifest.entries.some((e) => e.style === style)) return null;
+  return `Uses ${INTERIOR_STYLE_LABEL[DEFAULT_INTERIOR_STYLE]} pieces`;
+}
 
 /** How far an item may be resized from the catalog before the model would look stretched; past that it's drawn in code. */
 export const STRETCH_RANGE = [0.7, 1.4] as const;

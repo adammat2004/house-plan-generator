@@ -1,10 +1,11 @@
+import { roomAtPoint } from "@/domain/design/analysis";
 import { deriveLevelGeometry, deriveRoomRegions, roomFaceIndices } from "@/domain/geometry/derive";
 import { analyzeEnvelope } from "@/domain/geometry/envelope";
 import { outlineEdges, reflexVertices, SIDE_NORMAL, slabPartition } from "@/domain/geometry/outline";
 import type { PolygonWithHoles, Ring } from "@/domain/geometry/polygons";
 import type { Rect } from "@/domain/geometry/vector";
 import { pointAtParam, type WallAxis } from "@/domain/geometry/walls";
-import type { FloorMaterial, Furniture, Id, Level, Point2, RoomType } from "@/domain/plan/types";
+import type { FloorMaterial, Furniture, Id, Level, Point2, RoomType, RoomPaint } from "@/domain/plan/types";
 import type { Site } from "@/domain/project/site";
 import { buildGarden, type Garden } from "../scene/garden";
 import { furnitureBoxes, type FurnitureTone } from "./furnitureModel";
@@ -30,6 +31,8 @@ export interface Box {
   wallId?: Id;
   /** For external wall pieces: the outward unit normal in plan, so the outside face can take the exterior finish. */
   outward?: Point2;
+  /** For wall pieces with a painted room on a side: the paint on the +z and −z faces. */
+  paint?: [RoomPaint | undefined, RoomPaint | undefined];
   /** For furniture: what it's made of, and which piece it belongs to. */
   tone?: FurnitureTone;
   furnitureId?: Id;
@@ -277,9 +280,22 @@ function wallPieces(level: Level, axis: WallAxis, options: HouseModelOptions, ou
   const env = external ? analyzeEnvelope(level) : null;
   // External walls run counterclockwise, so the outside is to the right of the axis.
   const outward = external && env?.ok ? { x: -axis.normal.x, y: -axis.normal.y } : undefined;
+  const painted = Object.values(level.rooms).some((r) => r.wallColour);
+  // The room on each side of a wall piece decides its paint; the +z face looks along (dir.y, −dir.x), against the axis normal.
+  const paintOf = (at: Point2): Box["paint"] => {
+    if (!painted) return undefined;
+    const reach = t / 2 + 0.1;
+    const side = (k: number) => {
+      const id = roomAtPoint(level, { x: at.x + axis.normal.x * k * reach, y: at.y + axis.normal.y * k * reach });
+      return id ? level.rooms[id]?.wallColour : undefined;
+    };
+    const [front, back] = [side(-1), side(1)];
+    return front || back ? [front, back] : undefined;
+  };
   const piece = (kind: Box["kind"], s0: number, s1: number, z0: number, z1: number, depth = t, offset = 0) => {
     if (s1 - s0 < 1e-4 || z1 - z0 < 1e-4) return;
     const mid = pointAtParam(axis, (s0 + s1) / 2);
+    const paint = kind === "wall" || kind === "lintel" || kind === "sill" ? paintOf(mid) : undefined;
     out.push({
       kind,
       center: { x: mid.x + axis.normal.x * offset, y: mid.y + axis.normal.y * offset },
@@ -290,6 +306,7 @@ function wallPieces(level: Level, axis: WallAxis, options: HouseModelOptions, ou
       angle,
       wallId: wall.id,
       ...(outward && (kind === "wall" || kind === "lintel" || kind === "sill") ? { outward } : {}),
+      ...(paint ? { paint } : {}),
     });
   };
 
