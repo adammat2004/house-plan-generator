@@ -1,5 +1,7 @@
 import type { ProjectDocument } from "@/domain/project/schema";
+import { recordEdit } from "./backupReminder";
 import type { PlanStorage } from "./planStorage";
+import { requestPersistentStorage } from "./persistentStorage";
 
 export type SaveStatus =
   | { state: "idle" }
@@ -30,6 +32,7 @@ export function startAutosave(source: AutosaveSource, storage: PlanStorage, onSt
   let lastSeen = lastSaved;
   let inFlight: Promise<void> | null = null;
   let queued = false;
+  void requestPersistentStorage();
 
   const flush = async () => {
     timer = null;
@@ -47,6 +50,7 @@ export function startAutosave(source: AutosaveSource, storage: PlanStorage, onSt
       .save(source.snapshot())
       .then(() => {
         lastSaved = key;
+        recordEdit();
         onStatus({ state: "saved", at: Date.now() });
       })
       .catch((error: Error) => {
