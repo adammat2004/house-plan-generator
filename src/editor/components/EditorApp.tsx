@@ -330,7 +330,7 @@ export default function EditorApp({ projectId, start }: EditorAppProps) {
           <LayersPanel />
         </div>
         {!refining && (
-          <div className={`right-stack ai-dock${workspace === "design" || workspace === "review" ? " is-left" : ""}`} data-chrome={workspace === "design" || workspace === "review" ? "left" : "right"}>
+          <div className={`right-stack ai-dock${workspace === "design" || workspace === "review" ? " is-left" : ""}${workspace === "brief" ? " is-above-create" : ""}`} data-chrome={workspace === "design" || workspace === "review" ? "left" : "right"}>
             <AiDesignerPanel />
           </div>
         )}

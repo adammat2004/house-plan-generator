@@ -5796,6 +5796,13 @@ button.action-row:hover:not(:disabled),
   align-items: flex-end;
 }
 
+/* The rooms step has its Create bar along the bottom; keep the launcher clear of it. */
+@media (max-width: 1439px) {
+.right-stack.ai-dock.is-above-create {
+  bottom: calc(var(--space-5) + 96px);
+}
+}
+
 .right-stack.ai-dock.is-left {
   right: auto;
   left: var(--gutter);
