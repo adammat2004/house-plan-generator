@@ -12,6 +12,7 @@ import { refreshLibrary, useLibrary } from "../library";
 import { setProfileName, useProfileName } from "../profile";
 import { newProjectHref, useHomeUi } from "../ui";
 import { isUntouchedDraft } from "../drafts";
+import { OpenBackup } from "./OpenBackup";
 import { ProjectCard, ProjectCardSkeleton, StartDesigningButton, TemplateCard, useStartTemplate } from "./cards";
 import { HeroIllustration, TemplateExterior, templatePreview } from "./illustrations";
 
@@ -184,7 +185,9 @@ export function AllProjectsPage() {
             <option value="created">Date created</option>
           </select>
         </div>
+        <OpenBackup />
       </PageTitle>
+      <p className="field-hint">Projects live only on this device. Use “Download backup” on a project’s menu to keep a copy.</p>
       <ProjectGrid sort={sort} />
     </>
   );
