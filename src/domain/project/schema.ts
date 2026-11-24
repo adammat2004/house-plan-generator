@@ -60,8 +60,11 @@ export const PROJECT_LOCATION_LABEL: Record<ProjectLocation, string> = { ireland
 export const PROJECT_TYPE_LABEL: Record<ProjectType, string> = { house: "House", extension: "Extension", other: "Other" };
 
 /** How the house looks outside, for the 3D view. Recorded per project. */
-export const EXTERIOR_FINISHES = ["white_render", "brick", "timber", "dark_render"] as const;
-export const FRAME_FINISHES = ["black", "white", "oak"] as const;
+export const EXTERIOR_FINISHES = ["white_render", "brick", "timber", "dark_render", "painted_brick", "stone"] as const;
+export const FRAME_FINISHES = ["black", "white", "oak", "grey", "bronze"] as const;
+/** Curated wall colours for the painted finishes (render, painted brick). No free colour picker, so every house stays tasteful. */
+export const WALL_COLOURS = ["white", "cream", "sage", "sky", "stone_grey", "sand", "terracotta", "charcoal"] as const;
+export const DOOR_COLOURS = ["white", "black", "navy", "green", "red", "yellow", "oak"] as const;
 export const ROOF_FINISHES = ["membrane", "zinc", "slate", "tile"] as const;
 export const ROOF_FORMS = ["hipped", "gabled", "flat"] as const;
 /** The finishes each roof shape can take: a membrane only lies flat, slate and tile only on a slope. */
@@ -79,7 +82,7 @@ export const INTERIOR_STYLE_LABEL: Record<InteriorStyle, string> = {
 };
 
 /** The house's architectural style in exterior photo renders. */
-export const EXTERIOR_STYLES = ["contemporary", "farmhouse", "cottage", "craftsman", "scandinavian", "mediterranean"] as const;
+export const EXTERIOR_STYLES = ["contemporary", "farmhouse", "cottage", "craftsman", "scandinavian", "mediterranean", "traditional", "coastal"] as const;
 export const EXTERIOR_STYLE_LABEL: Record<(typeof EXTERIOR_STYLES)[number], string> = {
   contemporary: "Contemporary",
   farmhouse: "Modern farmhouse",
@@ -87,7 +90,12 @@ export const EXTERIOR_STYLE_LABEL: Record<(typeof EXTERIOR_STYLES)[number], stri
   craftsman: "Craftsman",
   scandinavian: "Scandinavian",
   mediterranean: "Mediterranean",
+  traditional: "Traditional brick",
+  coastal: "Coastal",
 };
+
+/** Roof pitch in degrees, per pitched form. A flat roof has none. */
+export const ROOF_PITCH_RANGE = { hipped: { min: 20, max: 45, default: 35 }, gabled: { min: 20, max: 50, default: 35 } } as const;
 
 export const appearanceSchema = z.object({
   exterior: z.enum(EXTERIOR_FINISHES),
@@ -99,6 +107,12 @@ export const appearanceSchema = z.object({
   interiorStyle: z.enum(INTERIOR_STYLES).optional(),
   /** Optional: absent means no particular style, as before styles existed. */
   exteriorStyle: z.enum(EXTERIOR_STYLES).optional(),
+  /** Optional: absent means the finish's own colour. Only render and painted brick take one. */
+  wallColour: z.enum(WALL_COLOURS).optional(),
+  /** Optional: absent means the default off-white door. */
+  doorColour: z.enum(DOOR_COLOURS).optional(),
+  /** Optional, degrees: absent means the default pitch. Ignored on a flat roof. */
+  roofPitch: z.number().min(15).max(55).optional(),
 });
 
 /**
@@ -151,6 +165,8 @@ export type Appearance = z.infer<typeof appearanceSchema>;
 export type ExteriorFinish = Appearance["exterior"];
 export type FrameFinish = Appearance["frames"];
 export type RoofFinish = Appearance["roof"];
+export type WallColour = (typeof WALL_COLOURS)[number];
+export type DoorColour = (typeof DOOR_COLOURS)[number];
 export type InteriorStyle = (typeof INTERIOR_STYLES)[number];
 export type ExteriorStyle = (typeof EXTERIOR_STYLES)[number];
 export type Sizing = z.infer<typeof sizingSchema>;

@@ -2,6 +2,8 @@ import * as THREE from "three";
 import { CSS2DObject } from "three/examples/jsm/renderers/CSS2DRenderer.js";
 import { COLOR } from "@/design/tokens";
 import type { MultiPolygon } from "@/domain/geometry/polygons";
+import { takesWallColour } from "@/domain/project/exterior";
+import { DOOR_COLOUR, EXTERIOR, FRAMES, ROOF, WALL_COLOUR } from "./exteriorPalette";
 import type { Appearance } from "@/domain/project/schema";
 import { MATERIAL_FILL, PLAN_THEME, SITE_THEME } from "../konva/theme";
 import { FINISH_TONE, finishTile, roomFinish, type FinishId, type OutdoorId } from "../scene/finishes";
@@ -56,7 +58,7 @@ const WALL_TILE = 1.2;
 export class TextureCache {
   private readonly made = new Map<string, THREE.Texture | null>();
 
-  get(kind: "brick" | "timber" | "fade"): THREE.Texture | null {
+  get(kind: "brick" | "timber" | "painted_brick" | "stone" | "fade"): THREE.Texture | null {
     if (!this.made.has(kind)) this.made.set(kind, kind === "fade" ? fadeTexture() : patternTexture(kind));
     return this.made.get(kind) ?? null;
   }
@@ -90,9 +92,6 @@ export class TextureCache {
   }
 }
 
-const EXTERIOR: Record<Appearance["exterior"], string> = { white_render: "#f1eee7", brick: "#9d5b43", timber: "#8c6a49", dark_render: "#33373a" };
-const FRAMES: Record<Appearance["frames"], string> = { black: "#24282b", white: "#f4f4f1", oak: "#b4885a" };
-const ROOF: Record<Appearance["roof"], string> = { membrane: "#3b3f42", zinc: "#8d949a", slate: "#4b5157", tile: "#9b5a45" };
 /** Muted, so the house stays the subject. */
 const GROUND: Record<Ground, string> = { lawn: "#a9b48f", gravel: "#cfc7b6", paving: "#d9d1c3" };
 /** Ground radius, m. It fades into the sky from about halfway out, so there's no horizon line. */
@@ -122,7 +121,7 @@ const LIGHTS: Record<Lighting, { azimuth: number; elevation: number; sun: string
 };
 
 /** Tiled canvas textures for the finishes that aren't plain colours. */
-function patternTexture(kind: "brick" | "timber"): THREE.CanvasTexture | null {
+function patternTexture(kind: "brick" | "timber" | "painted_brick" | "stone"): THREE.CanvasTexture | null {
   if (typeof document === "undefined") return null;
   const canvas = document.createElement("canvas");
   canvas.width = 128;
@@ -139,6 +138,33 @@ function patternTexture(kind: "brick" | "timber"): THREE.CanvasTexture | null {
         g.fillRect(col * 32 + (row % 2) * 16 + 1, row * 16 + 1, 30, 14);
       }
     }
+  } else if (kind === "painted_brick") {
+    // Near-white, so the wall colour tints it; the mortar lines stay a touch darker.
+    g.fillStyle = "#bdbab3";
+    g.fillRect(0, 0, 128, 128);
+    for (let row = 0; row < 8; row++) {
+      for (let col = -1; col < 4; col++) {
+        const shade = 244 - ((row * 7 + col * 13) % 5) * 4;
+        g.fillStyle = `rgb(${shade}, ${shade}, ${shade})`;
+        g.fillRect(col * 32 + (row % 2) * 16 + 1, row * 16 + 1, 30, 14);
+      }
+    }
+  } else if (kind === "stone") {
+    g.fillStyle = "#8c867b";
+    g.fillRect(0, 0, 128, 128);
+    const courses = [22, 34, 26, 46];
+    let y = 0;
+    courses.forEach((h, c) => {
+      let x = -(c * 19) % 40;
+      for (let k = 0; x < 128; k++) {
+        const w = 30 + ((c * 5 + k * 11) % 4) * 9;
+        const shade = 150 + ((c * 17 + k * 29) % 6) * 9;
+        g.fillStyle = `rgb(${shade}, ${shade - 6}, ${shade - 16})`;
+        g.fillRect(x + 1.5, y + 1.5, w - 3, h - 3);
+        x += w;
+      }
+      y += h;
+    });
   } else {
     for (let i = 0; i < 8; i++) {
       g.fillStyle = i % 2 ? "#8a6847" : "#7f5f40";
@@ -213,11 +239,15 @@ export function buildHouse(group: THREE.Group, model: HouseModel, opts: BuildOpt
   const std = (color: string, extra: THREE.MeshStandardMaterialParameters = {}) => new THREE.MeshStandardMaterial({ color, roughness: 0.92, metalness: 0, ...extra });
   const interior = std(PLAN_THEME.paper);
   const top = std(PLAN_THEME.wallFill);
-  const exteriorMap = appearance.exterior === "brick" ? textures.get("brick") : appearance.exterior === "timber" ? textures.get("timber") : null;
-  const exterior = std(exteriorMap ? "#ffffff" : EXTERIOR[appearance.exterior], exteriorMap ? { map: exteriorMap } : {});
+  const patterned = appearance.exterior === "brick" || appearance.exterior === "timber" || appearance.exterior === "painted_brick" || appearance.exterior === "stone";
+  const exteriorMap = patterned ? textures.get(appearance.exterior as "brick") : null;
+  // Brick, timber and stone show their own colours; painted finishes take the chosen wall colour.
+  const wallTint = appearance.wallColour && takesWallColour(appearance.exterior) ? WALL_COLOUR[appearance.wallColour] : EXTERIOR[appearance.exterior];
+  const exterior = std(exteriorMap ? (appearance.exterior === "painted_brick" ? wallTint : "#ffffff") : wallTint, exteriorMap ? { map: exteriorMap } : {});
   const frame = std(FRAMES[appearance.frames], { roughness: 0.6 });
   const glass = new THREE.MeshStandardMaterial({ color: "#a9c7da", transparent: true, opacity: 0.32, roughness: 0.05, metalness: 0.2, depthWrite: false });
   const door = std("#eee8de", { roughness: 0.8 });
+  const frontDoor = std(DOOR_COLOUR[appearance.doorColour ?? "white"], { roughness: 0.55 });
   const roof = std(ROOF[appearance.roof], { roughness: 0.75, metalness: appearance.roof === "zinc" ? 0.4 : 0 });
   const stair = std("#c9ab84", { roughness: 0.8 });
 
@@ -242,7 +272,7 @@ export function buildHouse(group: THREE.Group, model: HouseModel, opts: BuildOpt
   }
   for (const box of model.boxes) {
     if (box.furnitureId && modelled.has(box.furnitureId)) continue;
-    group.add(boxMesh(box, { interior, top, exterior, exteriorTiled: !!exteriorMap, frame, glass, door, roof, stair, furniture: furnitureMaterial }));
+    group.add(boxMesh(box, { interior, top, exterior, exteriorTiled: !!exteriorMap, frame, glass, door, frontDoor, roof, stair, furniture: furnitureMaterial }));
   }
   if (model.roofs?.length) group.add(roofMesh(model.roofs, roof, frame, exterior, !!exteriorMap));
 
@@ -355,6 +385,8 @@ function boxMesh(
     frame: THREE.Material;
     glass: THREE.Material;
     door: THREE.Material;
+    /** Doors in an outside wall. */
+    frontDoor: THREE.Material;
     roof: THREE.Material;
     stair: THREE.Material;
     furniture: (tone: FurnitureTone) => THREE.Material;
@@ -381,7 +413,7 @@ function boxMesh(
   else if (box.kind === "slab") material = [m.exterior, m.exterior, m.interior, m.interior, m.exterior, m.exterior];
   else if (box.kind === "stair") material = m.stair;
   else if (box.kind === "balustrade") material = m.frame;
-  else material = box.kind === "glass" ? m.glass : box.kind === "frame" ? m.frame : box.kind === "door" ? m.door : m.roof;
+  else material = box.kind === "glass" ? m.glass : box.kind === "frame" ? m.frame : box.kind === "door" ? (box.outward ? m.frontDoor : m.door) : m.roof;
   const mesh = new THREE.Mesh(geometry, material);
   mesh.position.set(box.center.x, box.z0 + box.height / 2, -box.center.y);
   mesh.rotation.y = box.angle;
