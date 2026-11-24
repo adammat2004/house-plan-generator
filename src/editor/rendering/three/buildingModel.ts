@@ -7,7 +7,7 @@ import { floorThicknessOf, floorToFloor, levelIndex } from "@/domain/plan/levels
 import { CURRENT_SCHEMA_VERSION } from "@/domain/plan/schema";
 import type { Id, Level, PlanDocument } from "@/domain/plan/types";
 import { buildHouseModel, CUTAWAY_HEIGHT, parapets, ROOF_SLAB, type Box, type DimensionLabel, type FloorPiece, type FurniturePlacement, type HouseModel, type HouseModelOptions } from "./houseModel";
-import { leanToRoof, pitchedRoof, roofTop, type RoofPiece } from "./roofModel";
+import { leanToRoof, pitchedRoof, pitchRadians, roofTop, type RoofPiece } from "./roofModel";
 import { lengthText } from "@/components/units";
 
 /**
@@ -200,7 +200,7 @@ function build(doc: PlanDocument, base: HouseModelOptions, top: number): HouseMo
     for (let i = 0; i <= top; i++) {
       if (i === top && top < n - 1) continue;
       if (!outlines[i].length) continue;
-      if (i === top) roofs.push(...pitchedRoof(pitched, outlines[i], wallTops[i]));
+      if (i === top) roofs.push(...pitchedRoof(pitched, outlines[i], wallTops[i], base.roofPitch === undefined ? undefined : pitchRadians(base.roofPitch)));
       else roofs.push(...leanToRoof(outlines[i], outlines[i + 1], wallTops[i], doc.levels[i + 1].elevation));
     }
   } else if (base.roof && !base.cutaway) {
