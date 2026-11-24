@@ -4,6 +4,7 @@ import type { Rect } from "@/domain/geometry/vector";
 import type { Level, PlanDocument } from "@/domain/plan/types";
 import { effectiveRoofPitch } from "@/domain/project/exterior";
 import type { Appearance } from "@/domain/project/schema";
+import { exteriorAnglePose } from "../scene/exteriorAngles";
 import { aerialCameraPose, exteriorCameraPose, roomCameraPose, spotCameraPose, type CameraPose } from "../scene/roomCamera";
 import type { StillTarget } from "@/domain/design/renderRequest";
 import { buildBuildingModel, planOf } from "./buildingModel";
@@ -133,7 +134,8 @@ function poseFor(plan: PlanDocument, model: HouseModel, view: StillView, aspect:
   if (view.kind === "aerial") return raise(aerialCameraPose(ground, aspect), extra, 0);
   const pose = raise(exteriorCameraPose(ground, aspect), extra * 0.6, extra / 2);
   // A tall house, or one under a pitched roof, is framed by its full height.
-  return pose && (extra > 0 || model.roofs) && model.outside ? backedOff(pose, model.outside, model.roofs ? (model.top ?? model.wallHeight) : model.wallHeight + PARAPET_TOP) : pose;
+  const framed = pose && (extra > 0 || model.roofs) && model.outside ? backedOff(pose, model.outside, model.roofs ? (model.top ?? model.wallHeight) : model.wallHeight + PARAPET_TOP) : pose;
+  return framed && exteriorAnglePose(framed, view.angle);
 }
 
 /** Roof slab and parapet above the tallest wall. */
