@@ -341,7 +341,7 @@ export default function EditorApp({ projectId, start }: EditorAppProps) {
         )}
         {refining && (
           <div className="right-stack" data-chrome="right" data-chrome-min="340">
-            <RefineModeToggle />
+            {!showing3d && <RefineModeToggle />}
             <FurnishRenderButton />
             {!showing3d && <ThreeCard />}
             <AiDesignerPanel />
