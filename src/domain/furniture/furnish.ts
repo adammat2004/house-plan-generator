@@ -42,6 +42,8 @@ export interface FurnishOptions {
   keepExisting?: boolean;
   /** Stairs on the floor (`levelKeepOut`), kept clear. */
   keepOut?: KeepOut;
+  /** A different but still valid arrangement for each number; 0 (the default) is the usual layout. */
+  seed?: number;
 }
 
 /** Where along a wall face an item stands. */
@@ -49,12 +51,33 @@ const alongOf = (p: Placement, edge: RoomEdge) => (edge.horizontal ? p.position.
 const dist = (a: Point2, b: Point2) => Math.hypot(a.x - b.x, a.y - b.y);
 const centre = (r: Rect): Point2 => ({ x: (r.minX + r.maxX) / 2, y: (r.minY + r.maxY) / 2 });
 
+/** A repeatable number in [0, 1) from a seed and a spot, to vary which of several good spots wins. */
+function noise(seed: number, key: string): number {
+  let h = 0x811c9dc5 ^ seed;
+  for (let i = 0; i < key.length; i++) {
+    h ^= key.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return ((h >>> 0) % 1000) / 1000;
+}
+
+/** How far a seed may move a spot's score: enough to reorder good spots, not to override a door rule. */
+const SEED_SPREAD = 1.4;
+
 /** Placement helper for one room: remembers what it placed so later pieces keep clear. */
 export class Layout {
   readonly placed: Placement[] = [];
   readonly missing: FurnitureKind[] = [];
 
-  constructor(readonly ctx: RoomContext) {}
+  constructor(
+    readonly ctx: RoomContext,
+    readonly seed = 0,
+  ) {}
+
+  private varied<T extends Placement>(kind: FurnitureKind, score: (item: T) => number): (item: T) => number {
+    if (!this.seed) return score;
+    return (item) => score(item) + SEED_SPREAD * noise(this.seed, `${kind}:${item.position.x}:${item.position.y}:${item.rotation}:${item.width}`);
+  }
 
   add<T extends Placement>(p: T | null, kind?: FurnitureKind): T | null {
     if (!p) {
@@ -68,19 +91,19 @@ export class Layout {
 
   /** The best spot against a wall, or null. */
   wall(kind: FurnitureKind, score: (s: WallSpot) => number, size?: SizeOverride): WallSpot | null {
-    return best(wallSpots(this.ctx, kind, size), score);
+    return best(wallSpots(this.ctx, kind, size), this.varied(kind, score));
   }
 
   /** The best spot against a wall over several widths. */
   wallSized(kind: FurnitureKind, widths: number[], score: (s: WallSpot) => number): WallSpot | null {
     return best(
       widths.flatMap((width) => wallSpots(this.ctx, kind, { width })),
-      score,
+      this.varied(kind, score),
     );
   }
 
   free(kind: FurnitureKind, rotations: FurnitureRotation[], score: (p: Placement) => number, size?: SizeOverride): Placement | null {
-    return best(freeSpots(this.ctx, kind, rotations, size), score);
+    return best(freeSpots(this.ctx, kind, rotations, size), this.varied(kind, score));
   }
 
   /** Places an item at an exact spot if it fits there. */
@@ -298,7 +321,7 @@ export function furnishRoom(level: Level, roomId: Id, idPrefix: string, options:
   const existing = furnitureInRoom(level, roomId).map((f) => f.id);
   const ctx = roomContext(level, roomId, options.keepExisting ? new Set() : new Set(existing), options.keepOut);
   if (!ctx) return null;
-  const layout = new Layout(ctx);
+  const layout = new Layout(ctx, options.seed ?? 0);
   RECIPES[room.type]?.(layout);
   return {
     items: layout.placed.map((p, i) => toFurniture(p, `${idPrefix}-f${i + 1}`)),
@@ -318,7 +341,7 @@ export function withLayout<T>(level: Level, roomId: Id, run: (l: Layout) => T): 
  * command, keeping clear of the stairs. Rooms that already hold furniture are
  * left as they are unless `replace`; pinned rooms always are.
  */
-export function furnishPlanCommand(document: PlanDocument, idPrefix: string, replace = false, levelId?: Id): PlanCommand | null {
+export function furnishPlanCommand(document: PlanDocument, idPrefix: string, replace = false, levelId?: Id, seed = 0): PlanCommand | null {
   const level = (levelId && levelById(document, levelId)) || groundLevel(document);
   const keepOut = levelKeepOut(document, level.id);
   const remove: Id[] = [];
@@ -326,7 +349,7 @@ export function furnishPlanCommand(document: PlanDocument, idPrefix: string, rep
   for (const room of Object.values(level.rooms)) {
     if (!canFurnish(room.type) || room.locked) continue;
     if (!replace && furnitureInRoom(level, room.id).length) continue;
-    const result = furnishRoom(level, room.id, `${idPrefix}-${room.id}`, { keepOut });
+    const result = furnishRoom(level, room.id, `${idPrefix}-${room.id}`, { keepOut, seed });
     if (!result) continue;
     remove.push(...result.remove);
     add.push(...result.items);

@@ -87,6 +87,12 @@ const areaSchema = z.number().positive().max(10_000);
 /** What a hall is for: the way in, a passage, the top of the stairs, or a space many rooms open off. */
 export const CIRCULATION_KINDS = ["entry", "corridor", "landing", "hub"] as const;
 
+/** The interior styles (furniture, floors and photo renders); the project picks one and a room may choose its own. */
+export const INTERIOR_STYLES = ["modern", "scandinavian", "warm_minimal", "industrial", "farmhouse", "coastal"] as const;
+
+/** The curated paint colours a room's walls can take (their shades live in src/domain/interior/paint.ts). */
+export const PAINT_COLOURS = ["chalk", "linen", "stone", "sage", "sky", "blush", "clay", "ochre", "navy", "charcoal"] as const;
+
 export const roomSchema = z.object({
   id: idSchema,
   name: z.string().trim().min(1).max(80),
@@ -98,6 +104,10 @@ export const roomSchema = z.object({
   minArea: areaSchema.optional(),
   maxArea: areaSchema.optional(),
   floorMaterial: z.enum(FLOOR_MATERIALS).optional(),
+  /** Paint on the room's inside walls; absent means the house's usual off-white. */
+  wallColour: z.enum(PAINT_COLOURS).optional(),
+  /** This room's own interior style; absent means the project's. */
+  interiorStyle: z.enum(INTERIOR_STYLES).optional(),
   externalWall: z.enum(EXTERNAL_WALL_PREFERENCES).optional(),
   /** Pinned: edits and proposals that would change its shape, doors or windows are refused. */
   locked: z.boolean().optional(),

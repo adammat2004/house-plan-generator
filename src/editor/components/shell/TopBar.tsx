@@ -9,6 +9,7 @@ import { editor, useProjectState, useSessionState } from "../../state/editor";
 import { useSaveStatus } from "../../state/saveStatus";
 import { STEP_UNAVAILABLE, STEPS, stepAvailable, stepOf } from "../../state/steps";
 import { in3d, inRefine } from "../../state/stores";
+import { exportProjectFile } from "./exports";
 import { chooseView, goToStep, VIEW_CHOICES, viewChoiceOf, type ViewChoice } from "./tools";
 
 export interface TopBarActions {
@@ -219,18 +220,23 @@ function SaveStatus() {
   const now = useNow(status.state === "saved" ? 15_000 : null);
   const [text, detail] =
     status.state === "saved"
-      ? [`Saved ${ago(now - status.at)}`, "Saved in this browser"]
+      ? ["Saved on this device", `Saved in this browser ${ago(now - status.at)}. Download a backup to keep a copy elsewhere.`]
       : status.state === "saving"
         ? ["Saving…", "Saving to this browser"]
         : status.state === "pending"
           ? ["Unsaved changes", "Changes will save in a moment"]
           : status.state === "idle"
             ? ["Not saved", "Not saved yet"]
-            : ["Not saved", "Not saved. Your browser's storage is full or blocked. Export a project file to keep a copy."];
+            : ["Couldn't save", "Your browser's storage is full or blocked (private browsing?). Download a backup to keep your house."];
   return (
     <div className={`save-status save-${status.state}`} role="status" aria-live="polite" data-testid="save-status" data-tooltip={detail} data-tooltip-side="bottom">
       <CloudIcon width={18} height={18} />
       <span className="save-text">{text}</span>
+      {status.state === "error" && (
+        <button type="button" className="btn btn-secondary btn-sm" onClick={exportProjectFile} data-testid="save-error-backup">
+          Download backup
+        </button>
+      )}
     </div>
   );
 }
