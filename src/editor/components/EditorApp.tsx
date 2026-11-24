@@ -43,7 +43,7 @@ import { NoticeToast, StatusHint } from "./shell/StatusHint";
 import { ToolOptions } from "./shell/ToolOptions";
 import { useReadOnlySync } from "./shell/phone";
 import { ReadOnlyNote } from "./shell/ReadOnlyNote";
-import { selectTool } from "./shell/tools";
+import { generateFromRooms, selectTool } from "./shell/tools";
 import { TopBar } from "./shell/TopBar";
 import { useKeyboardShortcuts } from "./useKeyboardShortcuts";
 import { furnitureStats3d, whenFurnitureReady } from "../rendering/three/registry";
@@ -145,7 +145,7 @@ export default function EditorApp({ projectId, start }: EditorAppProps) {
       editor.setView("plan");
       if (start === "draw") selectTool("wall");
       else if (start === "map") editor.setWorkspace("site");
-      else if (start === "rooms" || start === "requirements") editor.setWorkspace("brief");
+      else if (start === "rooms" || start === "requirements" || start === "generate") editor.setWorkspace("brief");
       else if (start === "review" && stepAvailable(editorStores.project.getState(), "review")) editor.setWorkspace("review");
       else if (start === "concepts" || start === "explore" || (!start && roomsFirst && hasLayouts)) {
         // Layouts, with the recommended one in focus (the page picks it).
@@ -157,6 +157,8 @@ export default function EditorApp({ projectId, start }: EditorAppProps) {
       if (start) window.history.replaceState(window.history.state, "", `/editor?project=${encodeURIComponent(projectId)}`);
       editorStores.session.setState({ ready: true });
       setPhase({ kind: "ready" });
+      // Arriving from a described home: make its layouts straight away.
+      if (start === "generate" && roomsFirst && !hasLayouts) void generateFromRooms();
       const stopSaving = startAutosave(projectAutosaveSource(editorStores), store, setSaveStatus);
       const stopCovers = startCovers(editorStores, {
         // three.js loads only when a cover is drawn.

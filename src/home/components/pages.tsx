@@ -81,6 +81,9 @@ function ProjectGrid({ limit, sort = "edited" }: { limit?: number; sort?: Sort }
         <strong>No projects yet</strong>
         <span>Choose your rooms and you&rsquo;ll have five floor plans in seconds.</span>
         <StartDesigningButton className="btn btn-primary btn-md" />
+        <Link href="/start/describe" data-testid="home-describe">
+          Or describe your dream home
+        </Link>
       </div>
     );
   }

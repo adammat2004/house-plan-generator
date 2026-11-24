@@ -1,7 +1,7 @@
 import { picksFromCounts, type RoomPick, type RoomPicks } from "../brief/rooms";
 import { ROOM_SIZE_FACTOR, roomSizeOf, type HouseBrief, type PreferenceId, type SizedRoom } from "../brief/schema";
 import type { FloorMaterial, RoomType } from "../plan/types";
-import { OPEN_PLAN_MIN_SLOT, OPEN_PLAN_SHARE, ROOM_KINDS, ROOM_RULES, type RoomKind, type WindowSize } from "./roomRules";
+import { ENSUITE_TARGET, OPEN_PLAN_MIN_SLOT, OPEN_PLAN_SHARE, ROOM_KINDS, ROOM_RULES, type RoomKind, type WindowSize } from "./roomRules";
 
 export type { WindowSize } from "./roomRules";
 
@@ -153,7 +153,51 @@ function programFromPicks(brief: HouseBrief, picks: RoomPicks, relax: Relaxation
   for (let i = 0; i < count("single_bedroom"); i++) add("single", name("single_bedroom", i + 1), { scale: scale.bedrooms });
   for (let i = 0; i < count("family_bathroom"); i++) add(i === 0 ? "bathroom" : "extra_bathroom", name("family_bathroom", i + 1));
   for (let i = 0; i < count("wc"); i++) add("wc", name("wc", i + 1));
+  if (brief.targetArea) {
+    const fit = fitToTarget(spaces, brief.targetArea);
+    for (const s of spaces) s.target = Math.round(s.target * fit.scale * 10) / 10;
+    notes.push(fit.message);
+  }
   return { spaces, preferences: prefs, notes };
+}
+
+/** Walls, circulation and the odd awkward corner on top of the rooms' clear areas; matches the footprint's allowance. */
+const GROSS_ALLOWANCE = 1.12;
+/** How far rooms may be scaled to approach a target area before they stop being sensible rooms. */
+const TARGET_SCALE = { min: 0.85, max: 1.8 } as const;
+
+const grossOf = (spaces: SpaceSpec[]) => spaces.reduce((sum, s) => sum + s.target + (s.ensuite ? ENSUITE_TARGET : 0), 0) * GROSS_ALLOWANCE;
+const roundTo5 = (v: number) => Math.round(v / 5) * 5;
+
+export interface TargetAreaFit {
+  /** The factor applied to every room's target area. */
+  scale: number;
+  /** Whether the house can reach the target. */
+  met: boolean;
+  /** About how large a house these rooms make, at the smallest and largest sensible room sizes, m². */
+  range: { min: number; max: number };
+  /** What to tell the user, plainly. */
+  message: string;
+}
+
+function fitToTarget(spaces: SpaceSpec[], target: number): TargetAreaFit {
+  const base = grossOf(spaces);
+  const range = { min: roundTo5(base * TARGET_SCALE.min), max: roundTo5(base * TARGET_SCALE.max) };
+  const wanted = target / base;
+  const scale = Math.min(TARGET_SCALE.max, Math.max(TARGET_SCALE.min, wanted));
+  const met = Math.abs(wanted / scale - 1) < 0.03;
+  const message = met
+    ? `Rooms are sized to make a house of about ${Math.round(target)} m².`
+    : `These rooms make a house of about ${range.min} to ${range.max} m², so ${Math.round(target)} m² can't be reached. Layouts are sized to about ${roundTo5(base * scale)} m²; add or remove rooms to get closer.`;
+  return { scale, met, range, message };
+}
+
+/** Whether the brief's target area can be met by its rooms, and what to say if not. Null when the brief has no target. */
+export function targetAreaFit(brief: HouseBrief): TargetAreaFit | null {
+  if (!brief.targetArea) return null;
+  const { targetArea, ...rest } = brief;
+  const plain = programFromBrief(rest);
+  return fitToTarget(plain.spaces, targetArea);
 }
 
 /** A two-storey house's rooms, floor by floor. */
