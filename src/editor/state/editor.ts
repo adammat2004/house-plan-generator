@@ -5,6 +5,7 @@ import { browserLibrary } from "@/persistence/browserLibrary";
 import { httpInterpreter } from "./aiInterpreter";
 import { httpPhotoRenderer } from "./imageRenderer";
 import { createRenders, type RendersState } from "./renders";
+import { createAssistant, type AssistantState } from "./assistant";
 import { createDesignActions } from "./design";
 import { createRoomOptions, type RoomOptionsState } from "./roomOptions";
 import type { Level } from "@/domain/plan/types";
@@ -18,6 +19,13 @@ const planner = createStripPlanner();
 export const design = createDesignActions(editorStores, editor, planner, httpInterpreter());
 /** What each quick action would do for the room picked in Refine, worked out in idle moments. */
 export const roomOptions = createRoomOptions(editorStores, planner, design.remember);
+
+/** The chat assistant: asks the server's tool loop and applies each turn as one undo step. */
+export const assistant = createAssistant(editorStores, editor);
+
+export function useAssistantState<T>(selector: (state: AssistantState) => T): T {
+  return useStore(assistant.store, selector);
+}
 
 export function useRoomOptions<T>(selector: (state: RoomOptionsState) => T): T {
   return useStore(roomOptions.store, selector);

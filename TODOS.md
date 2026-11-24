@@ -101,13 +101,13 @@ Hard placements are the item below; a bubble diagram is still open.
 
 ## Drafted clone (2026-10-25)
 
-### Agent chat
+### Agent chat, next steps
 
-**What:** An AI Designer that works as an agent: it can generate layouts, change rooms, read the plan and ask a question back, over several turns, instead of reading one request into one set of changes.
+**What:** The assistant (ADR 0019) edits rooms, doors, windows and floors over several turns. Still open: a tool that generates whole-house layouts from a changed brief, tools for stairs, furniture, exterior and interior (add them through the tool registry), streamed reply text, and accept or reject per change instead of one Undo per turn.
 
-**Why:** Drafted is trialling one ("Drafted Chat"). Ours reads each request once (ADR 0004).
+**Why:** Drafted is trialling a chat ("Drafted Chat"); ours should lead on it.
 
-**Context:** The plan lives in the browser, so the tools that change it must run there: the server would return tool calls and the editor would answer them. Keep AI → DesignIntent → planners; the agent never sends coordinates.
+**Context:** Tools run on the server over a copy of the plan the browser sends each turn (stateless). The agent never sends coordinates. Live Claude behaviour is only checked by hand: the tests mock the model.
 
 **Effort:** L
 **Priority:** P2

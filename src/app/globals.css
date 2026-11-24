@@ -3276,6 +3276,82 @@ button.action-row:hover:not(:disabled),
   cursor: pointer;
 }
 
+/* ── Assistant ─────────────────────────────────────────────────────────── */
+/* Live steps, then the changes a turn made with Undo and Keep. */
+.assistant-steps,
+.assistant-changes ul,
+.assistant-notes ul {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding-left: 18px;
+  font-size: var(--fs-caption);
+  line-height: 1.45;
+}
+
+.assistant-steps li.is-failed {
+  color: var(--ink-3);
+}
+
+.assistant-changes {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+}
+
+.assistant-changes.is-reverted,
+.assistant-changes.is-moved-on {
+  background: var(--surface-2);
+  color: var(--ink-3);
+}
+
+.assistant-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.assistant-actions .proposal-state {
+  margin-right: auto;
+}
+
+.assistant-none,
+.assistant-notes > p,
+.assistant-notes summary {
+  margin: 0;
+  color: var(--ink-3);
+  font-size: var(--fs-caption);
+}
+
+.assistant-notes summary {
+  cursor: pointer;
+}
+
+.assistant-error,
+.assistant-unavailable {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--warning-line);
+  border-radius: var(--r-lg);
+  background: var(--warning-soft);
+  color: var(--warning-ink);
+  font-size: var(--fs-small);
+  line-height: 1.45;
+}
+
+.assistant-unavailable p {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 6px;
+}
+
 /* ── Room variations ───────────────────────────────────────────────────── */
 /* The canvas "zooms out" into the comparison. */
 @keyframes variations-in {
@@ -5708,6 +5784,36 @@ button.action-row:hover:not(:disabled),
   }
 }
 
+
+/* ── Assistant dock (every step but Refine) ────────────────────────────── */
+/* Anchored to a bottom corner above the step's own panels, on the side they leave free. */
+.right-stack.ai-dock {
+  top: auto;
+  bottom: var(--space-8);
+  z-index: 30;
+  width: auto;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+/* The rooms step has its Create bar along the bottom; keep the launcher clear of it. */
+@media (max-width: 1439px) {
+.right-stack.ai-dock.is-above-create {
+  bottom: calc(var(--space-5) + 96px);
+}
+}
+
+.right-stack.ai-dock.is-left {
+  right: auto;
+  left: var(--gutter);
+  align-items: flex-start;
+}
+
+.right-stack.ai-dock > .ai-panel {
+  width: 300px;
+  height: min(440px, 60vh);
+  max-height: none;
+}
 
 .backup-reminder {
   position: fixed;
