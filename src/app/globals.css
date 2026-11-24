@@ -6123,3 +6123,17 @@ button.action-row:hover:not(:disabled),
 .describe-alt p {
   margin: 0;
 }
+
+.assistant-changes.is-pending {
+  border-style: dashed;
+}
+
+.proposal-state.is-pending {
+  color: var(--accent-ink);
+  font-weight: 600;
+}
+
+.assistant-changes.is-discarded li {
+  color: var(--ink-3);
+  text-decoration: line-through;
+}

@@ -19,6 +19,7 @@ export function AssistantTab({ onUseQuickChat, canEdit = true }: { onUseQuickCha
   const step = useSessionState((s) => stepOf(s.workspace, s.designView));
   const turns = useAssistantState((s) => s.turns);
   const running = useAssistantState((s) => s.running);
+  const pending = useDocumentState(() => assistant.hasPending());
   const available = useAssistantState((s) => s.available);
   const [text, setText] = useState("");
   const log = useRef<HTMLDivElement>(null);
@@ -29,7 +30,7 @@ export function AssistantTab({ onUseQuickChat, canEdit = true }: { onUseQuickCha
   }, [turns.length, running, progress]);
 
   const send = (value = text) => {
-    if (!value.trim() || running || available === "no" || !canEdit) return;
+    if (!value.trim() || running || pending || available === "no" || !canEdit) return;
     setText("");
     void assistant.ask(value);
   };
@@ -82,11 +83,11 @@ export function AssistantTab({ onUseQuickChat, canEdit = true }: { onUseQuickCha
       >
         <textarea
           aria-label="Ask the assistant"
-          placeholder={available === "no" ? "The assistant isn't available" : canEdit ? "Ask for a change…" : `Changes open up in Refine`}
+          placeholder={available === "no" ? "The assistant isn't available" : pending ? "Accept or discard the changes first" : canEdit ? "Ask for a change…" : "Changes open up in Refine"}
           rows={3}
           value={text}
           maxLength={1000}
-          disabled={available === "no" || !canEdit}
+          disabled={available === "no" || !canEdit || pending}
           data-testid="assistant-input"
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => {
@@ -96,7 +97,7 @@ export function AssistantTab({ onUseQuickChat, canEdit = true }: { onUseQuickCha
             }
           }}
         />
-        <button type="submit" className="ai-send" aria-label="Send" disabled={!text.trim() || running || available === "no" || !canEdit} data-testid="assistant-send">
+        <button type="submit" className="ai-send" aria-label="Send" disabled={!text.trim() || running || pending || available === "no" || !canEdit} data-testid="assistant-send">
           <SendIcon width={18} height={18} />
         </button>
       </form>
@@ -145,7 +146,25 @@ function Turn({ turn }: { turn: AssistantTurn }) {
                   ))}
                 </ul>
                 <div className="assistant-actions">
-                  {status === "applied" && (
+                    {status === "pending" && (
+                      <>
+                        <span className="proposal-state is-pending" data-testid="assistant-pending">
+                          Preview on the plan: not applied yet
+                        </span>
+                        <button type="button" className="btn btn-primary btn-sm" onClick={() => assistant.accept(turn.id)} data-testid="assistant-accept">
+                          <CheckIcon width={14} height={14} /> Accept all
+                        </button>
+                        <button type="button" className="btn btn-secondary btn-sm" onClick={() => assistant.discard(turn.id)} data-testid="assistant-discard">
+                          Discard
+                        </button>
+                      </>
+                    )}
+                    {status === "discarded" && (
+                      <span className="proposal-state is-stale" data-testid="assistant-discarded">
+                        Discarded: the plan was not changed
+                      </span>
+                    )}
+                    {status === "applied" && (
                     <>
                       <span className="proposal-state">
                         <CheckIcon width={14} height={14} /> {turn.kept ? "Kept" : "Applied"}
