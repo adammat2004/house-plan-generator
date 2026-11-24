@@ -25,6 +25,7 @@ import {
   type ProjectDocument,
 } from "@/domain/project/schema";
 import type { Site } from "@/domain/project/site";
+import { applyExteriorPreset, setExteriorAppearance, type ExteriorChange, type ExteriorPresetId } from "@/domain/project/exterior";
 import { DEFAULT_VIEWPORT, type Viewport } from "../viewport/viewport";
 import { createHistory, pushHistory, redoHistory, undoHistory, type History } from "./history";
 import { newIdPrefix } from "./ids";
@@ -95,6 +96,8 @@ export interface View3DState {
   sky: "clear" | "overcast";
   panelTab: "camera" | "look" | "show";
   panelOpen: boolean;
+  /** How many exterior look changes (a style preset, a finish) can be taken back with `undoLook`. */
+  lookUndoDepth: number;
 }
 
 export const DEFAULT_VIEW3D: View3DState = {
@@ -111,6 +114,7 @@ export const DEFAULT_VIEW3D: View3DState = {
   sky: "clear",
   panelTab: "camera",
   panelOpen: true,
+  lookUndoDepth: 0,
 };
 export type DragKind = "drag-wall" | "drag-end" | "drag-opening" | "drag-opening-edge" | "drag-furniture" | "drag-furniture-size" | "drag-outline" | "drag-corner" | "drag-stairs";
 
@@ -639,6 +643,18 @@ export function createEditorActions({ documents, session, project }: EditorStore
     } else session.setState({ view });
   };
 
+  /** The looks before each exterior change, newest last; session only, like the 3D view's other settings. */
+  const lookUndo: Appearance[] = [];
+  function changeLook(next: (current: Appearance | undefined) => Appearance) {
+    const before = project.getState().appearance ?? DEFAULT_APPEARANCE;
+    const after = next(before);
+    const keys = new Set([...Object.keys(before), ...Object.keys(after)]) as Set<keyof Appearance>;
+    if ([...keys].every((k) => before[k] === after[k])) return;
+    lookUndo.push(before);
+    if (lookUndo.length > 30) lookUndo.shift();
+    project.setState((p) => ({ appearance: after, revision: p.revision + 1 }));
+    session.setState((s) => ({ view3d: { ...s.view3d, lookUndoDepth: lookUndo.length } }));
+  }
   return {
     current,
     activeLevel,
@@ -1003,6 +1019,25 @@ export function createEditorActions({ documents, session, project }: EditorStore
 
     setAppearance(patch: Partial<Appearance>) {
       project.setState((p) => ({ appearance: { ...DEFAULT_APPEARANCE, ...p.appearance, ...patch }, revision: p.revision + 1 }));
+    },
+
+    /** Applies a whole exterior style preset as one step that `undoLook` takes back. */
+    applyExteriorPreset(id: ExteriorPresetId) {
+      changeLook((a) => applyExteriorPreset(a, id));
+    },
+
+    /** A validated exterior edit (roof shape and finish stay consistent, pitch stays in range); one step for `undoLook`. */
+    setExterior(change: ExteriorChange) {
+      changeLook((a) => setExteriorAppearance(a, change));
+    },
+
+    /** Takes back the last exterior change. False when there is none. */
+    undoLook(): boolean {
+      const before = lookUndo.pop();
+      if (!before) return false;
+      project.setState((p) => ({ appearance: before, revision: p.revision + 1 }));
+      session.setState((s) => ({ view3d: { ...s.view3d, lookUndoDepth: lookUndo.length } }));
+      return true;
     },
 
     /** Sets every wall on a floor (the ground floor by default) and its ceiling height, as one undoable step; floors above restack. */

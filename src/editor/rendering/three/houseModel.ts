@@ -8,7 +8,7 @@ import type { FloorMaterial, Furniture, Id, Level, Point2, RoomType } from "@/do
 import type { Site } from "@/domain/project/site";
 import { buildGarden, type Garden } from "../scene/garden";
 import { furnitureBoxes, type FurnitureTone } from "./furnitureModel";
-import { pitchedRoof, roofTop, type RoofForm, type RoofPiece } from "./roofModel";
+import { pitchedRoof, pitchRadians, roofTop, type RoofForm, type RoofPiece } from "./roofModel";
 import { areaLabel, lengthText } from "@/components/units";
 
 /**
@@ -79,6 +79,8 @@ export interface HouseModel {
   furniture?: FurniturePlacement[];
   /** A pitched roof, in pieces (a flat roof is boxes). */
   roofs?: RoofPiece[];
+  /** The walls on the outside of the house, so doors in them can take the front door colour. */
+  externalWallIds?: ReadonlySet<Id>;
   /** The highest point of the house, roof included. */
   top?: number;
 }
@@ -104,6 +106,8 @@ export interface HouseModelOptions {
   site?: Site;
   /** Flat (with a parapet) when absent. */
   roofForm?: RoofForm;
+  /** Pitch of a hipped or gabled roof, degrees; 35 when absent. */
+  roofPitch?: number;
 }
 
 export const CUTAWAY_HEIGHT = 1.2;
@@ -178,7 +182,7 @@ function build(level: Level, options: HouseModelOptions): HouseModel {
   const slabs = outline ? slabPartition(outline) : [];
   let roofs: RoofPiece[] | undefined;
   if (options.roof && outside && outline && !options.cutaway && (options.roofForm === "hipped" || options.roofForm === "gabled")) {
-    roofs = pitchedRoof(options.roofForm, outline, wallHeight);
+    roofs = pitchedRoof(options.roofForm, outline, wallHeight, options.roofPitch === undefined ? undefined : pitchRadians(options.roofPitch));
   } else if (options.roof && outside && outline && !options.cutaway) {
     if (env.ok && env.info.isRectangle) {
       const cx = (outside.minX + outside.maxX) / 2;
@@ -228,7 +232,8 @@ function build(level: Level, options: HouseModelOptions): HouseModel {
   }
 
   const top = roofs ? roofTop(roofs) : wallHeight + (options.roof && !options.cutaway ? ROOF_SLAB + PARAPET : 0);
-  return { boxes, floors, outside, outline, slabs, wallHeight, labels, site: options.landscape && outside ? buildGarden(level, options.site) : null, furniture, ...(roofs ? { roofs } : {}), top };
+  const externalWallIds = new Set([...geometry.axes.values()].filter((a) => a.wall.role === "external").map((a) => a.wall.id));
+  return { boxes, floors, outside, outline, slabs, wallHeight, labels, externalWallIds, site: options.landscape && outside ? buildGarden(level, options.site) : null, furniture, ...(roofs ? { roofs } : {}), top };
 }
 
 /**
