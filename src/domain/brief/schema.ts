@@ -22,7 +22,7 @@ export const PREFERENCE_IDS = [
   "accessible_layout",
 ] as const;
 
-export const BRIEF_LIMITS = { maxBedrooms: 8, maxBathrooms: 6, maxInstructions: 2000 } as const;
+export const BRIEF_LIMITS = { maxBedrooms: 8, maxBathrooms: 6, maxInstructions: 2000, minTargetArea: 30, maxTargetArea: 600 } as const;
 
 /** Room groups whose approximate size the brief can set. */
 export const SIZED_ROOMS = ["living", "kitchen", "bedrooms"] as const;
@@ -66,6 +66,8 @@ export const houseBriefSchema = z.object({
   houseShape: z.enum(HOUSE_SHAPES).optional(),
   /** Optional: 2 puts the bedrooms upstairs. Absent means one storey, as before storeys existed. */
   storeys: z.union([z.literal(1), z.literal(2)]).optional(),
+  /** Optional: the whole house's floor area in m² across all storeys. The planner sizes rooms toward it as far as it reasonably can. */
+  targetArea: z.number().min(BRIEF_LIMITS.minTargetArea).max(BRIEF_LIMITS.maxTargetArea).optional(),
   /** Optional: rooms placed on the house before generating (only with picked rooms). */
   placements: z.record(z.string().regex(PLACEMENT_KEY), placementSchema).optional(),
 });
