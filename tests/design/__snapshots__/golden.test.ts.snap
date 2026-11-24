@@ -76,7 +76,7 @@ exports[`golden layouts > creates an empty house 1`] = `"3c4e45f7468e064b"`;
 
 exports[`golden layouts > creates an empty house 2`] = `"3c35f55bcc8ac390"`;
 
-exports[`golden layouts > draws the 3D model, dimensions and photo keys 1`] = `"bf68a042bf4f9dc9"`;
+exports[`golden layouts > draws the 3D model, dimensions and photo keys 1`] = `"5fa5164ee08f399e"`;
 
 exports[`golden layouts > draws the 3D model, dimensions and photo keys 2`] = `"0c8f4ab273eff140"`;
 

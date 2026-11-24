@@ -5,6 +5,7 @@ import { CSS2DRenderer } from "three/examples/jsm/renderers/CSS2DRenderer.js";
 import { analyzeEnvelope } from "@/domain/geometry/envelope";
 import { groundLevel, levelOf } from "@/domain/plan/levels";
 import type { Id, PlanDocument, RoomType } from "@/domain/plan/types";
+import { effectiveRoofPitch } from "@/domain/project/exterior";
 import type { Appearance } from "@/domain/project/schema";
 import { PLAN_THEME } from "../konva/theme";
 import { buildBuildingModel } from "./buildingModel";
@@ -153,7 +154,7 @@ export class HouseViewer {
   private rebuild() {
     const state = this.state!;
     clearGroup(this.house, this.textures);
-    const options = { ...state.display, roofForm: state.appearance.roofForm, upTo: state.upTo };
+    const options = { ...state.display, roofForm: state.appearance.roofForm, roofPitch: effectiveRoofPitch(state.appearance), upTo: state.upTo };
     let model: ReturnType<typeof buildBuildingModel>;
     try {
       model = buildBuildingModel(state.plan, options);
