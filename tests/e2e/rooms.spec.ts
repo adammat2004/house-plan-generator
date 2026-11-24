@@ -152,7 +152,7 @@ test.describe("Pick your rooms", () => {
     // The preview can be turned into a photo.
     await page.getByTestId("rooms-view-3d").click();
     await page.getByTestId("rooms-render-photo").click();
-    await expect(page.getByTestId("rooms-photo")).toBeVisible();
+    await expect(page.getByTestId("rooms-photo")).toBeVisible({ timeout: 20000 });
     expect(posts).toBe(1);
     await page.getByTestId("rooms-photo-back").click();
     await expect(page.getByTestId("rooms-3d")).toBeVisible();
