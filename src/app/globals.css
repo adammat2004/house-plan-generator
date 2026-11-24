@@ -5796,6 +5796,13 @@ button.action-row:hover:not(:disabled),
   align-items: flex-end;
 }
 
+/* The rooms step has its Create bar along the bottom; keep the launcher clear of it. */
+@media (max-width: 1439px) {
+.right-stack.ai-dock.is-above-create {
+  bottom: calc(var(--space-5) + 96px);
+}
+}
+
 .right-stack.ai-dock.is-left {
   right: auto;
   left: var(--gutter);
@@ -5820,4 +5827,45 @@ button.action-row:hover:not(:disabled),
 .assistant-changes.is-discarded li {
   color: var(--ink-3);
   text-decoration: line-through;
+}
+
+.preset-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-2);
+}
+
+.preset-grid button {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+  padding: var(--space-2);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+
+.preset-grid button.is-active {
+  border-color: var(--brand);
+  background: var(--accent-soft);
+}
+
+.preset-art {
+  width: 100%;
+  height: auto;
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+}
+
+.preset-name {
+  font-weight: 600;
+}
+
+.preset-blurb {
+  font-size: 0.75rem;
+  color: var(--ink-muted, var(--ink));
 }
