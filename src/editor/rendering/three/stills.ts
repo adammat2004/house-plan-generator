@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { groundLevel, levelOf } from "@/domain/plan/levels";
 import type { Rect } from "@/domain/geometry/vector";
 import type { Level, PlanDocument } from "@/domain/plan/types";
+import { effectiveRoofPitch } from "@/domain/project/exterior";
 import type { Appearance } from "@/domain/project/schema";
 import { aerialCameraPose, exteriorCameraPose, roomCameraPose, spotCameraPose, type CameraPose } from "../scene/roomCamera";
 import type { StillTarget } from "@/domain/design/renderRequest";
@@ -88,7 +89,7 @@ function prepare(plan: PlanDocument, appearance: Appearance, mode: StillView["ki
   scene.add(hemi, sun, sun.target, group, nightLights);
   // A roof gives rooms a ceiling; dimensions and cutaways are for the interactive view.
   // From above the roof comes off, to see into the rooms.
-  const model = buildBuildingModel(plan, { cutaway: false, roof: mode !== "aerial", dimensions: false, landscape: true, furniture: true, roofForm: appearance.roofForm });
+  const model = buildBuildingModel(plan, { cutaway: false, roof: mode !== "aerial", dimensions: false, landscape: true, furniture: true, roofForm: appearance.roofForm, roofPitch: effectiveRoofPitch(appearance) });
   buildHouse(group, model, { appearance, ground: "lawn", landscape: true, labels: false }, textures, furnitureModels);
   if (interior) {
     // A plain white ceiling on every floor, as rooms have, and none over the garden.

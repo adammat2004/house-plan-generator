@@ -7,7 +7,7 @@ import { floorThicknessOf, floorToFloor, levelIndex } from "@/domain/plan/levels
 import { CURRENT_SCHEMA_VERSION } from "@/domain/plan/schema";
 import type { Id, Level, PlanDocument } from "@/domain/plan/types";
 import { buildHouseModel, CUTAWAY_HEIGHT, parapets, ROOF_SLAB, type Box, type DimensionLabel, type FloorPiece, type FurniturePlacement, type HouseModel, type HouseModelOptions } from "./houseModel";
-import { leanToRoof, pitchedRoof, roofTop, type RoofPiece } from "./roofModel";
+import { leanToRoof, pitchedRoof, pitchRadians, roofTop, type RoofPiece } from "./roofModel";
 import { lengthText } from "@/components/units";
 
 /**
@@ -143,6 +143,7 @@ function build(doc: PlanDocument, base: HouseModelOptions, top: number): HouseMo
   const labels: DimensionLabel[] = [];
   const ceilings: Array<{ rect: Rect; z: number }> = [];
   const furniture: FurniturePlacement[] = [];
+  const externalWallIds = new Set<Id>();
   let ground: HouseModel | null = null;
   let height = 0;
   const wallTops: number[] = [];
@@ -155,6 +156,7 @@ function build(doc: PlanDocument, base: HouseModelOptions, top: number): HouseMo
     const m = buildHouseModel(level, { ...base, cutaway: cut, roof: false, dimensions: false, landscape: base.landscape && i === 0, roomLabels: base.roomLabels && isTop });
     if (i === 0) ground = m;
     for (const b of m.boxes) boxes.push(z ? { ...b, z0: b.z0 + z } : b);
+    for (const id of m.externalWallIds ?? []) externalWallIds.add(id);
     for (const f of m.furniture ?? []) furniture.push({ ...f, z: f.z + z });
     const holes = i > 0 ? openings(i) : [];
     for (const f of m.floors) {
@@ -200,7 +202,7 @@ function build(doc: PlanDocument, base: HouseModelOptions, top: number): HouseMo
     for (let i = 0; i <= top; i++) {
       if (i === top && top < n - 1) continue;
       if (!outlines[i].length) continue;
-      if (i === top) roofs.push(...pitchedRoof(pitched, outlines[i], wallTops[i]));
+      if (i === top) roofs.push(...pitchedRoof(pitched, outlines[i], wallTops[i], base.roofPitch === undefined ? undefined : pitchRadians(base.roofPitch)));
       else roofs.push(...leanToRoof(outlines[i], outlines[i + 1], wallTops[i], doc.levels[i + 1].elevation));
     }
   } else if (base.roof && !base.cutaway) {
@@ -226,5 +228,5 @@ function build(doc: PlanDocument, base: HouseModelOptions, top: number): HouseMo
     }
   }
   const flatTop = base.roof && !base.cutaway && top === n - 1 ? ROOF_SLAB + 0.3 : 0;
-  return { boxes, floors, outside: g.outside, outline: g.outline, slabs: [], wallHeight: height, labels, site: g.site, ceilings, furniture, ...(roofs.length ? { roofs } : {}), top: roofs.length ? Math.max(height, roofTop(roofs)) : height + flatTop };
+  return { boxes, floors, outside: g.outside, outline: g.outline, slabs: [], wallHeight: height, labels, externalWallIds, site: g.site, ceilings, furniture, ...(roofs.length ? { roofs } : {}), top: roofs.length ? Math.max(height, roofTop(roofs)) : height + flatTop };
 }

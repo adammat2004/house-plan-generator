@@ -1,5 +1,6 @@
 import { assessHouse } from "@/domain/design/analysis";
 import { analyzeEnvelope } from "@/domain/geometry/envelope";
+import { effectiveRoofPitch } from "@/domain/project/exterior";
 import { DEFAULT_APPEARANCE } from "@/domain/project/schema";
 import { downloadUrl, projectFileName } from "@/persistence/jsonFile";
 import { areaLabel, lengthText, sizeText } from "@/components/units";
@@ -130,7 +131,7 @@ export async function exportPdf() {
   }
 
   // 4. The elevations.
-  const elevations = buildElevations(plan, appearance.roofForm);
+  const elevations = buildElevations(plan, appearance.roofForm, effectiveRoofPitch(appearance));
   if (elevations.length) {
     let scale = "";
     sheets.push({

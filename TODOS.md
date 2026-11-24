@@ -211,7 +211,9 @@ Hard placements are the item below; a bubble diagram is still open.
 
 **Status (2026-10-19):** hipped roofs are built (ADR 0014). New projects get hipped slate roofs; saved ones stay flat until switched in Look.
 
-**Status (2026-10-25):** gabled roofs are built (`gabledRoof`, gable ends in the wall finish). Still open: a pitch setting per wing.
+**Status (2026-10-25):** gabled roofs are built (`gabledRoof`, gable ends in the wall finish).
+
+**Status (2026-11-24):** one house-wide pitch slider (clamped per roof form) is built (ADR 0019). Still open: a pitch per wing.
 
 **Effort:** S (gables)
 **Priority:** P2
