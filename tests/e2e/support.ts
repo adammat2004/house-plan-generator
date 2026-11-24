@@ -30,6 +30,8 @@ export async function freshEditor(page: Page) {
 
 /** Clears browser storage and loads the home screen (empty: no projects listed). */
 export async function freshHome(page: Page) {
+  // The tests below drive the full editor; simple.spec.ts covers Simple mode, the default for people.
+  await page.addInitScript(() => localStorage.setItem("homedesign.refine.mode", "advanced"));
   await page.goto("/");
   await page.evaluate(
     () =>
