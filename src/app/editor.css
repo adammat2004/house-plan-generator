@@ -1829,3 +1829,41 @@
   display: flex;
   gap: var(--space-2);
 }
+
+/* ── Refine, Simple mode ───────────────────────────────────────────────── */
+.right-stack > .refine-mode {
+  position: relative;
+  z-index: 10;
+  order: -3;
+  pointer-events: auto;
+  flex: 0 0 auto;
+}
+
+.refine-mode.segmented {
+  display: inline-flex;
+  padding: 3px;
+  border-radius: var(--r-pill);
+  background: var(--surface-3);
+}
+
+.refine-mode.segmented button {
+  min-height: 32px;
+  padding: 0 var(--space-4);
+  border-radius: var(--r-pill);
+  color: var(--ink-2);
+}
+
+.refine-mode.segmented button.is-active {
+  background: var(--brand);
+  color: var(--on-brand);
+}
+
+.simple-card .simple-row {
+  display: grid;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.simple-card .action-row {
+  padding: var(--space-3) var(--space-4);
+}

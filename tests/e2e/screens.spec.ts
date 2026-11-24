@@ -47,6 +47,16 @@ async function mainFlow(page: Page, name: string, phone = false) {
   await settle(page);
   await expect(page).toHaveScreenshot(`${name}-refine.png`);
 
+  // The mode toggle sits in the right-hand stack, which a phone hides.
+  if (!phone) {
+    await page.getByTestId("mode-simple").click();
+    await expect(page.getByTestId("simple-panel")).toBeVisible();
+    await page.mouse.move(0, 0);
+    await settle(page);
+    await expect(page).toHaveScreenshot(`${name}-refine-simple.png`);
+    await page.getByTestId("mode-advanced").click();
+  }
+
   await page.getByTestId("view-3d").click();
   await expect(page.getByTestId("three-view").locator("canvas")).toBeVisible();
   await page.waitForTimeout(1500);

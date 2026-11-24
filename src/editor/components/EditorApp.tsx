@@ -25,6 +25,8 @@ import { FurnishRenderButton, RenderPanel } from "./designer/RenderPanel";
 import { BriefPanel } from "./designer/BriefPanel";
 import { ConceptBoard } from "./designer/ConceptBoard";
 import { PlanPill } from "./designer/RefineChrome";
+import { RefineModeToggle, SimpleRefine } from "./simple/SimpleRefine";
+import { useRefineMode } from "../simple/useRefineMode";
 import { PlanCompare } from "./designer/PlanCompare";
 import { RoomVariations } from "./designer/RoomVariations";
 import { ThreeStage } from "./present/PresentWorkspace";
@@ -99,6 +101,7 @@ export default function EditorApp({ projectId, start }: EditorAppProps) {
   const projectName = useProjectState((s) => s.name);
   const workspace = useSessionState((s) => s.workspace);
   const refining = useSessionState(inRefine);
+  const simple = useRefineMode() === "simple" && refining;
   const showing3d = useSessionState(in3d);
   const split = useSessionState((s) => s.view3d.split);
   const readOnly = useSessionState((s) => s.readOnly);
@@ -322,14 +325,14 @@ export default function EditorApp({ projectId, start }: EditorAppProps) {
         <RoomVariations />
         <PlanCompare />
         <ThreeStage />
-        <FloatingToolbar />
+        {!simple && <FloatingToolbar />}
         <PlanPill />
         <StagedBanner />
-        <SelectionToolbar />
+        {!simple && <SelectionToolbar />}
         <FloorCard />
         <div className="left-stack" data-chrome="left">
-          <ToolOptions />
-          <LayersPanel />
+          {!simple && <ToolOptions />}
+          {!simple && <LayersPanel />}
         </div>
         {!refining && (
           <div className={`right-stack ai-dock${workspace === "design" || workspace === "review" ? " is-left" : ""}${workspace === "brief" ? " is-above-create" : ""}`} data-chrome={workspace === "design" || workspace === "review" ? "left" : "right"}>
@@ -338,10 +341,11 @@ export default function EditorApp({ projectId, start }: EditorAppProps) {
         )}
         {refining && (
           <div className="right-stack" data-chrome="right" data-chrome-min="340">
+            {!showing3d && <RefineModeToggle />}
             <FurnishRenderButton />
             {!showing3d && <ThreeCard />}
             <AiDesignerPanel />
-            <InspectorCard roomFocusKey={roomFocusKey} />
+            {simple ? <SimpleRefine /> : <InspectorCard roomFocusKey={roomFocusKey} />}
           </div>
         )}
         <RenderPanel />
@@ -350,7 +354,7 @@ export default function EditorApp({ projectId, start }: EditorAppProps) {
         <ReviewPanel />
         {(refining || workspace === "site" || workspace === "review") && (
           <div className="bottom-centre" data-chrome="bottom">
-            <EraseBar />
+            {!simple && <EraseBar />}
             <StatusHint />
             <CanvasDock />
           </div>
