@@ -2,6 +2,7 @@ import { z } from "zod";
 import { DEFAULT_BRIEF, houseBriefSchema, normaliseBrief, type HouseBrief } from "../brief/schema";
 import type { PlanIssue } from "../commands/types";
 import { loadPlanDocument } from "../commands/serialization";
+import { INTERIOR_STYLES } from "../plan/schema";
 import type { Id, PlanDocument } from "../plan/types";
 import { siteSchema, type Site } from "./site";
 
@@ -68,7 +69,7 @@ export const ROOF_FORMS = ["hipped", "gabled", "flat"] as const;
 export const ROOF_FINISHES_FOR: Record<(typeof ROOF_FORMS)[number], readonly (typeof ROOF_FINISHES)[number][]> = { flat: ["membrane", "zinc"], hipped: ["slate", "tile", "zinc"], gabled: ["slate", "tile", "zinc"] };
 
 /** How rooms are furnished and finished in photo renders. */
-export const INTERIOR_STYLES = ["modern", "scandinavian", "warm_minimal", "industrial", "farmhouse", "coastal"] as const;
+export { INTERIOR_STYLES };
 export const INTERIOR_STYLE_LABEL: Record<InteriorStyle, string> = {
   modern: "Modern",
   scandinavian: "Scandinavian",

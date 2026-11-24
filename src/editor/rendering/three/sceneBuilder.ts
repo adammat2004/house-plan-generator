@@ -2,6 +2,8 @@ import * as THREE from "three";
 import { CSS2DObject } from "three/examples/jsm/renderers/CSS2DRenderer.js";
 import { COLOR } from "@/design/tokens";
 import type { MultiPolygon } from "@/domain/geometry/polygons";
+import { PAINT } from "@/domain/interior/paint";
+import type { WallColour } from "@/domain/plan/types";
 import type { Appearance } from "@/domain/project/schema";
 import { MATERIAL_FILL, PLAN_THEME, SITE_THEME } from "../konva/theme";
 import { FINISH_TONE, finishTile, roomFinish, type FinishId, type OutdoorId } from "../scene/finishes";
@@ -221,6 +223,12 @@ export function buildHouse(group: THREE.Group, model: HouseModel, opts: BuildOpt
   const roof = std(ROOF[appearance.roof], { roughness: 0.75, metalness: appearance.roof === "zinc" ? 0.4 : 0 });
   const stair = std("#c9ab84", { roughness: 0.8 });
 
+  const paints = new Map<WallColour, THREE.Material>();
+  const paint = (colour: WallColour) => {
+    if (!paints.has(colour)) paints.set(colour, std(PAINT[colour].shade));
+    return paints.get(colour)!;
+  };
+
   const furniture = new Map<FurnitureTone, THREE.Material>();
   const furnitureMaterial = (tone: FurnitureTone) => {
     if (!furniture.has(tone)) {
@@ -242,7 +250,7 @@ export function buildHouse(group: THREE.Group, model: HouseModel, opts: BuildOpt
   }
   for (const box of model.boxes) {
     if (box.furnitureId && modelled.has(box.furnitureId)) continue;
-    group.add(boxMesh(box, { interior, top, exterior, exteriorTiled: !!exteriorMap, frame, glass, door, roof, stair, furniture: furnitureMaterial }));
+    group.add(boxMesh(box, { interior, top, exterior, paint, exteriorTiled: !!exteriorMap, frame, glass, door, roof, stair, furniture: furnitureMaterial }));
   }
   if (model.roofs?.length) group.add(roofMesh(model.roofs, roof, frame, exterior, !!exteriorMap));
 
@@ -351,6 +359,7 @@ function boxMesh(
     interior: THREE.Material;
     top: THREE.Material;
     exterior: THREE.Material;
+    paint: (colour: WallColour) => THREE.Material;
     exteriorTiled: boolean;
     frame: THREE.Material;
     glass: THREE.Material;
@@ -365,6 +374,8 @@ function boxMesh(
   if (box.kind === "wall" || box.kind === "lintel" || box.kind === "sill") {
     // Faces: +x, −x, +y, −y, +z, −z. Tops are drawn dark, as on the plan; the outside face takes the exterior finish.
     const faces: THREE.Material[] = [m.interior, m.interior, m.top, m.interior, m.interior, m.interior];
+    if (box.paint?.[0]) faces[4] = m.paint(box.paint[0]);
+    if (box.paint?.[1]) faces[5] = m.paint(box.paint[1]);
     if (box.outward) {
       const c = Math.cos(box.angle);
       const s = Math.sin(box.angle);

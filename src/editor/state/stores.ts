@@ -7,18 +7,21 @@ import type { ProposalImpact } from "@/domain/design/impact";
 import { FURNITURE_CATALOG } from "@/domain/furniture/catalog";
 import { furnishPlanCommand, furnishRoom } from "@/domain/furniture/furnish";
 import { furnitureInRoom } from "@/domain/furniture/layout";
+import { furnishInStyleCommands } from "@/domain/interior/furnishInStyle";
 import { levelKeepOut } from "@/domain/geometry/stairs";
 import { turn } from "@/domain/furniture/geometry";
 import { changedLevelId, levelById, levelIndex, levelOf, storeyName } from "@/domain/plan/levels";
 import type { Furniture, FurnitureKind, FurnitureRotation, Id, Level, PlanDocument, Point2, Staircase, StairShape } from "@/domain/plan/types";
 import {
   DEFAULT_APPEARANCE,
+  INTERIOR_STYLE_LABEL,
   MAX_PLANS,
   nextPlanLabel,
   PROJECT_FORMAT,
   PROJECT_SCHEMA_VERSION,
   projectFromPlan,
   type Appearance,
+  type InteriorStyle,
   type Sizing,
   type PlanVariantMeta,
   type ProjectDetails,
@@ -368,6 +371,8 @@ export interface SessionState {
   outlineDraft: OutlineDraft | null;
   /** A drawn outline waiting for the user to confirm it replaces a house with rooms in it. */
   outlineConfirm: { outline: Point2[] } | null;
+  /** The "Furnish in style" dialog: which rooms it is for (absent: the whole house). */
+  furnishDialog: { roomIds?: Id[] } | null;
   panning: boolean;
   /** The drag gesture in progress, if any (drives live measurement overlays). */
   drag: DragKind | null;
@@ -468,6 +473,7 @@ export function createEditorStores(initial: PlanDocument | ProjectDocument): Edi
     stairsDraft: null,
     outlineDraft: null,
     outlineConfirm: null,
+    furnishDialog: null,
     panning: false,
     drag: null,
     panels: { inspectorCollapsed: false, layersOpen: false, inspectorTab: null },
@@ -644,6 +650,14 @@ export function createEditorActions({ documents, session, project }: EditorStore
     activeLevel,
     notify,
     setView,
+
+    openFurnishDialog(roomIds?: Id[]) {
+      session.setState({ furnishDialog: { roomIds } });
+    },
+
+    closeFurnishDialog() {
+      session.setState({ furnishDialog: null });
+    },
 
     clearNotice() {
       documents.setState({ notice: null });
@@ -1070,6 +1084,37 @@ export function createEditorActions({ documents, session, project }: EditorStore
       setView("furnished");
       const missing = result.missing.map((k) => FURNITURE_CATALOG[k].label.toLowerCase());
       if (missing.length) notify("info", `There wasn't room for: ${missing.join(", ")}.`);
+      return true;
+    },
+
+    /** Applies several commands and commits them as one undoable step; nothing changes if any is refused. */
+    dispatchBatch(commands: PlanCommand[]): boolean {
+      let doc = current();
+      for (const command of commands) {
+        const result = applyCommand(doc, withPrefix(command));
+        if (!result.ok) {
+          reportFailure(result);
+          return false;
+        }
+        doc = result.document;
+      }
+      return doc === current() || commit(doc);
+    },
+
+    /**
+     * Furnishes rooms in an interior style and records the style on them, replacing what's in them, as one
+     * undoable step. `arrangement` picks another layout for the same rooms (0 is the usual one).
+     */
+    furnishInStyle(style: InteriorStyle, roomIds?: Id[], arrangement = 0): boolean {
+      const result = furnishInStyleCommands(current(), { style, roomIds, seed: arrangement, idPrefix: newIdPrefix() });
+      if (!result) {
+        notify("info", "None of those rooms is a kind I can furnish.");
+        return false;
+      }
+      if (!this.dispatchBatch(result.commands)) return false;
+      setView("furnished");
+      const missing = result.missing.flatMap((m) => m.kinds.map((k) => FURNITURE_CATALOG[k].label.toLowerCase()));
+      notify("success", `Furnished ${result.furnished.length} room${result.furnished.length === 1 ? "" : "s"} in the ${INTERIOR_STYLE_LABEL[style]} style. Undo to put it back.${missing.length ? ` There wasn't room for: ${[...new Set(missing)].join(", ")}.` : ""}`);
       return true;
     },
 
