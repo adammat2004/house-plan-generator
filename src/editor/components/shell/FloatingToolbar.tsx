@@ -98,6 +98,11 @@ export function FloatingToolbar() {
             <SparkleIcon width={16} height={16} /> Lay out every room again
           </span>
         </MenuItem>
+        <MenuItem onSelect={() => editor.openFurnishDialog()} data-testid="furnish-in-style">
+          <span className="menu-item-main">
+            <SparkleIcon width={16} height={16} /> Furnish the house in a style…
+          </span>
+        </MenuItem>
         <MenuItem onSelect={() => editor.clearFurniture()} data-testid="clear-furniture">
           <span className="menu-item-main">
             <TrashIcon width={16} height={16} /> Remove all furniture

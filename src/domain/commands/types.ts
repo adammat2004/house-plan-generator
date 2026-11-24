@@ -1,4 +1,4 @@
-import type { Circulation, Door, ExternalWallPreference, FloorMaterial, Furniture, Id, Opening, PlanDocument, Point2, RoomType, Staircase, Window } from "../plan/types";
+import type { Circulation, Door, ExternalWallPreference, FloorMaterial, Furniture, Id, Opening, PlanDocument, Point2, RoomInteriorStyle, RoomType, Staircase, RoomPaint, Window } from "../plan/types";
 
 export type IssueCode =
   | "not-found"
@@ -58,6 +58,10 @@ export interface RoomChanges {
   minArea?: number | null;
   maxArea?: number | null;
   floorMaterial?: FloorMaterial | null;
+  /** Paint on the room's inside walls; `null` clears it. */
+  wallColour?: RoomPaint | null;
+  /** The room's own interior style; `null` goes back to the project's. */
+  interiorStyle?: RoomInteriorStyle | null;
   externalWall?: ExternalWallPreference | null;
   /** Pins the room; `false` or `null` unpins it. */
   locked?: boolean | null;

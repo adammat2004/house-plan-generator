@@ -1,11 +1,11 @@
 import { LIMITS } from "../../plan/defaults";
-import { CIRCULATION_KINDS, EXTERNAL_WALL_PREFERENCES, FLOOR_MATERIALS, ROOM_TYPES } from "../../plan/schema";
+import { CIRCULATION_KINDS, EXTERNAL_WALL_PREFERENCES, FLOOR_MATERIALS, INTERIOR_STYLES, ROOM_TYPES, PAINT_COLOURS } from "../../plan/schema";
 import type { Id, Level, Room } from "../../plan/types";
 import { fail } from "../ops";
 import type { RoomChanges } from "../types";
 
 const MAX_AREA = 10_000;
-type OptionalKey = "targetArea" | "minArea" | "maxArea" | "floorMaterial" | "externalWall" | "locked" | "circulation";
+type OptionalKey = "targetArea" | "minArea" | "maxArea" | "floorMaterial" | "wallColour" | "interiorStyle" | "externalWall" | "locked" | "circulation";
 
 export function updateRoom(level: Level, roomId: Id, changes: RoomChanges): Level {
   const room = level.rooms[roomId];
@@ -40,6 +40,10 @@ export function updateRoom(level: Level, roomId: Id, changes: RoomChanges): Leve
     fail("invalid-value", "Unknown floor material.", [roomId]);
   }
   setOptional("floorMaterial", changes.floorMaterial);
+  if (changes.wallColour != null && !(PAINT_COLOURS as readonly string[]).includes(changes.wallColour)) fail("invalid-value", "Unknown wall colour.", [roomId]);
+  setOptional("wallColour", changes.wallColour);
+  if (changes.interiorStyle != null && !(INTERIOR_STYLES as readonly string[]).includes(changes.interiorStyle)) fail("invalid-value", "Unknown interior style.", [roomId]);
+  setOptional("interiorStyle", changes.interiorStyle);
   if (changes.externalWall != null && !(EXTERNAL_WALL_PREFERENCES as readonly string[]).includes(changes.externalWall)) {
     fail("invalid-value", "Unknown external wall preference.", [roomId]);
   }
