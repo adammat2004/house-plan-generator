@@ -8,7 +8,7 @@ import type { FloorMaterial, Furniture, Id, Level, Point2, RoomType } from "@/do
 import type { Site } from "@/domain/project/site";
 import { buildGarden, type Garden } from "../scene/garden";
 import { furnitureBoxes, type FurnitureTone } from "./furnitureModel";
-import { pitchedRoof, roofTop, type RoofForm, type RoofPiece } from "./roofModel";
+import { pitchedRoof, pitchRadians, roofTop, type RoofForm, type RoofPiece } from "./roofModel";
 import { areaLabel, lengthText } from "@/components/units";
 
 /**
@@ -178,7 +178,7 @@ function build(level: Level, options: HouseModelOptions): HouseModel {
   const slabs = outline ? slabPartition(outline) : [];
   let roofs: RoofPiece[] | undefined;
   if (options.roof && outside && outline && !options.cutaway && (options.roofForm === "hipped" || options.roofForm === "gabled")) {
-    roofs = pitchedRoof(options.roofForm, outline, wallHeight);
+    roofs = pitchedRoof(options.roofForm, outline, wallHeight, options.roofPitch === undefined ? undefined : pitchRadians(options.roofPitch));
   } else if (options.roof && outside && outline && !options.cutaway) {
     if (env.ok && env.info.isRectangle) {
       const cx = (outside.minX + outside.maxX) / 2;
@@ -330,6 +330,7 @@ function wallPieces(level: Level, axis: WallAxis, options: HouseModelOptions, ou
         height: Math.min(o.height, height),
         angle: Math.atan2(d.y, d.x),
         wallId: wall.id,
+        ...(outward ? { outward } : {}),
       });
     }
     piece("lintel", s0, s1, top, height);
