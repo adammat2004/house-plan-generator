@@ -100,12 +100,12 @@ function withoutStraights(points: Array<{ u: number; z: number }>): Array<{ u: n
 }
 
 /** All four elevations of a house; empty when the ground floor has no closed outline. */
-export function buildElevations(plan: PlanDocument, roofForm: RoofForm | undefined): Elevation[] {
+export function buildElevations(plan: PlanDocument, roofForm: RoofForm | undefined, roofPitch?: number): Elevation[] {
   const ground = analyzeEnvelope(plan.levels[0]);
   if (!ground.ok) return [];
   const rear = (plan.levels[0].rearWallId && ground.info.sideOfWall[plan.levels[0].rearWallId]) || "north";
   const titles = sideTitles(OPPOSITE[rear]);
-  const model = buildBuildingModel(plan, { cutaway: false, roof: true, dimensions: false, landscape: false, furniture: false, roofForm });
+  const model = buildBuildingModel(plan, { cutaway: false, roof: true, dimensions: false, landscape: false, furniture: false, roofForm, roofPitch });
   const order: EnvelopeSide[] = [OPPOSITE[rear], rear, ...(["west", "east", "north", "south"] as const).filter((s) => s !== rear && s !== OPPOSITE[rear])];
   return order.map((side) => {
     const view = VIEW[side];
