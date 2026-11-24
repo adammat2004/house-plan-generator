@@ -9,7 +9,8 @@ import { ROOM_TYPE_LABEL } from "../plan/rooms";
 import { FLOOR_MATERIALS, FURNITURE_KINDS, ROOM_TYPES } from "../plan/schema";
 import { storeysWord } from "../plan/levels";
 import type { Id, Level, PlanDocument } from "../plan/types";
-import { EXTERIOR_FINISHES, EXTERIOR_STYLES, FRAME_FINISHES, INTERIOR_STYLES, ROOF_FINISHES, ROOF_FORMS, type Appearance, type InteriorStyle } from "../project/schema";
+import { effectiveRoofPitch, takesWallColour } from "../project/exterior";
+import { DOOR_COLOURS, EXTERIOR_FINISHES, EXTERIOR_STYLES, FRAME_FINISHES, WALL_COLOURS, INTERIOR_STYLES, ROOF_FINISHES, ROOF_FORMS, type Appearance, type InteriorStyle } from "../project/schema";
 import { roomConnections, roomRegion } from "./analysis";
 
 /**
@@ -57,6 +58,11 @@ const exteriorViewSchema = z.object({
   shape: z.enum(["L", "T", "U", "Z", "custom"]).optional(),
   /** The architectural style asked for; absent for none in particular. */
   style: z.enum(EXTERIOR_STYLES).optional(),
+  /** Absent for the finish's own colour. */
+  wallColour: z.enum(WALL_COLOURS).optional(),
+  doorColour: z.enum(DOOR_COLOURS).optional(),
+  /** Degrees; absent for a flat roof or the default pitch. */
+  roofPitch: z.number().min(15).max(55).optional(),
 });
 
 export const renderRequestSchema = z.object({
@@ -108,7 +114,7 @@ export function renderViewFor(source: Level | PlanDocument, target: StillTarget,
     const env = analyzeEnvelope(floors[0]);
     // A rectangle with a bay is still a rectangle in a photo.
     const shape = env.ok ? (describeOutline(env.info).shape ?? undefined) : undefined;
-    return { kind: "exterior", exterior: appearance.exterior, frames: appearance.frames, roof: appearance.roof, ...(appearance.roofForm === "hipped" || appearance.roofForm === "gabled" ? { roofForm: appearance.roofForm } : {}), storeys: floors.length, ...(shape ? { shape } : {}), ...(appearance.exteriorStyle ? { style: appearance.exteriorStyle } : {}) };
+    return { kind: "exterior", exterior: appearance.exterior, frames: appearance.frames, roof: appearance.roof, ...(appearance.roofForm === "hipped" || appearance.roofForm === "gabled" ? { roofForm: appearance.roofForm } : {}), storeys: floors.length, ...(shape ? { shape } : {}), ...(appearance.exteriorStyle ? { style: appearance.exteriorStyle } : {}), ...(appearance.wallColour && takesWallColour(appearance.exterior) ? { wallColour: appearance.wallColour } : {}), ...(appearance.doorColour ? { doorColour: appearance.doorColour } : {}), ...(effectiveRoofPitch(appearance) !== undefined && appearance.roofPitch !== undefined ? { roofPitch: effectiveRoofPitch(appearance) } : {}) };
   }
   if (target.kind === "aerial") {
     const rooms = floors.flatMap((level) => Object.values(level.rooms).map((r) => r.type));
@@ -155,6 +161,8 @@ const EXTERIOR_WORDS: Record<Extract<RenderView, { kind: "exterior" }>["exterior
   brick: "red-brown brick walls",
   timber: "vertical timber cladding",
   dark_render: "charcoal render walls",
+  painted_brick: "painted brick walls",
+  stone: "natural coursed stone walls",
 };
 
 const EXTERIOR_STYLE_WORDS: Record<(typeof EXTERIOR_STYLES)[number], string> = {
@@ -164,14 +172,29 @@ const EXTERIOR_STYLE_WORDS: Record<(typeof EXTERIOR_STYLES)[number], string> = {
   craftsman: "a craftsman style with exposed rafter tails, tapered porch posts and timber details",
   scandinavian: "a Scandinavian style with simple forms, natural timber and minimal detailing",
   mediterranean: "a Mediterranean style with warm tones, textured surfaces and shaded openings",
+  traditional: "a traditional brick house with a classic proportioned facade and a sheltered front door",
+  coastal: "a coastal style with pale painted walls, white trim and a light, breezy character",
+};
+
+const WALL_COLOUR_WORDS: Record<(typeof WALL_COLOURS)[number], string> = {
+  white: "white",
+  cream: "warm cream",
+  sage: "soft sage green",
+  sky: "pale sky blue",
+  stone_grey: "stone grey",
+  sand: "warm sand",
+  terracotta: "terracotta",
+  charcoal: "charcoal",
 };
 
 const ROOF_WORDS: Record<(typeof ROOF_FINISHES)[number], string> = { membrane: "dark", zinc: "standing-seam zinc", slate: "natural slate", tile: "terracotta clay tile" };
 
+const pitchWord = (degrees: number | undefined) => (degrees === undefined ? "" : degrees <= 26 ? "shallow " : degrees >= 40 ? "steep " : "");
+
 /** The roof in words: "a hipped natural slate roof", "a dark flat roof". */
-const roofWords = (view: { roof: (typeof ROOF_FINISHES)[number]; roofForm?: (typeof ROOF_FORMS)[number] }) =>
-  view.roofForm === "hipped" ? `a hipped ${ROOF_WORDS[view.roof]} roof with deep eaves`
-  : view.roofForm === "gabled" ? `a pitched ${ROOF_WORDS[view.roof]} roof with gable ends flush with the walls`
+const roofWords = (view: { roof: (typeof ROOF_FINISHES)[number]; roofForm?: (typeof ROOF_FORMS)[number]; roofPitch?: number }) =>
+  view.roofForm === "hipped" ? `a ${pitchWord(view.roofPitch)}hipped ${ROOF_WORDS[view.roof]} roof with deep eaves`
+  : view.roofForm === "gabled" ? `a ${pitchWord(view.roofPitch)}pitched ${ROOF_WORDS[view.roof]} roof with gable ends flush with the walls`
   : view.roof === "zinc" ? "a zinc roof"
   : "a dark flat roof";
 
@@ -188,7 +211,9 @@ export function renderPrompt(view: RenderView, style: InteriorStyle): string {
   if (view.kind === "exterior") {
     const shape = view.shape ? `${view.shape === "L" ? "an" : "a"} ${FAMILY_WORD[view.shape]} ` : "a ";
     const style = view.style ? ` in ${EXTERIOR_STYLE_WORDS[view.style]}` : "";
-    return `Turn this 3D massing render into a photorealistic architectural photograph of ${shape}${storeysWord(view.storeys)} house${style} seen from its garden: ${EXTERIOR_WORDS[view.exterior]}, ${view.frames} window frames, ${roofWords(view)}, a neat lawn, planting and soft daylight. ${keep}`;
+    const walls = view.wallColour ? `${EXTERIOR_WORDS[view.exterior]} in ${WALL_COLOUR_WORDS[view.wallColour]}` : EXTERIOR_WORDS[view.exterior];
+    const door = view.doorColour ? `, a ${view.doorColour} front door` : "";
+    return `Turn this 3D massing render into a photorealistic architectural photograph of ${shape}${storeysWord(view.storeys)} house${style} seen from its garden: ${walls}, ${view.frames} window frames${door}, ${roofWords(view)}, a neat lawn, planting and soft daylight. ${keep}`;
   }
   const items = [...new Set(view.furniture.map((k) => FURNITURE_CATALOG[k].label.toLowerCase()))];
   const room = ROOM_TYPE_LABEL[view.roomType].toLowerCase();
@@ -250,7 +275,11 @@ function floorKey(level: Level, target: StillTarget, appearance: Appearance, sty
     const form = appearance.roofForm === "hipped" || appearance.roofForm === "gabled" ? [appearance.roofForm] : [];
     // Likewise a house with no style asked for.
     const style = appearance.exteriorStyle ? [appearance.exteriorStyle] : [];
-    return hash(JSON.stringify(["exterior", outline, openings, level.rearWallId, appearance.exterior, appearance.frames, appearance.roof, ...form, ...style]));
+    // Colours and pitch only enter the key once chosen, so looks saved before them keep theirs.
+    const pitch = appearance.roofPitch !== undefined ? effectiveRoofPitch(appearance) : undefined;
+    const chosen = [appearance.wallColour && takesWallColour(appearance.exterior) ? appearance.wallColour : null, appearance.doorColour ?? null, pitch ?? null];
+    const extra = chosen.some((c) => c !== null) ? [chosen] : [];
+    return hash(JSON.stringify(["exterior", outline, openings, level.rearWallId, appearance.exterior, appearance.frames, appearance.roof, ...form, ...style, ...extra]));
   }
   const room = level.rooms[target.roomId];
   const region = roomRegion(level, target.roomId);
