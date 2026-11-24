@@ -5,13 +5,7 @@ import { FLOOR_MATERIALS } from "@/domain/plan/schema";
 import type { FloorMaterial, Level, Room } from "@/domain/plan/types";
 import {
   DEFAULT_APPEARANCE,
-  EXTERIOR_FINISHES,
-  FRAME_FINISHES,
-  ROOF_FINISHES_FOR,
   type Appearance,
-  type ExteriorFinish,
-  type FrameFinish,
-  type RoofFinish,
 } from "@/domain/project/schema";
 import { Button, IconButton, NumberField, SegmentedControl, Tabs, Toggle } from "@/components/ui/controls";
 import { AerialIcon, CloseIcon, FitIcon, InteriorIcon, OrbitIcon, WalkIcon } from "@/components/ui/icons";
@@ -19,6 +13,7 @@ import { editor, useDocumentState, useProjectState, useSessionState } from "../.
 import type { CameraMode, LightingPreset, View3DState } from "../../state/stores";
 import { MATERIAL_LABEL } from "../inspector/RoomInspector";
 import { aim, LIGHTING_LABEL, set3d } from "./actions";
+import { ExteriorLook } from "./ExteriorLook";
 
 const TABS: ReadonlyArray<{ value: View3DState["panelTab"]; label: string }> = [
   { value: "camera", label: "Camera" },
@@ -35,17 +30,6 @@ const CAMERAS: ReadonlyArray<{ id: CameraMode; label: string; Icon: typeof Orbit
 
 const LIGHTING: ReadonlyArray<{ value: LightingPreset; label: string }> = (["morning", "midday", "evening", "night"] as const).map((value) => ({ value, label: LIGHTING_LABEL[value] }));
 
-const EXTERIOR_LABEL: Record<ExteriorFinish, string> = { white_render: "White render", brick: "Brick", timber: "Timber cladding", dark_render: "Dark render" };
-const EXTERIOR_SWATCH: Record<ExteriorFinish, string> = {
-  white_render: "#f1eee7",
-  brick: "repeating-linear-gradient(0deg, #9d5b43 0 7px, #d8cfc2 7px 8px)",
-  timber: "repeating-linear-gradient(90deg, #8a6847 0 6px, #4e3a28 6px 7px)",
-  dark_render: "#33373a",
-};
-const FRAME_LABEL: Record<FrameFinish, string> = { black: "Black", white: "White", oak: "Oak" };
-const FRAME_SWATCH: Record<FrameFinish, string> = { black: "#24282b", white: "#f4f4f1", oak: "#b4885a" };
-const ROOF_LABEL: Record<RoofFinish, string> = { membrane: "Flat membrane", zinc: "Zinc", slate: "Slate", tile: "Clay tile" };
-const ROOF_SWATCH: Record<RoofFinish, string> = { membrane: "#3b3f42", zinc: "#8d949a", slate: "#4b5157", tile: "#9b5a45" };
 
 /** The 3D view's one panel: where the camera is, how the house looks, and what's shown. Its button is on the 3D bar. */
 export function PresentPanel() {
@@ -123,27 +107,10 @@ function CameraTab() {
   );
 }
 
-function Swatches<T extends string>({ label, options, value, names, swatch, onPick, testPrefix }: { label: string; options: readonly T[]; value: T; names: Record<T, string>; swatch: Record<T, string>; onPick: (v: T) => void; testPrefix: string }) {
-  return (
-    <>
-      <h3 className="detail-heading">{label}</h3>
-      <div className="finish-grid" role="radiogroup" aria-label={label}>
-        {options.map((o) => (
-          <button key={o} type="button" role="radio" aria-checked={value === o} className={value === o ? "is-active" : undefined} onClick={() => onPick(o)} data-testid={`${testPrefix}-${o}`}>
-            <span className="finish-swatch" style={{ background: swatch[o] }} aria-hidden />
-            {names[o]}
-          </button>
-        ))}
-      </div>
-    </>
-  );
-}
-
 function LookTab() {
   const v = useSessionState((s) => s.view3d);
   const appearance: Appearance = useProjectState((s) => s.appearance) ?? DEFAULT_APPEARANCE;
   const floors = useFloorsOfRooms();
-  const roofForm = appearance.roofForm ?? "flat";
   return (
     <>
       <h3 className="detail-heading">Time of day</h3>
@@ -168,21 +135,7 @@ function LookTab() {
         <Toggle label="Shadows" checked={v.shadows} onChange={() => set3d({ shadows: !v.shadows })} testId="shadows" />
       </div>
 
-      <Swatches label="Outside walls" options={EXTERIOR_FINISHES} value={appearance.exterior} names={EXTERIOR_LABEL} swatch={EXTERIOR_SWATCH} onPick={(exterior) => editor.setAppearance({ exterior })} testPrefix="exterior" />
-      <Swatches label="Window frames" options={FRAME_FINISHES} value={appearance.frames} names={FRAME_LABEL} swatch={FRAME_SWATCH} onPick={(frames) => editor.setAppearance({ frames })} testPrefix="frames" />
-      <h3 className="detail-heading">Roof shape</h3>
-      <SegmentedControl
-        label="Roof shape"
-        value={roofForm}
-        options={[
-          { value: "hipped", label: "Hipped" },
-          { value: "gabled", label: "Gabled" },
-          { value: "flat", label: "Flat" },
-        ]}
-        onChange={(form) => editor.setAppearance({ roofForm: form, ...(ROOF_FINISHES_FOR[form].includes(appearance.roof) ? {} : { roof: ROOF_FINISHES_FOR[form][0] }) })}
-        testIdPrefix="roof-form"
-      />
-      <Swatches label="Roof" options={ROOF_FINISHES_FOR[roofForm]} value={appearance.roof} names={ROOF_LABEL} swatch={ROOF_SWATCH} onPick={(roof) => editor.setAppearance({ roof })} testPrefix="roof" />
+      <ExteriorLook />
       {!v.display.roof && <p className="field-hint">Turn on Roof under Show to see it.</p>}
 
       <h3 className="detail-heading">Floor finishes</h3>
