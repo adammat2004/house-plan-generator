@@ -9,9 +9,14 @@ import { axisToOutside } from "../geometry/outline";
 import { risersFor } from "../geometry/stairs";
 import { DEFAULT_HOUSE, DOOR_PRESET, STAIR_PRESET } from "../plan/defaults";
 import { levelView, spliceLevel } from "../plan/levels";
+import { fitToSite, type SiteFit } from "../site/fit";
 import type { Rect } from "../geometry/vector";
 import type { PlanDocument, Point2 } from "../plan/types";
 import { assessHouseSense, type HouseSense } from "./houseSense";
+import { chargeFurniture, pickIdeas, repeats } from "./select/pick";
+import { placedBy } from "./placement";
+import type { HouseBrief } from "../brief/schema";
+import { bySense } from "./sense";
 import { shapeOf, type ShapeFamily } from "./footprint";
 import { emitLayout } from "./layoutEmitter";
 import type { PlanCandidate, PlanningRequest, PlanningResult } from "./planner";
@@ -78,7 +83,6 @@ export const storeyFamily = (arrangement: string) => arrangement.replace(/^store
 
 type Judged = PlanCandidate & { sense: HouseSense };
 
-const bySense = (a: HouseSense, b: HouseSense) => a.findings.length - b.findings.length || b.score - a.score;
 
 /** Builds one storey plan into a house of two floors; why not, if it doesn't build. */
 export function buildStoreys(shell: PlanDocument, plan: StoreyPlan, prefix: string, opts: { hallWidth: number; doorWidth: number; naturalLight: boolean }): { ok: true; document: PlanDocument; notes: string[] } | { ok: false; reason: string } {
@@ -141,13 +145,16 @@ function candidatesIn(shell: PlanDocument, request: PlanningRequest, prefix: str
     if (candidates.length) break;
     // Wings give the ground floor room to spare, so an office stays down there.
     const programs = storeyPrograms(intent.brief, relax, { wings: !env.info.isRectangle });
-    const opts = { hallWidth, doorWidth, rearSide, externalThickness: env.info.externalThickness, risers };
+    const opts = { hallWidth, doorWidth, rearSide, externalThickness: env.info.externalThickness, risers, kitchenGarden: prefs.has("kitchen_faces_garden"), primaryPrivate: prefs.has("primary_bedroom_private"), utilityNearKitchen: prefs.has("utility_near_kitchen") };
     const planned = env.info.isRectangle
       ? planStoreys(env.info.axisRect, programs.ground, programs.upper, opts)
       : planStacks(env.info.axisRing, programs.ground, programs.upper, { ...opts, kinds: ["setback", "full"], prefer });
     problem = planned.problem ?? problem;
-    const queue = spread(planned.plans.filter((p) => !excluded(p.id)), env.info.isRectangle ? BUILDS : STACK_BUILDS);
+    // A plan the same as one already built (mirrored, bedrooms swapped) doesn't count: the next is built instead, up to twice as many.
+    const builds = env.info.isRectangle ? BUILDS : STACK_BUILDS;
+    const queue = spread(planned.plans.filter((p) => !excluded(p.id)), builds * 2);
     for (const [i, plan] of queue.entries()) {
+      if (candidates.length >= builds) break;
       const id = `${prefix}t${i + 1}`;
       const built = buildStoreys({ ...shell, id: `${id}-plan` }, plan, id, { hallWidth, doorWidth, naturalLight: prefs.has("maximize_natural_light") });
       if (!built.ok) {
@@ -158,6 +165,7 @@ function candidatesIn(shell: PlanDocument, request: PlanningRequest, prefix: str
       if (intent.brief.additionalInstructions.trim() && !request.instructionsRead) {
         notes.push("Additional instructions are saved with the brief, but no AI read them, and this planner doesn't read free text.");
       }
+      if (intent.count > 1 && repeats(built.document, candidates.map((c) => c.document))) continue;
       candidates.push({ document: built.document, summary: storeySummary(plan), notes, seed: i, arrangement: plan.id, sense: assessHouseSense(built.document) });
     }
   }
@@ -165,21 +173,12 @@ function candidatesIn(shell: PlanDocument, request: PlanningRequest, prefix: str
   return { candidates, problem };
 }
 
-/** Up to `count`, best first, a different family each where the plans are equally sound. */
-function pick(candidates: Judged[], count: number): PlanCandidate[] {
-  const ranked = [...candidates].sort((a, b) => bySense(a.sense, b.sense));
-  const fewest = Math.min(...ranked.map((c) => c.sense.findings.length));
-  const picked: Judged[] = [];
-  const seen = new Set<string>();
-  // The same layout family in the same house: a house sized from the rooms is told apart by its outline.
-  const keyOf = (c: Judged) => `${storeyFamily(c.arrangement!)}@${c.variant?.split("@")[1] ?? ""}`;
-  for (const c of ranked) {
-    if (picked.length >= count || seen.has(keyOf(c)) || c.sense.findings.length > fewest) continue;
-    seen.add(keyOf(c));
-    picked.push(c);
-  }
-  for (const c of ranked) if (picked.length < count && !picked.includes(c)) picked.push(c);
-  return picked.map((c, seed) => {
+/** Up to `count`, best first, a different design idea each where one is nearly as good (`pickIdeas`). */
+function pick(all: Judged[], count: number, brief?: HouseBrief, site?: SiteFit): PlanCandidate[] {
+  // On a traced site, only the layouts that fit somewhere on it, before any are picked.
+  const candidates = fitToSite(all, site);
+  // Several to show: the best few are charged for furniture that won't fit (the live preview skips it).
+  return pickIdeas(count > 1 ? chargeFurniture(candidates) : candidates, count, placedBy(brief)).map((c, seed) => {
     const copy: PlanCandidate & { sense?: unknown } = { ...c };
     delete copy.sense;
     return { ...copy, document: furnishPlan(c.document, c.document.id.replace(/-plan$/, "")), seed };
@@ -197,7 +196,7 @@ export function planStoreyLayouts(request: PlanningRequest): PlanningResult {
     // The user's own house, from its ground floor: the floors above are planned afresh.
     const shell = shellFrom({ ...request.source, levels: [sourceLevel] }, env.info, `${request.idPrefix}-t`);
     const { candidates, problem } = shell ? candidatesIn(shell, request, `${request.idPrefix}-`, (id) => excluded.has(id)) : { candidates: [], problem: null };
-    if (candidates.length) return { candidates: pick(candidates, intent.count), issues: [] };
+    if (candidates.length) return { candidates: pick(candidates, intent.count, intent.brief, request.site), issues: [] };
     return { candidates: [], issues: [{ code: "does-not-fit", message: `No two-storey layout fits: ${problem ?? "these rooms don't fit this house."}`, tooSmall: true }] };
   }
   const externalThickness = env.ok ? env.info.externalThickness : DEFAULT_HOUSE.externalThickness;
@@ -253,6 +252,6 @@ export function planStoreyLayouts(request: PlanningRequest): PlanningResult {
       }
     }
   }
-  if (out.length) return { candidates: pick(out, intent.count), issues: [] };
+  if (out.length) return { candidates: pick(out, intent.count, intent.brief, request.site), issues: [] };
   return { candidates: [], issues: [{ code: "does-not-fit", message: `No two-storey layout fits: ${problem ?? "these rooms don't fit a house the planner can draw."}` }] };
 }

@@ -30,6 +30,7 @@ import { MATERIAL_LABEL } from "../inspector/RoomInspector";
 import { BoardDock, usePanZoom } from "./board";
 import { ConceptPreview } from "./ConceptPreview";
 import { PlanThumbnail, type PlanPalette } from "./PlanThumbnail";
+import { areaLabel, lengthText, sizeText } from "@/components/units";
 
 const CURRENT = "current";
 const CONTEXT = 1.5;
@@ -96,7 +97,7 @@ const CHANGE_ICON: Record<RoomChange["kind"], ReactNode> = {
 function linesOf(v: VariationsState, e: Entry): string[] {
   if (!e.proposal) {
     const facts = roomFacts(e.level, e.roomId);
-    return [...(facts ? [`${facts.width.toFixed(1)} × ${facts.depth.toFixed(1)} m`] : []), ...connectionSummary(e.level, e.roomId).map((c) => c.text)];
+    return [...(facts ? [sizeText(facts.width, facts.depth, 1)] : []), ...connectionSummary(e.level, e.roomId).map((c) => c.text)];
   }
   return compareRoom(floorOf(v), e.level, v.roomId, e.roomId).map((c) => c.text);
 }
@@ -232,14 +233,14 @@ function VariationCard({
           </span>
         )}
       </header>
-      {!isCurrent && facts && <span className="variation-area">{facts.area.toFixed(1)} m²</span>}
+      {!isCurrent && facts && <span className="variation-area">{areaLabel(facts.area, 1)}</span>}
       <div className="variation-media">
         <ConceptPreview level={entry.level} plan={entry.plan} focus={focus} margin={CONTEXT} highlight={entry.highlight} />
       </div>
       {isCurrent && (
         <div className="variation-current-title">
           <strong>{entry.title}</strong>
-          {facts && <span>{facts.area.toFixed(1)} m²</span>}
+          {facts && <span>{areaLabel(facts.area, 1)}</span>}
         </div>
       )}
       <ul className="variation-lines">
@@ -280,7 +281,7 @@ function VariationCard({
 
 const VIEWS: ReadonlyArray<{ label: string; palette: PlanPalette }> = [
   { label: "Plan", palette: "finish" },
-  { label: "Room uses", palette: "type" },
+  { label: "Room uses", palette: "schematic" },
   { label: "Day and night", palette: "zones" },
 ];
 
@@ -339,15 +340,15 @@ function VariationDetail({ v, entry, focus, stale, onClose }: { v: VariationsSta
         <dl className="area-list">
           <div>
             <dt>Area</dt>
-            <dd data-testid="variation-area">{facts ? `${facts.area.toFixed(1)} m²` : "—"}</dd>
+            <dd data-testid="variation-area">{facts ? areaLabel(facts.area, 1) : "—"}</dd>
           </div>
           <div>
             <dt>Dimensions</dt>
-            <dd>{facts ? `${facts.width.toFixed(1)} m × ${facts.depth.toFixed(1)} m` : "—"}</dd>
+            <dd>{facts ? sizeText(facts.width, facts.depth, 1) : "—"}</dd>
           </div>
           <div>
             <dt>Ceiling height</dt>
-            <dd>{height.toFixed(1)} m</dd>
+            <dd>{lengthText(height, 1)}</dd>
           </div>
         </dl>
         <h3 className="detail-heading">Materials</h3>
@@ -388,16 +389,16 @@ function VariationCompare({ v, left, right, focus, stale }: { v: VariationsState
   const neighbours = Object.keys(floorOf(v).rooms).filter((id) => id !== v.roomId);
   const area = (e: Entry, id: string) => roomFacts(e.level, id)?.area ?? null;
   const rows: Array<[string, string, string]> = [
-    ["Area", ...facts.map((f) => (f ? `${f.area.toFixed(1)} m²` : "—"))] as [string, string, string],
-    ["Size", ...facts.map((f) => (f ? `${f.width.toFixed(1)} × ${f.depth.toFixed(1)} m` : "—"))] as [string, string, string],
+    ["Area", ...facts.map((f) => (f ? areaLabel(f.area, 1) : "—"))] as [string, string, string],
+    ["Size", ...facts.map((f) => (f ? sizeText(f.width, f.depth, 1) : "—"))] as [string, string, string],
     ["Doors", ...facts.map((f) => String(f?.doors ?? "—"))] as [string, string, string],
-    ["Windows", ...facts.map((f) => (f ? `${f.windows} (${f.glazing.toFixed(1)} m)` : "—"))] as [string, string, string],
-    ["Garden doors", ...facts.map((f) => (f?.gardenDoor ? `${f.gardenDoor.toFixed(1)} m` : "None"))] as [string, string, string],
+    ["Windows", ...facts.map((f) => (f ? `${f.windows} (${lengthText(f.glazing, 1)})` : "—"))] as [string, string, string],
+    ["Garden doors", ...facts.map((f) => (f?.gardenDoor ? lengthText(f.gardenDoor, 1) : "None"))] as [string, string, string],
     ...neighbours
       .map((id): [string, string, string] => [
         floorOf(v).rooms[id].name,
-        area(left, id) === null ? "Merged" : `${area(left, id)!.toFixed(1)} m²`,
-        area(right, id) === null ? "Merged" : `${area(right, id)!.toFixed(1)} m²`,
+        area(left, id) === null ? "Merged" : areaLabel(area(left, id)!, 1),
+        area(right, id) === null ? "Merged" : areaLabel(area(right, id)!, 1),
       ])
       .filter(([, a, b]) => a !== b),
   ];

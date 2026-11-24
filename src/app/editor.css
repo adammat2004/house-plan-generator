@@ -605,6 +605,52 @@
   min-height: 260px;
 }
 
+/* The house in 3D beside the plan: a picture to click into the 3D view, a chip while the inspector is open. */
+.right-stack > .three-card,
+.right-stack > .three-chip {
+  order: -2;
+  flex: 0 0 auto;
+  cursor: pointer;
+}
+
+.three-card {
+  width: 280px;
+  height: 200px;
+  padding: 0;
+  overflow: hidden;
+  font: inherit;
+}
+
+.three-card img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.three-card:hover,
+.three-chip:hover {
+  border-color: var(--line-strong);
+}
+
+.three-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--r-pill);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--fs-small);
+  font-weight: 600;
+}
+
+.three-card .photo-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
 /* With both open, the inspector leaves the chat room to talk. */
 .right-stack:has(.ai-panel) > .inspector-card {
   max-height: 58%;
@@ -877,6 +923,272 @@
   border-top: 1px solid var(--line);
 }
 
+/* ── Map: the satellite trace (SiteMap) ──────────────────────────────── */
+
+.site-mode-choice {
+  width: 100%;
+  gap: var(--space-3);
+}
+
+.site-map,
+.site-map-loading,
+.site-map-failed {
+  position: absolute;
+  inset: 0;
+}
+
+.site-map-loading,
+.site-map-failed {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  background: var(--media);
+  color: var(--ink-3);
+  font-size: var(--fs-small);
+  text-align: center;
+}
+
+.site-map-failed p {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: var(--fs-small);
+}
+
+.site-map-failed svg {
+  color: var(--warning);
+}
+
+.site-map-failed .is-spinning {
+  animation: site-map-spin 0.8s linear infinite;
+}
+
+@keyframes site-map-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.site-overlay-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.site-photo-wash {
+  fill: color-mix(in srgb, var(--bg) 30%, transparent);
+}
+
+.site-buildable-area {
+  fill: none;
+  stroke: var(--ink-3);
+  stroke-width: 1.5;
+  stroke-dasharray: 5 4;
+}
+
+.site-boundary-hedge {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 3;
+  stroke-dasharray: 1 5;
+  stroke-linecap: round;
+}
+
+.site-road-edge {
+  stroke: var(--ink);
+  stroke-width: 4;
+  stroke-linecap: round;
+}
+
+.site-house-anchor {
+  fill: var(--room-paper);
+  stroke: var(--ink);
+  stroke-width: 1.5;
+  fill-opacity: 0.9;
+}
+
+.site-house-anchor-label {
+  fill: var(--ink-2);
+  font-family: var(--font-serif-text);
+  font-size: var(--fs-small);
+  text-anchor: middle;
+  dominant-baseline: middle;
+}
+
+.site-entrance-mark {
+  fill: var(--accent);
+  stroke: var(--surface);
+  stroke-width: 2;
+}
+
+.site-wastewater-area {
+  fill: color-mix(in srgb, var(--warning) 18%, transparent);
+  stroke: var(--warning);
+  stroke-width: 1.5;
+  stroke-dasharray: 3 3;
+}
+
+.site-draft-corner {
+  fill: var(--accent);
+  stroke: var(--surface);
+  stroke-width: 2;
+}
+
+.site-draft-line {
+  fill: color-mix(in srgb, var(--accent) 15%, transparent);
+  stroke: var(--accent);
+  stroke-width: 2;
+  stroke-dasharray: 4 3;
+}
+
+.site-map-crosshair {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 14px;
+  height: 14px;
+  margin: -7px 0 0 -7px;
+  border: 1.5px solid var(--accent);
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.site-map-crosshair::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 2px;
+  height: 2px;
+  margin: -1px 0 0 -1px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.site-task-panel .map-panel-scroll {
+  gap: var(--space-5);
+  display: flex;
+  flex-direction: column;
+}
+
+.site-task {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  width: 100%;
+}
+
+.site-task-title {
+  margin: 0;
+  font-family: var(--font-serif);
+  font-size: var(--fs-display-s);
+  font-weight: 400;
+}
+
+.site-task-title .optional {
+  font-family: var(--font-sans, inherit);
+  font-size: var(--fs-caption);
+  font-weight: 500;
+  color: var(--ink-3);
+}
+
+.site-task-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: var(--fs-small);
+}
+
+.site-task-field input {
+  height: 36px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-md);
+  background: var(--surface);
+}
+
+.site-task-field input:focus {
+  border-color: var(--accent);
+}
+
+.site-task-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.site-corner-list,
+.site-edge-list,
+.site-find-results,
+.site-summary-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--fs-small);
+}
+
+.site-corner-list li {
+  color: var(--ink-3);
+}
+
+.site-edge-list button,
+.site-find-results button {
+  width: 100%;
+  padding: 6px 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  text-align: left;
+  cursor: pointer;
+}
+
+.site-edge-list button.is-active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
+
+.site-summary-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.site-summary-list li:last-child {
+  border-bottom: none;
+}
+
+.site-privacy {
+  margin-top: auto;
+  padding-top: var(--space-3);
+  border-top: 1px dashed var(--line);
+}
+
+.site-map-fallback-note {
+  margin-bottom: var(--space-3);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 .garden-side {
   width: 100%;
   margin: 0;
@@ -1053,8 +1365,8 @@
 
 .room-schedule button {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
-  align-items: baseline;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
   gap: var(--space-3);
 }
 
@@ -1336,4 +1648,184 @@
   .top-bar {
     gap: var(--space-1);
   }
+}
+
+/* The serif wordmark beside the house in the top bar; it folds to the house when the bar is tight. */
+.top-bar .brand {
+  display: flex;
+  gap: var(--space-2);
+  width: auto;
+  padding: 0 var(--space-2);
+}
+
+.brand-wordmark {
+  font-family: var(--font-serif);
+  font-weight: 400;
+  font-size: calc(var(--fs-title) * 1.25);
+  letter-spacing: -0.01em;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+@media (max-width: 1359px) {
+  .brand-wordmark {
+    display: none;
+  }
+}
+
+/* The inspector's main action keeps to the foot of the panel while what's above it scrolls. */
+.inspector-sticky-footer {
+  position: sticky;
+  bottom: calc(var(--space-3) * -1);
+  z-index: 1;
+  margin: 0 calc(var(--space-5) * -1);
+  padding: var(--space-3) var(--space-5);
+  background: var(--surface);
+  border-top: 1px solid var(--line);
+}
+
+.top-bar .brand,
+.top-bar .brand:hover {
+  text-decoration: none;
+}
+
+/* The picked thing's name, in the title serif. */
+.inspector-card .card-title h2 {
+  font-family: var(--font-serif);
+  font-weight: 400;
+  font-size: var(--fs-display-s);
+  line-height: 1.15;
+  letter-spacing: -0.005em;
+}
+
+/* ── Erase ─────────────────────────────────────────────────────────────── */
+.erase-bar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-2) var(--space-2) var(--space-4);
+  pointer-events: auto;
+}
+
+.erase-bar-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  max-width: 320px;
+  margin-right: var(--space-2);
+  font-size: var(--fs-small);
+}
+
+.erase-bar-text small {
+  overflow: hidden;
+  color: var(--ink-2);
+  font-size: var(--fs-caption);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* ── Furnish & Render ──────────────────────────────────────────────────── */
+.furnish-render {
+  gap: var(--space-2);
+  align-self: flex-end;
+  box-shadow: var(--shadow-2);
+  pointer-events: auto;
+}
+
+.render-panel {
+  top: var(--space-4);
+  right: var(--space-4);
+  bottom: var(--space-4);
+  z-index: var(--z-panel);
+  display: flex;
+  flex-direction: column;
+  width: min(560px, calc(100% - var(--space-8)));
+  overflow: hidden;
+}
+
+.render-panel-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-5) var(--space-5) var(--space-3);
+  border-bottom: 1px solid var(--line);
+}
+
+.render-panel-head h2 {
+  margin: 0 0 var(--space-1);
+  font-family: var(--font-serif);
+  font-size: var(--fs-display-s);
+  font-weight: 400;
+}
+
+.render-panel-head p {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: var(--fs-small);
+}
+
+.render-panel-body {
+  flex: 1;
+  min-height: 0;
+  padding: var(--space-4) var(--space-5);
+  overflow-y: auto;
+}
+
+.camera-views {
+  margin-bottom: var(--space-5);
+  padding-bottom: var(--space-4);
+  border-bottom: 1px solid var(--line);
+}
+
+.camera-views-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.camera-views-head h3 {
+  margin: 0 0 var(--space-1);
+  font-size: var(--fs-title);
+}
+
+.camera-views-head p {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: var(--fs-small);
+}
+
+.camera-views-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.camera-view img,
+.camera-view-empty {
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  border-radius: var(--r-md);
+  background: var(--surface-3);
+  object-fit: cover;
+}
+
+.camera-view-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-top: var(--space-1);
+  font-size: var(--fs-small);
+}
+
+.camera-view-foot span {
+  display: flex;
+  gap: var(--space-2);
 }

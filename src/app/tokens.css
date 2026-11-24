@@ -5,9 +5,12 @@
  * src/design/tokens.ts (a test keeps the two in step).
  */
 :root {
-  /* Type. next/font sets --font-inter and --font-newsreader on <html>. */
+  /* Type. next/font sets --font-inter, --font-dm-serif-display and --font-dm-serif-text on <html>. */
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
-  --font-serif: var(--font-newsreader), Georgia, serif;
+  /* Titles of 24px and up. */
+  --font-serif: var(--font-dm-serif-display), Georgia, serif;
+  /* Serif at small sizes: plan labels and card titles. */
+  --font-serif-text: var(--font-dm-serif-text), Georgia, serif;
   --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   --fs-display-xl: 56px;
   --fs-display-l: 40px;
@@ -26,14 +29,15 @@
   --surface-3: #ecebe5;
   --line: #e6e3db;
   --line-strong: #d4d0c6;
-  --ink: #1e2420;
-  --ink-2: #525852;
-  --ink-3: #646962;
-  --ink-disabled: #a4a8a1;
+  /* One warm ink: text, walls and the primary button. */
+  --ink: #1c1a17;
+  --ink-2: #57524a;
+  --ink-3: #6b665e;
+  --ink-disabled: #a8a39a;
   --on-brand: #ffffff;
-  --brand: #1f3a32;
-  --brand-hover: #2a4a40;
-  --brand-soft: #edf2ef;
+  --brand: #1c1a17;
+  --brand-hover: #3a3733;
+  --brand-soft: #efece6;
   --accent: #2f6f5e;
   --accent-ink: #245848;
   --accent-soft: #e5efeb;
@@ -51,17 +55,32 @@
   --media: #e7e0d2;
   /* The 3D scene's daylight sky, also shown before it draws. */
   --sky: #e9eef1;
-  --scrim: rgba(30, 36, 32, 0.24);
-  --scrim-strong: rgba(20, 22, 20, 0.82);
+  --scrim: rgba(28, 26, 23, 0.24);
+  --scrim-strong: rgba(22, 20, 18, 0.82);
   /* Labels and controls over pictures. */
   --glass: rgba(255, 255, 255, 0.92);
   /* Drafting grid on plan paper. */
-  --grid-line: rgba(30, 36, 32, 0.05);
-  --room-day: #f3e7cf;
-  --room-night: #dfe7ef;
-  --room-wet: #d9ebe6;
-  --room-service: #ece8e0;
-  --room-hall: #f1eee8;
+  --grid-line: rgba(28, 26, 23, 0.05);
+  /* Dots on the 2D Plan's paper. */
+  --grid-dot: #d6dbcc;
+  /*
+   * Room colours on the schematic plan, by room type (roomColour() in
+   * src/design/roomColours.ts). Related types share a hue and differ in
+   * lightness; never green, which means selection.
+   */
+  --room-paper: #f7f4ec;
+  --room-living: #f0dfc4;
+  --room-kitchen: #f4dd97;
+  --room-bedroom: #f2cbbe;
+  --room-primary-bedroom: #ecbbaa;
+  --room-office: #dad0c5;
+  --room-bathroom: #c7dcee;
+  --room-wc: #d5e4f0;
+  --room-utility: #d1cfd2;
+  --room-storage: #e6e0e6;
+  --room-garage: #d8d6dc;
+  --room-hall: #eae4d8;
+  --room-other: #e8e5dd;
 
   /* Space: a 4px scale. */
   --space-1: 4px;
@@ -78,13 +97,13 @@
   /* Shape and depth. */
   --r-xs: 3px;
   --r-sm: 6px;
-  --r-md: 10px;
+  --r-md: 8px;
   --r-lg: 14px;
   --r-xl: 20px;
   --r-pill: 999px;
-  --shadow-1: 0 1px 2px rgba(30, 36, 32, 0.06);
-  --shadow-2: 0 1px 2px rgba(30, 36, 32, 0.05), 0 8px 24px rgba(30, 36, 32, 0.08);
-  --shadow-3: 0 2px 4px rgba(30, 36, 32, 0.06), 0 16px 40px rgba(30, 36, 32, 0.14);
+  --shadow-1: 0 1px 2px rgba(40, 34, 20, 0.06);
+  --shadow-2: 0 1px 2px rgba(40, 34, 20, 0.05), 0 8px 24px rgba(40, 34, 20, 0.08);
+  --shadow-3: 0 2px 4px rgba(40, 34, 20, 0.06), 0 16px 40px rgba(40, 34, 20, 0.14);
 
   /* Layers. */
   --z-chrome: 10;

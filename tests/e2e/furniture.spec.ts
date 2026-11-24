@@ -102,13 +102,13 @@ test.describe("Furniture", () => {
     await page.getByTestId("open-concept-Plan A").click();
     await page.waitForTimeout(300);
     expect((await furniture(page)).length).toBeGreaterThan(10);
+    // Refine opens on the 2D plan, which leaves the furniture out.
+    expect(await page.evaluate(() => (window.__floorPlanEditor!.getSession() as { view: string }).view)).toBe("plan");
+    await page.screenshot({ path: "test-results/visual/furniture-plan-view.png" });
     // Pieces in the asset library are drawn from their pictures seen from above.
+    await page.getByTestId("view-furnished").click();
     await expect.poll(() => page.evaluate(() => window.__floorPlanEditor!.planSprites())).toBeGreaterThan(0);
     await page.screenshot({ path: "test-results/visual/furniture-concept-plan.png" });
-    // The 2D plan view leaves the furniture out.
-    await page.getByTestId("view-plan").click();
-    await page.waitForTimeout(200);
-    await page.screenshot({ path: "test-results/visual/furniture-plan-view.png" });
     await page.keyboard.press("Shift+Digit2");
     await expect(page.getByTestId("three-view").locator("canvas")).toBeVisible();
     await page.getByTestId("present-tab-show").click();

@@ -2,6 +2,7 @@
 
 import type { Context } from "konva/lib/Context";
 import type { Shape as KonvaShape } from "konva/lib/Shape";
+import type { Stage as StageNode } from "konva/lib/Stage";
 import { memo, useEffect, useMemo, useState } from "react";
 import { Circle, Group, Image as KonvaImage, Layer, Line, Path, Rect, Shape, Stage, Text } from "react-konva";
 import { deriveLevelGeometry, deriveWallMass, deriveWallMassCut } from "@/domain/geometry/derive";
@@ -15,11 +16,11 @@ import { furnitureRect } from "@/domain/furniture/geometry";
 import type { Level, Point2 } from "@/domain/plan/types";
 import type { InteriorStyle } from "@/domain/project/schema";
 import { useActiveLevel, useDocumentState, useProjectState, useSessionState } from "../../state/editor";
-import { displayedDocument, inRefine, type OutlineDraft, type Selection, type SnapIndicator } from "../../state/stores";
+import { displayedDocument, inRefine, showsSchematic, type OutlineDraft, type Selection, type SnapIndicator } from "../../state/stores";
 import { worldToScreen, type Viewport } from "../../viewport/viewport";
 import { furnitureSymbol } from "../scene/furnitureSymbols";
-import { buildDimensions, buildPlanScene, openingPrimitive, type DimensionPrimitive, type FurniturePrimitive, type PlanScene } from "../scene/planScene";
-import { buildStairScene, labelsOffStairs, type StairPrimitive } from "../scene/stairScene";
+import { buildDimensions, buildFacePills, buildPlanScene, openingPrimitive, type DimensionPrimitive, type FacePill, type FurniturePrimitive, type PlanScene } from "../scene/planScene";
+import { buildStairScene, labelsClear, type StairPrimitive } from "../scene/stairScene";
 import { GardenLayer } from "./GardenLayer";
 import { buildGarden } from "../scene/garden";
 import { buildableRect, sitePlot, type Site } from "@/domain/project/site";
@@ -29,7 +30,12 @@ import { FINISH_TONE, roomFinish } from "../scene/finishes";
 import { finishPattern, patternDensity } from "./patterns";
 import { Poly, ringsOf } from "./Poly";
 import { planFurnitureFill, type FurnitureMaterial } from "../scene/style";
-import { PLAN_THEME as T, ROOM_FILL } from "./theme";
+import { PLAN_THEME as T, loadPlanSerif } from "./theme";
+import { roomColour, isUntyped } from "@/design/roomColours";
+import { COLOR } from "@/design/tokens";
+import { assessSense } from "@/domain/design/sense";
+import { sizeText } from "@/domain/geometry/units";
+import { isImperial, lengthText } from "@/components/units";
 
 const flat = (points: Point2[]) => points.flatMap((p) => [p.x, p.y]);
 
@@ -124,6 +130,7 @@ function StairShape({ stair }: { stair: StairPrimitive }) {
  */
 const PlanContent = memo(function PlanContent({
   scene,
+  schematic,
   showFurniture,
   fills,
   style,
@@ -132,6 +139,8 @@ const PlanContent = memo(function PlanContent({
   density,
 }: {
   scene: PlanScene;
+  /** Rooms filled by their use, with no finishes (the 2D Plan view). */
+  schematic: boolean;
   showFurniture: boolean;
   /** Furniture colours for the interior style. */
   fills: Record<FurnitureMaterial, string>;
@@ -146,8 +155,9 @@ const PlanContent = memo(function PlanContent({
   density: number;
 }) {
   const floorOf = (room: PlanScene["rooms"][number] | undefined) => {
+    if (schematic) return { pattern: null, fill: room ? roomColour(room.type) : T.roomFill };
     const finish = room ? roomFinish(room) : null;
-    return { pattern: finish ? finishPattern(finish, density) : null, fill: room ? (finish ? FINISH_TONE[finish] : ROOM_FILL[room.type]) : T.roomFill };
+    return { pattern: finish ? finishPattern(finish, density) : null, fill: room ? (finish ? FINISH_TONE[finish] : roomColour(room.type)) : T.roomFill };
   };
   const roomsById = new Map(scene.rooms.map((r) => [r.id, r]));
   return (
@@ -155,9 +165,15 @@ const PlanContent = memo(function PlanContent({
       {scene.rooms.map((room) => (
         <Poly key={room.id} rings={ringsOf(room.clear)} {...floorOf(room)} />
       ))}
+      {/* A room with no use yet: plain paper, with a dashed edge inside its walls. */}
+      {schematic &&
+        scene.rooms
+          .filter((room) => isUntyped(room.type))
+          .map((room) => <Poly key={`untyped-${room.id}`} rings={ringsOf(room.clear)} stroke={T.untypedEdge} strokeWidth={1} dash={[5, 4]} />)}
       {underlay && (
         <Group name="transient" listening={false}>
-          <Poly rings={ringsOf(underlay)} fill={T.underlay} />
+          {/* The floor below: faded on the furnished plan, its outline only on the schematic so the colours stay clean. */}
+          {schematic ? <Poly rings={ringsOf(underlay)} stroke={T.underlayLine} strokeWidth={1} /> : <Poly rings={ringsOf(underlay)} fill={T.underlay} />}
         </Group>
       )}
       {stairs.map((stair) => (
@@ -202,6 +218,22 @@ const PlanContent = memo(function PlanContent({
   );
 });
 
+/** The terrace and the path to the street, dashed round the schematic plan. */
+function SiteOutline({ garden }: { garden: NonNullable<ReturnType<typeof buildGarden>> }) {
+  const outline = { stroke: T.siteOutline, strokeWidth: 1, dash: [4, 4] };
+  return (
+    <Group name="garden" listening={false}>
+      {garden.terrace.length > 0 && <Poly rings={ringsOf(garden.terrace)} {...outline} />}
+      {garden.path.length > 0 && <Poly rings={ringsOf(garden.path)} {...outline} />}
+    </Group>
+  );
+}
+
+/**
+ * The plan paper's grid: a dot where the lines would cross, as on drawing
+ * paper, every grid step while dots stay at least 14px apart, else every
+ * metre, five or ten.
+ */
 function GridShape({ viewport, gridSize }: { viewport: Viewport; gridSize: number }) {
   return (
     <Shape
@@ -210,31 +242,22 @@ function GridShape({ viewport, gridSize }: { viewport: Viewport; gridSize: numbe
       perfectDrawEnabled={false}
       sceneFunc={(ctx: Context) => {
         const { scale, offsetX, offsetY, width, height } = viewport;
-        const draw = (step: number, color: string) => {
-          if (step * scale < 7) return;
-          const x0 = Math.floor(-offsetX / scale / step) * step;
-          const x1 = (width - offsetX) / scale;
-          const y0 = Math.floor((offsetY - height) / scale / step) * step;
-          const y1 = offsetY / scale;
-          ctx.beginPath();
-          for (let x = x0; x <= x1; x += step) {
-            const sx = Math.round(x * scale + offsetX) + 0.5;
-            ctx.moveTo(sx, 0);
-            ctx.lineTo(sx, height);
-          }
+        const step = [gridSize, 1, 5, 10, 50].find((s) => s * scale >= 14) ?? 50;
+        const x0 = Math.floor(-offsetX / scale / step) * step;
+        const x1 = (width - offsetX) / scale;
+        const y0 = Math.floor((offsetY - height) / scale / step) * step;
+        const y1 = offsetY / scale;
+        ctx.beginPath();
+        for (let x = x0; x <= x1; x += step) {
+          const sx = Math.round(x * scale + offsetX);
           for (let y = y0; y <= y1; y += step) {
-            const sy = Math.round(-y * scale + offsetY) + 0.5;
-            ctx.moveTo(0, sy);
-            ctx.lineTo(width, sy);
+            const sy = Math.round(-y * scale + offsetY);
+            ctx.moveTo(sx + 1.2, sy);
+            ctx.arc(sx, sy, 1.2, 0, Math.PI * 2);
           }
-          ctx.strokeStyle = color;
-          ctx.lineWidth = 1;
-          ctx.stroke();
-        };
-        if (gridSize * scale >= 10) draw(gridSize, T.gridMinor);
-        // Major lines every 1, 5 or 10 m, whichever stays legible at this zoom.
-        const major = [1, 5, 10, 50].find((step) => step * scale >= 14) ?? 50;
-        draw(major, T.gridMajor);
+        }
+        ctx.fillStyle = T.gridDot;
+        ctx.fill();
       }}
     />
   );
@@ -324,33 +347,61 @@ function Dimension({ dim, viewport }: { dim: DimensionPrimitive; viewport: Viewp
   );
 }
 
+/** Px from an outside face to the middle of its size pill. */
+const FACE_PILL_GAP = 22;
+
+/** An outside face's size on a white pill just outside it, turned to run along the face. */
+function FacePillShape({ pill, viewport }: { pill: FacePill; viewport: Viewport }) {
+  const a = worldToScreen(viewport, pill.a);
+  const b = worldToScreen(viewport, pill.b);
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const len = Math.hypot(dx, dy);
+  const w = pill.text.length * 6.2 + 14;
+  if (len < w + 12) return null;
+  // Outside is to the right of the counterclockwise face in world space; on screen (Y flipped) that's to its left.
+  const n = { x: dy / len, y: -dx / len };
+  let angle = (Math.atan2(dy, dx) * 180) / Math.PI;
+  if (angle > 90) angle -= 180;
+  if (angle <= -90) angle += 180;
+  return (
+    <Group name="face-pill" x={(a.x + b.x) / 2 - n.x * FACE_PILL_GAP} y={(a.y + b.y) / 2 - n.y * FACE_PILL_GAP} rotation={angle} listening={false}>
+      <Rect x={-w / 2} y={-10} width={w} height={20} cornerRadius={6} fill={T.frame} stroke={COLOR["line-strong"]} strokeWidth={1} perfectDrawEnabled={false} />
+      <Text width={w} offsetX={w / 2} offsetY={6.5} align="center" text={pill.text} fontSize={11} fontStyle="500" fontFamily={T.fontFamily} fill={T.roomArea} />
+    </Group>
+  );
+}
+
 let measureContext: CanvasRenderingContext2D | null | undefined;
 const measured = new Map<string, number>();
 
-/** Rendered width of a room name at the label font, px. */
-function labelWidth(text: string): number {
-  const cached = measured.get(text);
+/** Rendered width of a room name at 15px, px: in the UI face at 600, or the plan serif. */
+function labelWidth(text: string, serif = false): number {
+  const key = serif ? `s|${text}` : text;
+  const cached = measured.get(key);
   if (cached !== undefined) return cached;
   if (measureContext === undefined) measureContext = typeof document !== "undefined" ? document.createElement("canvas").getContext("2d") : null;
   let width = text.length * 8.6;
   if (measureContext) {
-    measureContext.font = `600 15px ${T.fontFamily}`;
+    measureContext.font = serif ? `15px ${T.serifFamily}` : `600 15px ${T.fontFamily}`;
     width = measureContext.measureText(text).width;
   }
-  measured.set(text, width);
+  measured.set(key, width);
   return width;
 }
 
 /**
  * True once web fonts have loaded. Canvas text is drawn with whatever font is
- * available at the time, so labels are measured and drawn again when Inter arrives.
+ * available at the time, so labels are measured and drawn again when Inter
+ * and the plan serif arrive. The serif is used only on the canvas, so
+ * `document.fonts.ready` alone would never load it: ask for it by name.
  */
 function useFontsReady(): boolean {
-  const [ready, setReady] = useState(() => typeof document === "undefined" || !document.fonts || document.fonts.status === "loaded");
+  const [ready, setReady] = useState(() => typeof document === "undefined" || !document.fonts);
   useEffect(() => {
     if (ready) return;
     let live = true;
-    void document.fonts.ready.then(() => {
+    void Promise.all([document.fonts.ready, loadPlanSerif()]).then(() => {
       if (!live) return;
       measured.clear();
       setReady(true);
@@ -362,17 +413,19 @@ function useFontsReady(): boolean {
   return ready;
 }
 
+const NO_FLAGS: ReadonlySet<string> = new Set();
+
 /** The pin from the room card's icon, on its 24-unit grid. */
 const PIN_PATH = "M9 3.5h6l-1 5.5 3 3V14H7v-2l3-3z M12 14v6.5";
 
 /** Lines a name wraps to at a font size, by measured word widths (greedy, like the canvas wrap). */
-function wrapLines(name: string, boxW: number, fontSize: number): number | null {
+function wrapLines(name: string, boxW: number, fontSize: number, serif = false): number | null {
   const k = fontSize / 15;
-  const space = labelWidth(" ") * k;
+  const space = labelWidth(" ", serif) * k;
   let lines = 1;
   let used = 0;
   for (const word of name.split(/\s+/)) {
-    const w = labelWidth(word) * k;
+    const w = labelWidth(word, serif) * k;
     if (w + 4 > boxW) return null;
     if (used && used + space + w + 4 > boxW) {
       lines += 1;
@@ -387,9 +440,9 @@ function wrapLines(name: string, boxW: number, fontSize: number): number | null 
  * at most two lines, else one shortened line. Null when the room is too
  * small to label; the plan contents list always has every name.
  */
-function fitLabel(name: string, boxW: number, heightPx: number): { fontSize: number; lines: number; ellipsis: boolean } | null {
-  for (const fontSize of [14, 12]) {
-    const lines = wrapLines(name, boxW, fontSize);
+function fitLabel(name: string, boxW: number, heightPx: number, serif = false): { fontSize: number; lines: number; ellipsis: boolean } | null {
+  for (const fontSize of serif ? [15, 13] : [14, 12]) {
+    const lines = wrapLines(name, boxW, fontSize, serif);
     if (lines !== null && lines <= 2 && heightPx >= fontSize * 1.15 * lines + 8) return { fontSize, lines, ellipsis: false };
   }
   return boxW >= 44 && heightPx >= 24 ? { fontSize: 12, lines: 1, ellipsis: true } : null;
@@ -482,6 +535,88 @@ function RoomLabels({ scene, viewport, selection }: { scene: PlanScene; viewport
   );
 }
 
+/** Rooms smaller than this show their name only, m². */
+const NAME_ONLY_AREA = 3;
+
+/** "3.60 × 6.53 m" for a plain rectangle of floor; else its area. */
+function roomSize(room: PlanScene["rooms"][number]): string {
+  const [only, ...more] = room.clear;
+  if (only && !more.length && !only.holes.length && only.outer.length === 4) {
+    const xs = new Set(only.outer.map((p) => p.x.toFixed(3)));
+    const ys = new Set(only.outer.map((p) => p.y.toFixed(3)));
+    if (xs.size === 2 && ys.size === 2) return sizeText(room.bounds.maxX - room.bounds.minX, room.bounds.maxY - room.bounds.minY, { imperial: isImperial() });
+  }
+  return room.areaLabel;
+}
+
+/**
+ * Room names on the schematic plan, drawn like an architect's: the name in
+ * the plan serif with the room's size underneath, straight on the floor with
+ * no pill. A halo in the room's own colour keeps the words clear where they
+ * cross a line. A pinned room has a pin before its name; a room with
+ * something to check has a small warning dot after it.
+ */
+function SchematicLabels({ scene, viewport, flagged }: { scene: PlanScene; viewport: Viewport; flagged: ReadonlySet<string> }) {
+  return (
+    <>
+      {scene.rooms.map((room) => {
+        const widthPx = (room.bounds.maxX - room.bounds.minX) * viewport.scale;
+        const heightPx = (room.bounds.maxY - room.bounds.minY) * viewport.scale;
+        const boxW = Math.min(widthPx - 16, 200);
+        const fit = fitLabel(room.name, boxW, heightPx, true);
+        if (!fit) return null;
+        const p = worldToScreen(viewport, room.label);
+        const lineH = Math.round(fit.fontSize * 1.15);
+        const nameH = lineH * fit.lines;
+        const size = roomSize(room);
+        const showSize = !fit.ellipsis && room.clearArea >= NAME_ONLY_AREA && heightPx >= nameH + 14 + 16 && widthPx >= 64;
+        const nameTop = showSize ? -(nameH + 1) : -nameH / 2;
+        const nameWidth = Math.min(labelWidth(room.name, true) * (fit.fontSize / 15), boxW);
+        const halo = { stroke: roomColour(room.type), strokeWidth: 4, fillAfterStrokeEnabled: true, lineJoin: "round" as const };
+        const firstLineW = fit.lines > 1 ? boxW : nameWidth;
+        return (
+          <Group key={room.id} x={p.x} y={p.y} listening={false}>
+            {room.pinned && (
+              <Path
+                name="room-pin"
+                data={PIN_PATH}
+                x={-firstLineW / 2 - 14}
+                y={nameTop + 1}
+                scaleX={0.55}
+                scaleY={0.55}
+                fill={T.roomLabel}
+                stroke={T.roomLabel}
+                strokeWidth={2.6}
+                lineCap="round"
+                lineJoin="round"
+              />
+            )}
+            <Text
+              text={room.name}
+              width={boxW}
+              height={fit.ellipsis ? lineH : undefined}
+              offsetX={boxW / 2}
+              y={nameTop}
+              align="center"
+              fontSize={fit.fontSize}
+              lineHeight={1.15}
+              fontFamily={T.serifFamily}
+              fill={T.roomLabel}
+              wrap={fit.lines > 1 ? "word" : "none"}
+              ellipsis={fit.ellipsis}
+              {...halo}
+            />
+            {flagged.has(room.id) && <Circle name="room-check" x={firstLineW / 2 + 7} y={nameTop + lineH / 2} radius={3.5} fill={COLOR.warning} />}
+            {showSize && (
+              <Text text={size} width={boxW} offsetX={boxW / 2} y={3} align="center" fontSize={11} fontStyle="500" fontFamily={T.fontFamily} fill={T.roomArea} wrap="none" {...halo} />
+            )}
+          </Group>
+        );
+      })}
+    </>
+  );
+}
+
 /**
  * Which way the house faces: GARDEN beside the rear wall and STREET on the
  * opposite side. Plain annotations, like a drawing's, not part of the plan.
@@ -492,7 +627,8 @@ function SideMarkers({ level, viewport, house }: { level: Level; viewport: Viewp
   if (!axis) return null;
   // Exterior is to the right of the counterclockwise envelope walls.
   const out = { x: -axis.normal.x, y: -axis.normal.y };
-  const gap = 0.9;
+  // Past the size pills on the outside faces: at least 52px out at any zoom.
+  const gap = Math.max(0.9, 52 / viewport.scale);
   const garden = worldToScreen(viewport, {
     x: (axis.start.x + axis.end.x) / 2 + out.x * (axis.wall.thickness / 2 + gap),
     y: (axis.start.y + axis.end.y) / 2 + out.y * (axis.wall.thickness / 2 + gap),
@@ -533,8 +669,8 @@ function SiteOverlay({ level, site, viewport }: { level: Level; site: Site | und
   ].map((p) => worldToScreen(viewport, p));
   const dims: DimensionPrimitive[] = [
     // Along the south edge and up the east edge, outside the plot.
-    { key: "plot-width", a: { x: plot.minX, y: plot.minY }, b: { x: plot.maxX, y: plot.minY }, offsetPx: -18, text: `${(plot.maxX - plot.minX).toFixed(1)} m`, tone: "overall" },
-    { key: "plot-depth", a: { x: plot.maxX, y: plot.minY }, b: { x: plot.maxX, y: plot.maxY }, offsetPx: -18, text: `${(plot.maxY - plot.minY).toFixed(1)} m`, tone: "overall" },
+    { key: "plot-width", a: { x: plot.minX, y: plot.minY }, b: { x: plot.maxX, y: plot.minY }, offsetPx: -18, text: lengthText(plot.maxX - plot.minX, 1), tone: "overall" },
+    { key: "plot-depth", a: { x: plot.maxX, y: plot.minY }, b: { x: plot.maxX, y: plot.maxY }, offsetPx: -18, text: lengthText(plot.maxY - plot.minY, 1), tone: "overall" },
   ];
   return (
     <Group listening={false}>
@@ -586,7 +722,23 @@ function SnapMarker({ snap, viewport }: { snap: SnapIndicator; viewport: Viewpor
   }
 }
 
-function SelectionOverlay({ level, scene, selection, hover, issueIds }: { level: Level; scene: PlanScene; selection: Selection; hover: Selection; issueIds: string[] }) {
+function SelectionOverlay({
+  level,
+  scene,
+  selection,
+  hover,
+  issueIds,
+  schematic,
+  erased,
+}: {
+  level: Level;
+  scene: PlanScene;
+  selection: Selection;
+  hover: Selection;
+  issueIds: string[];
+  schematic: boolean;
+  erased: readonly string[];
+}) {
   const outline = (s: Selection, color: string, width: number, fill?: string) => {
     if (!s) return null;
     if (s.kind === "wall") {
@@ -620,9 +772,13 @@ function SelectionOverlay({ level, scene, selection, hover, issueIds }: { level:
     .filter(Boolean) as Selection[];
   return (
     <>
-      {hover && (hover.kind !== selection?.kind || hover.id !== selection?.id) && outline(hover, T.hover, 1.5)}
-      {outline(selection, T.accent, 2, selection?.kind === "room" ? T.accentSoft : T.accentSoft)}
+      {hover && (hover.kind !== selection?.kind || hover.id !== selection?.id) && outline(hover, T.hover, 1.5, schematic && hover.kind === "room" ? T.hoverWash : undefined)}
+      {outline(selection, T.accent, schematic && selection?.kind === "room" ? 2.5 : 2, T.accentSoft)}
       {issues.map((s) => s && <Group key={`issue-${s.id}`}>{outline(s, T.error, 2, T.errorSoft)}</Group>)}
+      {/* Rooms brushed with Erase: washed out, waiting to be laid out again. */}
+      {erased.map((id) => (
+        <Group key={`erased-${id}`}>{outline({ kind: "room", id }, T.error, 2, T.erased)}</Group>
+      ))}
     </>
   );
 }
@@ -652,7 +808,7 @@ function OutlineDraftShape({ draft, viewport }: { draft: OutlineDraft; viewport:
       {screen.map((p, i) => (
         <Circle key={i} x={p.x} y={p.y} radius={i === 0 ? 6 : 4} fill="white" stroke={colour} strokeWidth={2} />
       ))}
-      {lastWall > 0 && <LengthPill at={last} text={`${lastWall.toFixed(2)} m`} tone={draft.problem ? "error" : "accent"} />}
+      {lastWall > 0 && <LengthPill at={last} text={lengthText(lastWall, 2)} tone={draft.problem ? "error" : "accent"} />}
     </Group>
   );
 }
@@ -690,13 +846,19 @@ function StairLabels({ stairs, viewport }: { stairs: StairPrimitive[]; viewport:
   );
 }
 
-export function PlanStage({ width, height }: { width: number; height: number }) {
+/** How an export draws the plan, whatever the view on screen: rooms by use, or with finishes, furniture and garden. */
+export type PlanLook = "schematic" | "furnished";
+
+export function PlanStage({ width, height, look, onStage }: { width: number; height: number; look?: PlanLook; onStage?: (stage: StageNode | null) => void }) {
   const doc = useDocumentState(displayedDocument);
   const notice = useDocumentState((s) => s.notice);
   const previewIssue = useDocumentState((s) => s.preview?.issue ?? null);
   const viewport = useSessionState((s) => s.viewport);
   const selection = useSessionState((s) => s.selection);
   const hover = useSessionState((s) => s.hover);
+  const erased = useSessionState((s) => s.erased);
+  const cameraEye = useSessionState((s) => s.cameraPick?.eye ?? null);
+  const cursor = useSessionState((s) => (s.cameraPick?.eye ? s.cursor : null));
   const snap = useSessionState((s) => s.snap);
   const wallDraft = useSessionState((s) => s.wallDraft);
   const outlineDraft = useSessionState((s) => s.outlineDraft);
@@ -706,7 +868,11 @@ export function PlanStage({ width, height }: { width: number; height: number }) 
   const refining = useSessionState(inRefine);
   // An option on show: its changed rooms picked out, and the walls as they are now as a dashed ghost.
   const staged = useDocumentState((s) => (s.staged && !s.staged.peek && s.staged.source === s.history.present ? s.staged : null));
-  const furnished = useSessionState((s) => s.view === "furnished");
+  const furnishedView = useSessionState((s) => s.view === "furnished");
+  const schematicView = useSessionState(showsSchematic);
+  // An export asks for its own look; otherwise the plan is drawn as the view on screen says.
+  const furnished = look ? look === "furnished" : furnishedView;
+  const schematic = look ? look === "schematic" : schematicView;
   const drag = useSessionState((s) => s.drag);
   // Re-renders (and re-measures labels) once the UI font has loaded.
   useFontsReady();
@@ -720,7 +886,7 @@ export function PlanStage({ width, height }: { width: number; height: number }) 
     const env = above ? analyzeEnvelope(above) : null;
     return env?.ok ? env.info.outsideRing : null;
   }, [above]);
-  const stairs = buildStairScene(doc, level.id);
+  const stairs = useMemo(() => buildStairScene(doc, level.id), [doc, level.id]);
   const scene = useMemo(() => buildPlanScene(level), [level]);
   const interiorStyle = useProjectState((s) => s.appearance?.interiorStyle);
   const furnitureItems = useMemo(() => Object.values(level.furniture), [level.furniture]);
@@ -736,7 +902,11 @@ export function PlanStage({ width, height }: { width: number; height: number }) 
   const stairsOf = (s: Selection) => (s?.kind === "stairs" ? stairs.find((p) => p.id === s.id)?.footprint : undefined);
   const selectedStairs = stairsOf(selection);
   const hoveredStairs = hover?.id !== selection?.id ? stairsOf(hover) : undefined;
-  const dims = useMemo(() => buildDimensions(level, selection), [level, selection]);
+  // On screen the house's size is a pill on each outside face; the overall lines are for exports.
+  const dims = useMemo(() => buildDimensions(level, selection).filter((d) => d.tone !== "overall"), [level, selection]);
+  const facePills = useMemo(() => buildFacePills(level), [level]);
+  // Rooms with something to check get a dot beside their name on the schematic plan.
+  const flagged = useMemo(() => (schematic ? new Set(assessSense(level).findings.flatMap((f) => f.roomIds)) : NO_FLAGS), [schematic, level]);
   const geometry = deriveLevelGeometry(level);
   const issueIds = previewIssue?.entityIds ?? (notice?.tone === "error" ? notice.entityIds : []);
 
@@ -805,11 +975,11 @@ export function PlanStage({ width, height }: { width: number; height: number }) 
   })();
 
   // Refine's plan view leaves the furniture out so the layout stays the focus; the furnished view shows it, and its problems.
-  const showFurniture = furnished || !refining;
+  const showFurniture = look ? look === "furnished" : furnished || !refining;
   const showProblems = furnished && refining;
   const furnitureDraft = useSessionState((s) => s.furnitureDraft);
   const draftSymbol = furnitureDraft ? furnitureSymbol(furnitureDraft.item) : null;
-  const fills = planFurnitureFill(interiorStyle);
+  const fills = useMemo(() => planFurnitureFill(interiorStyle), [interiorStyle]);
   const ghostLevel = staged ? staged.source.levels.find((l) => l.id === level.id) : undefined;
   const ghost = useMemo(() => (ghostLevel ? deriveWallMassCut(ghostLevel) : null), [ghostLevel]);
   const changedRooms = staged ? scene.rooms.filter((r) => staged.roomIds.includes(r.id)) : [];
@@ -818,14 +988,15 @@ export function PlanStage({ width, height }: { width: number; height: number }) 
   const density = patternDensity(viewport.scale, typeof window === "undefined" ? 1 : window.devicePixelRatio);
 
   return (
-    <Stage width={width} height={height} listening={false} ref={registerStage}>
+    <Stage width={width} height={height} listening={false} ref={onStage ?? registerStage}>
       <Layer listening={false}>
         <Rect name="paper" x={0} y={0} width={width} height={height} fill={T.paper} />
         {settings.gridVisible && <GridShape viewport={viewport} gridSize={settings.gridSize} />}
         {groundScene.outsideRect && (
           <>
             <Group {...transform}>
-              {garden && <GardenLayer garden={garden} density={density} />}
+              {/* The schematic plan sits on paper: only the terrace and the path, dashed. The garden is for the furnished plan. */}
+              {garden && (schematic ? <SiteOutline garden={garden} /> : <GardenLayer garden={garden} density={density} />)}
             </Group>
             <HouseShadow rect={groundScene.outsideRect} ring={groundScene.outsideRing} viewport={viewport} />
           </>
@@ -833,7 +1004,7 @@ export function PlanStage({ width, height }: { width: number; height: number }) 
       </Layer>
       <Layer listening={false}>
         <Group {...transform}>
-          <PlanContent scene={scene} showFurniture={showFurniture} fills={fills} style={interiorStyle} sprites={sprites} stairs={stairs} underlay={underlay} density={density} />
+          <PlanContent scene={scene} schematic={schematic} showFurniture={showFurniture} fills={fills} style={interiorStyle} sprites={sprites} stairs={stairs} underlay={underlay} density={density} />
         </Group>
       </Layer>
       <Layer listening={false}>
@@ -858,7 +1029,26 @@ export function PlanStage({ width, height }: { width: number; height: number }) 
             scene.furniture
               .filter((f) => furnitureProblems.has(f.id))
               .map((f) => <Poly key={`problem-${f.id}`} rings={[f.outline]} stroke={T.error} strokeWidth={1.5} dash={[5, 3]} fill={T.errorSoft} />)}
-          <SelectionOverlay level={level} scene={scene} selection={selection} hover={hover} issueIds={issueIds} />
+          <SelectionOverlay level={level} scene={scene} selection={selection} hover={hover} issueIds={issueIds} schematic={schematic} erased={erased} />
+          {/* A camera being put down: where it stands, and a line to what it will look at. */}
+          {cameraEye && (
+            <>
+              {cursor && <Line points={flat([cameraEye, cursor])} stroke={T.accent} strokeWidth={1.5} dash={[6, 4]} strokeScaleEnabled={false} />}
+              <Poly
+                rings={[
+                  [
+                    { x: cameraEye.x - 0.18, y: cameraEye.y - 0.18 },
+                    { x: cameraEye.x + 0.18, y: cameraEye.y - 0.18 },
+                    { x: cameraEye.x + 0.18, y: cameraEye.y + 0.18 },
+                    { x: cameraEye.x - 0.18, y: cameraEye.y + 0.18 },
+                  ],
+                ]}
+                stroke={T.accent}
+                strokeWidth={2}
+                fill={T.accentSoft}
+              />
+            </>
+          )}
           {draftSymbol && (
             <>
               <FurnitureShape parts={draftSymbol.parts} fills={fills} opacity={0.75} />
@@ -876,22 +1066,29 @@ export function PlanStage({ width, height }: { width: number; height: number }) 
         <SideMarkers level={level} viewport={viewport} house={scene.outsideRect} />
         {mapping && <SiteOverlay level={doc.levels[0]} site={site} viewport={viewport} />}
         {site?.north !== undefined && groundScene.outsideRect && <Compass north={site.north} house={groundScene.outsideRect} viewport={viewport} />}
-        <RoomLabels scene={labelsOffStairs(scene, stairs)} viewport={viewport} selection={selection} />
+        {schematic ? (
+          <SchematicLabels scene={labelsClear(scene, stairs)} viewport={viewport} flagged={flagged} />
+        ) : (
+          <RoomLabels scene={labelsClear(scene, stairs)} viewport={viewport} selection={selection} />
+        )}
         <StairLabels stairs={stairs} viewport={viewport} />
+        {facePills.map((pill) => (
+          <FacePillShape key={pill.key} pill={pill} viewport={viewport} />
+        ))}
         {dims.map((dim) => (
           <Dimension key={dim.key} dim={dim} viewport={viewport} />
         ))}
         {draftRect && wallDraft && (
           <LengthPill
             at={worldToScreen(viewport, { x: (wallDraft.start.x + wallDraft.end.x) / 2, y: (wallDraft.start.y + wallDraft.end.y) / 2 })}
-            text={`${draftRect.length.toFixed(3)} m`}
+            text={lengthText(draftRect.length, 3)}
             tone={wallDraft.valid ? "accent" : "error"}
           />
         )}
         {drag === "drag-end" && selectedAxis && (
           <LengthPill
             at={worldToScreen(viewport, { x: (selectedAxis.start.x + selectedAxis.end.x) / 2, y: (selectedAxis.start.y + selectedAxis.end.y) / 2 })}
-            text={`${selectedAxis.length.toFixed(3)} m`}
+            text={lengthText(selectedAxis.length, 3)}
             tone={previewIssue ? "error" : "accent"}
           />
         )}

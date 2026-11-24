@@ -1,7 +1,8 @@
-import { COLOR, FALLBACK_SANS } from "@/design/tokens";
-import type { FloorMaterial, RoomType } from "@/domain/plan/types";
+import { COLOR, FALLBACK_SANS, FALLBACK_SERIF_TEXT } from "@/design/tokens";
+import type { FloorMaterial } from "@/domain/plan/types";
 
 let fontStack: string | null = null;
+let serifStack: string | null = null;
 
 /**
  * The UI typeface for canvas text. next/font gives Inter a generated family
@@ -17,6 +18,33 @@ function planFont(): string {
 }
 
 /**
+ * The small-size serif for room names on the plan (DM Serif Text), from the
+ * --font-serif-text token. Only the canvas uses this face, so nothing on the
+ * page makes the browser load it: callers wait on `loadPlanSerif()`.
+ */
+export function planSerif(): string {
+  if (serifStack) return serifStack;
+  if (typeof document === "undefined") return FALLBACK_SERIF_TEXT;
+  const value = getComputedStyle(document.documentElement).getPropertyValue("--font-serif-text").trim();
+  if (!value) return FALLBACK_SERIF_TEXT;
+  serifStack = value;
+  return serifStack;
+}
+
+/**
+ * Loads the plan serif. `document.fonts.ready` never fetches a face that
+ * nothing in the page uses, so ask for it by name; resolves either way
+ * (offline or blocked, labels lay out in the fallback).
+ */
+export function loadPlanSerif(): Promise<void> {
+  if (typeof document === "undefined" || !document.fonts?.load) return Promise.resolve();
+  return document.fonts.load(`15px ${planSerif()}`).then(
+    () => undefined,
+    () => undefined,
+  );
+}
+
+/**
  * Plan colours. Geometry stays neutral; the single accent marks what is
  * selected or being edited. UI colours come from the design tokens
  * (src/design/tokens.ts, mirroring tokens.css).
@@ -24,10 +52,8 @@ function planFont(): string {
 export const PLAN_THEME = {
   paper: COLOR.canvas,
   roomFill: "#efece6",
-  gridMinor: "rgba(60, 64, 60, 0.045)",
-  gridMajor: "rgba(60, 64, 60, 0.1)",
-  wallFill: "#25282a",
-  wallStroke: "#1b1d1f",
+  wallFill: COLOR.ink,
+  wallStroke: "#12100e",
   /** The soft shadow walls cast on the floor beside them. */
   wallShadow: "rgba(24, 22, 18, 0.32)",
   /** Window frames, sills and door leaves. */
@@ -36,8 +62,8 @@ export const PLAN_THEME = {
   swing: "#8e918d",
   openingStroke: "#2a2e31",
   glazing: "#8fa9bc",
-  roomLabel: "#1f2326",
-  roomArea: "#555b57",
+  roomLabel: COLOR.ink,
+  roomArea: COLOR["ink-2"],
   dimension: "#3f4441",
   dimensionSelection: COLOR.accent,
   accent: COLOR.accent,
@@ -45,6 +71,8 @@ export const PLAN_THEME = {
   hover: "rgba(47, 111, 94, 0.45)",
   error: COLOR.danger,
   errorSoft: "rgba(184, 67, 47, 0.14)",
+  /** A room brushed with Erase: nearly paper, so it reads as cleared. */
+  erased: "rgba(247, 244, 236, 0.82)",
   valid: COLOR.accent,
   validSoft: "rgba(47, 111, 94, 0.2)",
   /** Drawing annotations such as GARDEN and STREET. */
@@ -57,6 +85,16 @@ export const PLAN_THEME = {
   rugStroke: "rgba(95, 100, 97, 0.35)",
   /** The floor below, faded under the one being drawn. */
   underlay: "rgba(31, 35, 38, 0.18)",
+  /** The floor below on the schematic plan: its walls' outline only. */
+  underlayLine: "rgba(28, 26, 23, 0.35)",
+  /** The dashed edge inside a room with no use yet. */
+  untypedEdge: "rgba(28, 26, 23, 0.4)",
+  /** A room under the pointer on the schematic plan: its colour a shade deeper. */
+  hoverWash: "rgba(28, 26, 23, 0.06)",
+  /** Dots on the plan paper. */
+  gridDot: COLOR["grid-dot"],
+  /** Terrace and path, dashed, round the schematic plan. */
+  siteOutline: "rgba(28, 26, 23, 0.3)",
   /** The walls as they are, dashed, under an option on show. */
   ghost: "rgba(47, 111, 94, 0.75)",
   /** The outline of the floor above, dashed. */
@@ -69,27 +107,11 @@ export const PLAN_THEME = {
   get fontFamily(): string {
     return planFont();
   },
+  /** Room names on the schematic plan. */
+  get serifFamily(): string {
+    return planSerif();
+  },
 } as const;
-
-/** Room tints by type, shown in the Design workspace only. Related spaces share a hue family. */
-export const ROOM_FILL: Record<RoomType, string> = {
-  unspecified: "#f6f4ef",
-  living: "#f1e8d8",
-  kitchen: "#e6eedf",
-  kitchen_dining: "#e9eedc",
-  dining: "#efecd9",
-  bedroom: "#e4eaf0",
-  primary_bedroom: "#dfe6f0",
-  bathroom: "#dfecec",
-  ensuite: "#dcebeb",
-  wc: "#e2eded",
-  utility: "#ebe6ec",
-  hall: "#eeebe4",
-  office: "#ece5dc",
-  storage: "#ebe8e2",
-  garage: "#e7e6e3",
-  other: "#f0ece3",
-};
 
 /** Decorative site planting around the house. Not part of the plan. */
 export const SITE_THEME = {
@@ -128,23 +150,4 @@ export const MATERIAL_SWATCH: Record<FloorMaterial, string> = {
   vinyl: "#d4c7ad",
 };
 
-/** Day, night and service zones, for comparing how concepts organise a house. */
-export const ZONE_FILL: Record<RoomType, string> = {
-  unspecified: "#efece6",
-  living: "#f3dfb3",
-  kitchen: "#f3dfb3",
-  kitchen_dining: "#f3dfb3",
-  dining: "#f3dfb3",
-  office: "#f3dfb3",
-  bedroom: "#cfdcec",
-  primary_bedroom: "#cfdcec",
-  bathroom: "#cfe6e2",
-  ensuite: "#cfe6e2",
-  wc: "#cfe6e2",
-  utility: "#cfe6e2",
-  hall: "#e9e5dd",
-  storage: "#e9e5dd",
-  garage: "#e2e0db",
-  other: "#efece6",
-};
 

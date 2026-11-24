@@ -1,5 +1,7 @@
 import type { HouseBrief } from "../brief/schema";
 import type { PlanDocument } from "../plan/types";
+import type { Placement } from "../site/buildable";
+import type { SiteFit } from "../site/fit";
 import type { Footprint } from "./footprint";
 import type { DesignIntent, RoomGoal } from "./intent";
 
@@ -19,6 +21,8 @@ export interface PlanningRequest {
   idPrefix: string;
   /** The brief's free-text notes have already been read into its structured fields. */
   instructionsRead?: boolean;
+  /** For houses sized from the rooms on a traced site: where a house may go. Layouts that fit nowhere are left out. */
+  site?: SiteFit;
 }
 
 export interface PlanCandidate {
@@ -39,6 +43,8 @@ export interface PlanCandidate {
   variant?: string;
   /** For partial redesigns: the rooms the candidate changed. Absent for whole-plan layouts. */
   changedRoomIds?: string[];
+  /** On a traced site: where the house goes, in the site's frame. */
+  placement?: Placement;
 }
 
 export interface PlanningIssue {

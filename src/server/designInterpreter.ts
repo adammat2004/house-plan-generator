@@ -77,6 +77,8 @@ function userTurn(request: AiRequest): string {
     brief: {
       bedrooms: context.brief.bedrooms,
       bathrooms: context.brief.bathrooms,
+      // The rooms picked one by one (e.g. a snug, a utility, a master with an ensuite): the counts alone don't say which.
+      ...(context.brief.rooms ? { pickedRooms: context.brief.rooms } : {}),
       spaces: context.brief.requiredSpaces,
       preferences: context.brief.preferences,
       roomSizes: context.brief.roomSizes ?? {},

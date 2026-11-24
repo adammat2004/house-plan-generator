@@ -785,6 +785,21 @@ export function createToolController(stores: EditorStores, actions: EditorAction
     actions.select({ kind: "stairs", id: staircase.id });
   }
 
+  // ── Erase ──────────────────────────────────────────────────────────────
+  /** True while the pointer is down with the Erase tool: rooms it crosses are marked. */
+  let erasing = false;
+
+  function eraseAt(world: Point2) {
+    const { level, geometry } = context();
+    const roomId = roomAt(level, geometry, world);
+    if (!roomId) return;
+    const erased = session.getState().erased;
+    // Pinned rooms and halls stay as they are: rooms are laid out again around the hall.
+    const room = level.rooms[roomId];
+    if (erased.includes(roomId) || !room || room.locked || room.type === "hall") return;
+    session.setState({ erased: [...erased, roomId] });
+  }
+
   // ── Public handlers ────────────────────────────────────────────────────
   return {
     pointerDown(input: PointerInput) {
@@ -804,6 +819,19 @@ export function createToolController(stores: EditorStores, actions: EditorAction
       }
       if (input.button !== 0) return;
       const world = toWorld(input.screen);
+      // Putting a camera down for a render: where it stands, then what it looks at.
+      const pick = session.getState().cameraPick;
+      if (pick) {
+        const { level, geometry } = context();
+        if (!pick.eye) {
+          if (!roomAt(level, geometry, world)) actions.notify("info", "Put the camera down inside a room.");
+          else session.setState({ cameraPick: { eye: world } });
+          return;
+        }
+        const roomId = roomAt(level, geometry, pick.eye)!;
+        session.setState((s) => ({ cameraPick: null, cameraSpots: [{ id: `spot-${Date.now()}`, roomId, eye: pick.eye!, look: world }, ...s.cameraSpots].slice(0, 6) }));
+        return;
+      }
       if (tool === "select") selectDown(input);
       else if (tool === "wall") wallDown(world);
       else if (tool === "room") {
@@ -816,6 +844,10 @@ export function createToolController(stores: EditorStores, actions: EditorAction
       else if (tool === "furniture") furnitureDown(world);
       else if (tool === "stairs") stairsDown(world);
       else if (tool === "outline") outlineDown(world);
+      else if (tool === "erase") {
+        erasing = true;
+        eraseAt(world);
+      }
     },
 
     pointerMove(input: PointerInput) {
@@ -848,6 +880,13 @@ export function createToolController(stores: EditorStores, actions: EditorAction
       }
       const tool = session.getState().tool;
       if (session.getState().workspace === "brief" || session.getState().workspace === "site") return;
+      if (tool === "erase") {
+        if (erasing) eraseAt(world);
+        const { level, geometry } = context();
+        const roomId = roomAt(level, geometry, world);
+        if (roomId !== session.getState().hover?.id) session.setState({ hover: roomId ? { kind: "room", id: roomId } : null });
+        return;
+      }
       if (tool === "select" || tool === "room") {
         const { level, geometry, session: s } = context();
         let hit: Selection;
@@ -882,6 +921,7 @@ export function createToolController(stores: EditorStores, actions: EditorAction
     },
 
     pointerUp() {
+      erasing = false;
       const g = gesture;
       gesture = null;
       if (!g) return;
@@ -929,6 +969,7 @@ export function createToolController(stores: EditorStores, actions: EditorAction
       if (gesture && gesture.kind !== "pan") actions.cancelPreview();
       if (session.getState().drag) session.setState({ drag: null });
       gesture = null;
+      erasing = false;
       chainStart = null;
       outlinePoints = [];
       if (session.getState().outlineDraft) session.setState({ outlineDraft: null });

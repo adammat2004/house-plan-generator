@@ -6,7 +6,7 @@ import { Group, Shape } from "react-konva";
 import type { Garden, GardenTree } from "../scene/garden";
 import { finishPattern } from "./patterns";
 import { Poly, ringsOf } from "./Poly";
-import { SITE_THEME as S } from "./theme";
+import { PLAN_THEME, SITE_THEME as S } from "./theme";
 
 /** Where shadows fall, m per metre of height: to the south-east, down and right on screen. */
 const SHADOW = { x: 0.25, y: -0.25 };
@@ -58,6 +58,42 @@ function Trees({ trees }: { trees: GardenTree[] }) {
   );
 }
 
+/** How far in from the edge of a made-up garden it fades into the paper, m. */
+const FADE = 3;
+
+/**
+ * The edge of a made-up garden, fading into the paper rather than stopping
+ * at a hard line: a band along each side of the plot, paper at the edge and
+ * clear by FADE inside it. A site's own plot keeps its hedges crisp.
+ */
+function GardenFade({ plot, paper }: { plot: Garden["plot"]; paper: string }) {
+  return (
+    <Shape
+      name="garden-fade"
+      listening={false}
+      perfectDrawEnabled={false}
+      sceneFunc={(ctx: Context) => {
+        const clear = paper.length === 7 ? `${paper}00` : "rgba(0,0,0,0)";
+        const band = (x0: number, y0: number, x1: number, y1: number, rect: [number, number, number, number]) => {
+          const g = ctx.createLinearGradient(x0, y0, x1, y1);
+          g.addColorStop(0, paper);
+          g.addColorStop(1, clear);
+          ctx.setAttr("fillStyle", g);
+          ctx.fillRect(...rect);
+        };
+        // A little past the plot too, so no sliver of the lawn's anti-aliased edge shows.
+        const o = 0.1;
+        const [minX, minY, maxX, maxY] = [plot.minX - o, plot.minY - o, plot.maxX + o, plot.maxY + o];
+        const [w, h, f] = [maxX - minX, maxY - minY, FADE + o];
+        band(minX, 0, minX + f, 0, [minX, minY, f, h]);
+        band(maxX, 0, maxX - f, 0, [maxX - f, minY, f, h]);
+        band(0, minY, 0, minY + f, [minX, minY, w, f]);
+        band(0, maxY, 0, maxY - f, [minX, maxY - f, w, f]);
+      }}
+    />
+  );
+}
+
 /**
  * The garden round the house in world metres, under the plan: lawn,
  * gravel, terrace, path, hedges and trees, a handful of shapes in all.
@@ -68,15 +104,22 @@ export const GardenLayer = memo(function GardenLayer({ garden, density }: { gard
   const d = Math.max(32, density / 2);
   return (
     <Group name="garden" listening={false}>
-      <Poly rings={ringsOf(garden.lawn)} fill={S.lawn} pattern={finishPattern("lawn", d)} />
-      <Group x={SHADOW.x} y={SHADOW.y} listening={false}>
-        <Poly rings={ringsOf(garden.hedges)} fill={S.hedgeShadow} />
-      </Group>
-      <Poly rings={ringsOf(garden.hedges)} fill={S.hedge} stroke={S.hedgeEdge} strokeWidth={1} />
+      {/* Where a made-up garden has no hedge, the lawn runs on to the plot's edge. */}
+      <Poly rings={ringsOf(garden.fromSite ? garden.lawn : garden.lawnToEdge)} fill={S.lawn} pattern={finishPattern("lawn", d)} />
+      {/* Hedges mark a real boundary: the site's plot. A garden made up round the house fades out instead. */}
+      {garden.fromSite && (
+        <>
+          <Group x={SHADOW.x} y={SHADOW.y} listening={false}>
+            <Poly rings={ringsOf(garden.hedges)} fill={S.hedgeShadow} />
+          </Group>
+          <Poly rings={ringsOf(garden.hedges)} fill={S.hedge} stroke={S.hedgeEdge} strokeWidth={1} />
+        </>
+      )}
       <Poly rings={ringsOf(garden.apron)} fill={S.gravel} pattern={finishPattern("gravel", density)} />
       <Poly rings={ringsOf(garden.terrace)} fill={S.paving} pattern={finishPattern("paving", d)} stroke={S.pavingJoint} strokeWidth={1} />
       <Poly rings={ringsOf(garden.path)} fill={S.paving} pattern={finishPattern("paving", d)} stroke={S.pavingJoint} strokeWidth={1} />
       <Trees trees={garden.trees} />
+      {!garden.fromSite && <GardenFade plot={garden.plot} paper={PLAN_THEME.paper} />}
     </Group>
   );
 });

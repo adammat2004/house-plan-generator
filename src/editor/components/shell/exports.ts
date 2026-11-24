@@ -1,8 +1,7 @@
 import { downloadProject, downloadUrl, projectFileName } from "@/persistence/jsonFile";
 import { assessHouse } from "@/domain/design/analysis";
 import { analyzeEnvelope } from "@/domain/geometry/envelope";
-import { spritesSettled } from "../../rendering/konva/sprites";
-import { exportPlanImage } from "../../rendering/konva/stageRegistry";
+import { exportPlanLook } from "../../rendering/konva/exportStage";
 import { composePresentation } from "../../rendering/presentation";
 import { buildGarden } from "../../rendering/scene/garden";
 import { worldToScreen } from "../../viewport/viewport";
@@ -28,15 +27,9 @@ function pictureName(suffix = ""): string {
   return projectFileName(`${p.name}${label}${floor}${suffix}`, ".png");
 }
 
-/** Waits for the furniture pictures on the plan, and a frame for the plan to redraw with them. */
-async function planPicturesReady() {
-  await spritesSettled();
-  await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
-}
-
+/** The plain plan image: the schematic plan as framed on screen, without the garden, whatever the view. */
 export async function exportPlanPng() {
-  await planPicturesReady();
-  const url = exportPlanImage();
+  const url = await exportPlanLook("schematic");
   if (!url) {
     editor.notify("error", "The plan isn't ready to export yet.");
     return;
@@ -46,6 +39,28 @@ export async function exportPlanPng() {
 
 /** The longer side of a presentation image, px. */
 const PRESENTATION_SIZE = 2400;
+
+/**
+ * The furnished plan in its garden, cropped to the plot, as a picture at
+ * presentation size; null until the plan can be drawn.
+ */
+export async function furnishedPlanImage(): Promise<{ url: string; pixelRatio: number } | null> {
+  const p = editorStores.project.getState();
+  const ground = editor.current().levels[0];
+  const env = analyzeEnvelope(ground);
+  if (!env.ok) return null;
+  const viewport = editorStores.session.getState().viewport;
+  const area = buildGarden(ground, p.site)?.plot ?? env.info.outsideRect;
+  const margin = 0.8;
+  const a = worldToScreen(viewport, { x: area.minX - margin, y: area.maxY + margin });
+  const b = worldToScreen(viewport, { x: area.maxX + margin, y: area.minY - margin });
+  const crop = { x: a.x, y: a.y, width: b.x - a.x, height: b.y - a.y };
+  if (crop.width <= 0 || crop.height <= 0) return null;
+  const pixelRatio = Math.min(4, Math.max(1, PRESENTATION_SIZE / Math.max(crop.width, crop.height)));
+  // Always the furnished plan in its garden, whatever the view on screen.
+  const url = await exportPlanLook("furnished", { crop, pixelRatio, presentation: true });
+  return url ? { url, pixelRatio } : null;
+}
 
 /**
  * The plan in its garden, cropped to the plot, on a page with the
@@ -62,18 +77,12 @@ export async function exportPresentationPng() {
     editor.notify("error", "The house needs a closed outline first.");
     return;
   }
-  const area = buildGarden(ground, p.site)?.plot ?? env.info.outsideRect;
-  const margin = 0.8;
-  const a = worldToScreen(viewport, { x: area.minX - margin, y: area.maxY + margin });
-  const b = worldToScreen(viewport, { x: area.maxX + margin, y: area.minY - margin });
-  const crop = { x: a.x, y: a.y, width: b.x - a.x, height: b.y - a.y };
-  const pixelRatio = Math.min(4, Math.max(1, PRESENTATION_SIZE / Math.max(crop.width, crop.height)));
-  await planPicturesReady();
-  const url = crop.width > 0 && crop.height > 0 ? exportPlanImage({ crop, pixelRatio, presentation: true }) : null;
-  if (!url) {
+  const furnished = await furnishedPlanImage();
+  if (!furnished) {
     editor.notify("error", "The plan isn't ready to export yet.");
     return;
   }
+  const { url, pixelRatio } = furnished;
   const image = new Image();
   image.src = url;
   await image.decode();

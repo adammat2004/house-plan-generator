@@ -242,41 +242,7 @@ export function emitLayout(shell: PlanDocument, plan: LayoutPlan, opts: EmitOpti
   const entryOuts = [...(entry >= 0 ? (outside.get(entry) ?? []) : [])].sort((p, q) => rank(p) - rank(q) || q.hi - q.lo - (p.hi - p.lo));
   // With corner doors, each door sits at the end of its wall nearer the way in.
   const wayIn = plan.cornerDoors && entryOuts[0] ? midpoint(entryOuts[0]) : undefined;
-  for (const [r, room] of plan.rooms.entries()) {
-    if (room.kind === "hall" && !room.via) continue;
-    const parent = room.via ? plan.rooms.findIndex((x) => x.key === room.via) : room.kind === "ensuite" ? plan.rooms.findIndex((x) => x.key === room.of) : hall;
-    const shared = parent >= 0 ? longest(runsBetween(r, parent)) : undefined;
-    if (!shared) return { ok: false, reason: `${room.name} doesn't reach the ${parent >= 0 ? plan.rooms[parent].name.toLowerCase() : "hall"}.` };
-    const narrow = room.type === "bathroom" || room.type === "wc" || room.type === "storage" || room.type === "ensuite";
-    const width = narrow ? Math.min(opts.doorWidth, 0.8) : opts.doorWidth;
-    // Where doors must keep clear of something (the stairs), any stretch of the shared wall will do, longest first.
-    const tries = opts.doorAvoid?.length ? [...runsBetween(r, parent)].sort((p, q) => q.hi - q.lo - (p.hi - p.lo)) : [shared];
-    // Only a door that fits nowhere counts as left out, not each stretch tried on the way.
-    const before = skipped;
-    if (!tries.some((run) => place("door", run, width, room.kind === "ensuite" ? 0.4 : 0.3, "standard", wayIn))) return { ok: false, reason: `there's no room for a door into ${room.name.toLowerCase()}.` };
-    skipped = before;
-    for (const link of room.links ?? []) {
-      const other = plan.rooms.findIndex((x) => x.key === link);
-      const run = other >= 0 ? longest(runsBetween(r, other)) : undefined;
-      if (run) place("door", run, opts.doorWidth, 0.3, "standard", wayIn);
-    }
-    const outs = [...(outside.get(r) ?? [])].sort((p, q) => q.hi - q.lo - (p.hi - p.lo));
-    let doorOut: Run | undefined;
-    if (room.gardenDoor && !opts.upper) {
-      const toGarden = outs.find((o) => o.facing === rear && o.hi - o.lo >= GARDEN_DOOR + 0.6);
-      if (toGarden && place("door", toGarden, GARDEN_DOOR, 0.6)) doorOut = toGarden;
-    }
-    if (room.window === "none" || !outs.length) continue;
-    // A wall taken by garden doors comes last for windows.
-    const lit = doorOut ? [...outs.filter((o) => o !== doorOut), doorOut] : outs;
-    place("window", lit[0], WINDOW_WIDTH[room.window] * light, 0.6, room.window);
-    if (room.window === "large" || opts.naturalLight) {
-      // Not beside the garden doors: a window there would overlap them.
-      for (const o of lit.slice(1)) if (o !== doorOut && o.hi - o.lo >= 1.4) place("window", o, WINDOW_WIDTH[room.window] * light, 0.8, room.window);
-    }
-  }
-
-  // The front door into the entrance room: on the street side if it reaches it, else a side, else the garden side.
+  // The front door into the entrance room, before any window can take its wall: on the street side if it reaches it, else a side, else the garden side.
   const hallOuts = [...(hall >= 0 ? (outside.get(hall) ?? []) : [])];
   let entrance: Run | null = null;
   for (const o of opts.upper ? [] : entryOuts) {
@@ -291,6 +257,50 @@ export function emitLayout(shell: PlanDocument, plan: LayoutPlan, opts: EmitOpti
     if (o && place("door", o, 1, 0.3)) notes.push(`The front door opens into the ${plan.rooms[day].name.toLowerCase()}; the hall doesn't reach an outside wall.`);
     else notes.push("There is no front door; the hall doesn't reach an outside wall.");
   }
+  for (const [r, room] of plan.rooms.entries()) {
+    if (room.kind === "hall" && !room.via) continue;
+    // The room the front door opens into, when it isn't the hall and isn't reached from anywhere: the way in, so no door to a parent.
+    const root = r === entry && room.kind !== "hall" && !room.via;
+    if (!root) {
+      const parent = room.via ? plan.rooms.findIndex((x) => x.key === room.via) : room.kind === "ensuite" ? plan.rooms.findIndex((x) => x.key === room.of) : hall;
+      const shared = parent >= 0 ? longest(runsBetween(r, parent)) : undefined;
+      if (!shared) return { ok: false, reason: `${room.name} doesn't reach the ${parent >= 0 ? plan.rooms[parent].name.toLowerCase() : "hall"}.` };
+      const narrow = room.type === "bathroom" || room.type === "wc" || room.type === "storage" || room.type === "ensuite";
+      const width = narrow ? Math.min(opts.doorWidth, 0.8) : opts.doorWidth;
+      // Where doors must keep clear of something (the stairs), any stretch of the shared wall will do, longest first.
+      const tries = opts.doorAvoid?.length ? [...runsBetween(r, parent)].sort((p, q) => q.hi - q.lo - (p.hi - p.lo)) : [shared];
+      // Only a door that fits nowhere counts as left out, not each stretch tried on the way.
+      const before = skipped;
+      if (!tries.some((run) => place("door", run, width, room.kind === "ensuite" ? 0.4 : 0.3, "standard", wayIn))) return { ok: false, reason: `there's no room for a door into ${room.name.toLowerCase()}.` };
+      skipped = before;
+    }
+    for (const link of room.links ?? []) {
+      const other = plan.rooms.findIndex((x) => x.key === link);
+      const run = other >= 0 ? longest(runsBetween(r, other)) : undefined;
+      if (run) place("door", run, opts.doorWidth, 0.3, "standard", wayIn);
+    }
+    const outs = [...(outside.get(r) ?? [])].sort((p, q) => q.hi - q.lo - (p.hi - p.lo));
+    let doorOut: Run | undefined;
+    if (room.gardenDoor && !opts.upper) {
+      const toGarden = outs.find((o) => o.facing === rear && o.hi - o.lo >= GARDEN_DOOR + 0.6);
+      if (toGarden && place("door", toGarden, GARDEN_DOOR, 0.6)) doorOut = toGarden;
+    }
+    if (room.window === "none" || !outs.length) continue;
+    // A wall taken by garden doors comes last for windows.
+    const lit = doorOut ? [...outs.filter((o) => o !== doorOut), doorOut] : outs;
+    // Its window on the longest outside wall that takes it; failing that, a narrower one beside the garden doors, so the room has one.
+    const before = skipped;
+    const windowed =
+      lit.some((o) => place("window", o, WINDOW_WIDTH[room.window] * light, 0.6, room.window)) ||
+      (!!doorOut && [WINDOW_WIDTH.standard, WINDOW_WIDTH.small].some((w) => w < WINDOW_WIDTH[room.window] * light && place("window", doorOut!, w, 0.4, room.window)));
+    // Only a room left without any window counts as one that didn't fit.
+    skipped = before + (windowed ? 0 : 1);
+    if (room.window === "large" || opts.naturalLight) {
+      // Not beside the garden doors: a window there would overlap them.
+      for (const o of lit.slice(1)) if (o !== doorOut && o.hi - o.lo >= 1.4) place("window", o, WINDOW_WIDTH[room.window] * light, 0.8, room.window);
+    }
+  }
+
   const garden = opts.upper ? undefined : hallOuts.find((o) => o !== entrance && o.facing === rear);
   if (garden) place("door", garden, 0.9, 0.2);
   // Long stretches of hall along the outside get a window.

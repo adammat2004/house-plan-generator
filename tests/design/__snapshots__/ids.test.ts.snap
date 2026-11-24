@@ -1,0 +1,217 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`layout ids > stay the same for drawn houses of every named shape, and for more and similar layouts 1`] = `
+{
+  "L": [
+    [
+      "wings-sleeping-wing.p1.c4",
+      null,
+    ],
+    [
+      "wings-living-wing.p1.c6",
+      null,
+    ],
+    [
+      "wings-quiet-garden.p1.c6",
+      null,
+    ],
+  ],
+  "T": [
+    [
+      "wings-garden-living.p1.c17",
+      null,
+    ],
+    [
+      "wings-quiet-garden.p1.c14",
+      null,
+    ],
+    [
+      "wings-quiet-garden.p1.c6",
+      null,
+    ],
+  ],
+  "U": [
+    [
+      "zones-c.l1a.s30o0.s30o0w",
+      null,
+    ],
+    [
+      "wings-quiet-garden.p1.c15",
+      null,
+    ],
+    [
+      "wings-sleeping-wing.p1.c12",
+      null,
+    ],
+  ],
+  "Z": [
+    [
+      "wings-quiet-garden.p0.c2",
+      null,
+    ],
+    [
+      "wings-living-wing.p0.c1",
+      null,
+    ],
+    [
+      "wings-sleeping-wing.p0.c1",
+      null,
+    ],
+  ],
+  "bay": [
+    [
+      "wings-garden-living.p0.c0",
+      null,
+    ],
+    [
+      "wings-quiet-garden.p0.c2",
+      null,
+    ],
+    [
+      "wings-garden-living.p0.c1",
+      null,
+    ],
+  ],
+  "more": [
+    "two-wings-mirrored",
+    "two-wings-reversed",
+    "garden-living-reversed",
+  ],
+  "notch": [
+    [
+      "wings-living-wing.p1.c0",
+      null,
+    ],
+    [
+      "wings-garden-living.p1.c0",
+      null,
+    ],
+    [
+      "wings-sleeping-wing.p1.c2",
+      null,
+    ],
+  ],
+  "plus": [],
+  "rectangle": [
+    "two-wings",
+    "garden-living",
+    "quiet-garden",
+  ],
+  "similar": [
+    "two-wings-reversed",
+    "two-wings-mirrored",
+    "two-wings-mirrored-reversed",
+  ],
+  "stairs": [],
+}
+`;
+
+exports[`layout ids > stay the same for every benchmark scenario 1`] = `
+{
+  "annexe": [
+    "zones-r.s44o0@12x6.5",
+    "zones-l.s40o0@9x9",
+    "two-wings-mirrored@10.5x7.5",
+  ],
+  "bungalow": [
+    "zones-l.ebs32o1@8.5x14.5",
+    "zones-l.s32o0@8.5x14.5",
+    "zones-l.d28-32o0m@11.5x11.5",
+  ],
+  "bungalow U": [
+    "wings-quiet-garden.p1.c15@U:15.5x12:5.5:4.5",
+    "wings-sleeping-wing.p1.c15@U:14x11.5:5.5:4.5",
+    "wings-sleeping-wing.p1.c8@U:14x12:6:5",
+  ],
+  "bungalow two storeys kitchen to the garden": [
+    "storeys-l.f32.2ws.o0fbb@2s:6.5x11.5",
+    "storeys-a.x38f.ws3.es4s7@2s:9x9",
+    "storeys-a.x34f.ns3s-wc.ns4s4-ensuites7@2s:9.5x8.5",
+  ],
+  "bungalow wide shallow 16 × 8": [
+    "two-wings",
+    "garden-living-reversed",
+    "quiet-garden",
+  ],
+  "family-3": [
+    "zones-l.s32o1@8.5x15.5",
+    "zones-l.ebs32o0u@8.5x15.5",
+    "zones-l.d28-32o0mu@12.5x11",
+  ],
+  "family-3 L": [
+    "zones-r.L.s36o0@L:9.5x14:11:5.1",
+    "wings-sleeping-wing.p0.c4@L:12x15.5:5.5:5.5",
+    "wings-garden-living.p1.c5@L:11x15:6:6",
+  ],
+  "family-3 deep 8.5 × 16": [
+    "zones-l.s32o1",
+    "zones-l.ebs32o0u",
+    "zones-l.s32o0",
+  ],
+  "family-3 drawn L": [
+    "zones-r.L.s45o0",
+    "zones-r.L.ebs45o0",
+    "wings-sleeping-wing.p1.c5",
+  ],
+  "family-3 drawn T": [
+    "wings-garden-living.p1.c6",
+    "wings-quiet-garden.p1.c6",
+    "wings-sleeping-wing.p1.c14",
+  ],
+  "family-3 drawn U": [
+    "zones-c.l1b.s35o0.s35o0u",
+    "zones-c.l1b.s35o0w.s35o0u",
+    "zones-c.l1b.s35o1w.s35o0u",
+  ],
+  "family-3 in 12 × 9": [
+    "zones-l.d28-36o0mu",
+    "two-wings",
+    "garden-living-reversed",
+  ],
+  "family-3 kitchen to the garden": [
+    "zones-l.d28-32o0mu@12.5x11",
+    "zones-l.ebs32o0u@8.5x15.5",
+    "zones-l.d28-32o0mu@11.5x11.5",
+  ],
+  "family-3 two storeys": [
+    "storeys-b.x38f.ws2.ns5s6@2s:7.5x10",
+    "storeys-a.x30f.us1.es5s6@2s:9x9",
+    "storeys-l.f32.2wu.o0fbb@2s:6.5x11.5",
+  ],
+  "family-3 two storeys in 7.5 × 9": [
+    "storeys-a.x34f.us1.ns4s4-ensuites7",
+    "storeys-b.x34f.us1.ns4s4-ensuites7",
+    "storeys-b.x34r.ws1.ns4s4-ensuites7",
+  ],
+  "family-4": [
+    "zones-l.s32o0@9x19.5",
+    "zones-l.d28-40o0muq@14.5x13.5",
+    "zones-l.d28-40o0muq@13.5x13.5",
+  ],
+  "family-4 T": [
+    "zones-c.l1a.s36o0.d20-32o0uq@T:16x17.5:4",
+    "zones-c.l0a.s44o0.d20-36o0u@T:17x17.5:7",
+    "zones-c.r1a.s44o0.d20-32o0u@T:16.5x17.5:2",
+  ],
+  "family-4 any shape": [
+    "zones-l.s32o0@9x19.5",
+    "zones-r.L.s32o0@L:9.5x19.5:16:4.7",
+    "zones-l.d28-40o0muq@14.5x13.5",
+  ],
+  "family-4 two storeys": [
+    "storeys-a.x34r.us2s10.bs6s8s4@2s:9x11",
+    "storeys-a.x34r.us2s10.bs6s7s4@2s:10x10",
+    "storeys-a.x42r.ws2.bs6s8s4@2s:8.5x11.5",
+  ],
+  "starter": [
+    "zones-l.ebs32o0@9.5x9.5",
+    "zones-r.d20-44o0@14x6.5",
+    "zones-l.ebs40o0@9.5x9.5",
+  ],
+  "work-from-home": [
+    "zones-l.s36o0@11.5x12",
+    "two-wings@10.5x11",
+    "two-wings-mirrored@9x15",
+  ],
+}
+`;

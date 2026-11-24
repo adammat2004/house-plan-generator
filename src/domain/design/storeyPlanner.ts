@@ -3,11 +3,12 @@ import type { Ring } from "../geometry/polygons";
 import type { Rect } from "../geometry/vector";
 import { STAIR_PRESET } from "../plan/defaults";
 import type { Point2, RoomType } from "../plan/types";
-import { bandOf, DOWN, LIVING, UP } from "./bands";
+import { bandOf, downRules, LIVING, UP } from "./bands";
+import { programGraph, type GraphPrefs } from "./concept/programGraph";
 import type { Program, SpaceSpec } from "./program";
 import { clearMin, proportionOk, ROOM_RULES, SLOT_WALLS } from "./roomRules";
 import type { LabeledRoom, LayoutPlan } from "./wingLayout";
-import { dayRow, frameOf, MIN_DAY_WIDTH, nightOrders, nightSpaces, slotBand, slotMin, type Box, type Frame, type Placed, type ZoneOptions } from "./zonePlanner";
+import { dayRow, frameOf, MIN_DAY_WIDTH, nightOrders, nightSpaces, quietCost, slotBand, slotMin, type Box, type Frame, type Placed, type ZoneOptions } from "./zonePlanner";
 
 /**
  * Two-storey layouts for rectangular houses, built round a spine: a strip
@@ -239,7 +240,7 @@ function upperLayouts(spine: Spine, program: Program, W: number, V: number, line
         const hall: Box = { u0: spine.u[0], u1: spine.u[1], v0: start, v1: landingEnd };
         const all = [...frontRoom, ...rooms, ...placedBehind];
         const masterBox = all.find((r) => r.type === "primary_bedroom");
-        const quiet = masterBox && masterBox.box.v1 >= V - EPS ? 0 : 0.5;
+        const quiet = masterBox && masterBox.box.v1 >= V - EPS ? 0 : quietCost(opts);
         const score = miss(all) + quiet + (area(hall) / (W * V)) * 25;
         out.push({ tag: `o${oi}${front ? `f${front.type[0]}` : ""}${kind ? kind[0] : "s"}`, hall, rooms: all, score });
       }
@@ -475,7 +476,10 @@ function farRoom(space: SpaceSpec, from: number, W: number, middle: [number, num
 }
 
 /** Ground floors with the stairs across the middle: the hall strip and middle band, a front band beside the strip, a back band. */
-function crossGround(c: Cross, spaces: SpaceSpec[], W: number, V: number, door: number): FloorLayout[] {
+function crossGround(c: Cross, spaces: SpaceSpec[], W: number, V: number, door: number, prefs: GraphPrefs = {}): FloorLayout[] {
+  const kitchenGarden = !!prefs.kitchenGarden;
+  // Which room may open off which: the program's graph, with the brief's preferences.
+  const rules = downRules(programGraph(prefs));
   const out: FloorLayout[] = [];
   const front: [number, number] = [0, c.middle[0]];
   const back: [number, number] = [c.middle[1], V];
@@ -483,7 +487,7 @@ function crossGround(c: Cross, spaces: SpaceSpec[], W: number, V: number, door: 
   const cache = new Map<string, ReturnType<typeof bandOf>>();
   const band = (list: SpaceSpec[], along: [number, number], depth: [number, number], contacts: Array<[number, number]>, entryFirst: boolean) => {
     const key = `${along}|${depth}|${JSON.stringify(contacts)}|${list.map((x) => x.key).sort()}`;
-    if (!cache.has(key)) cache.set(key, bandOf(list, along, depth, contacts, entryFirst, DOWN, door));
+    if (!cache.has(key)) cache.set(key, bandOf(list, along, depth, contacts, entryFirst, rules, door));
     return cache.get(key)!;
   };
   for (const far of farOptions) {
@@ -510,7 +514,9 @@ function crossGround(c: Cross, spaces: SpaceSpec[], W: number, V: number, door: 
       const extra = !far && hallEnd < W ? [{ key: "cloaks", kind: "storage" as const, name: "Store", type: "storage" as const, window: "none" as const, box: { u0: hallEnd, u1: W, v0: c.middle[0], v1: c.middle[1] }, via: "hall" }] : [];
       const rooms = [...f.rooms, ...b.rooms.map((r) => (LIVING.has(r.type) ? { ...r, gardenDoor: true } : r)), ...(farPlaced ? [farPlaced] : []), ...extra];
       const hallArea = ENTRY * c.middle[0] + hallEnd * (c.middle[0] > 0 ? MIDDLE : len(c.middle));
-      const score = f.score + b.score + miss(farPlaced ? [farPlaced] : []) + (hallArea / (W * V)) * 25;
+      // The kitchen at the back, on the garden, when the brief asks.
+      const kitchenFront = kitchenGarden && f.rooms.some((r) => r.type === "kitchen" || r.type === "kitchen_dining") ? programGraph(prefs).kitchenAway : 0;
+      const score = f.score + b.score + miss(farPlaced ? [farPlaced] : []) + (hallArea / (W * V)) * 25 + kitchenFront;
       const entry = c.middle[0] > 0 ? { entry: { u0: 0, u1: ENTRY, v0: 0, v1: c.middle[0] } } : {};
       out.push({ tag: `${far ? far.type[0] : "n"}${frontSet.map((x) => x.key).join("")}`, hall: { u0: 0, u1: hallEnd, v0: c.middle[0], v1: c.middle[1] }, rooms, score, ...entry });
     }
@@ -519,7 +525,7 @@ function crossGround(c: Cross, spaces: SpaceSpec[], W: number, V: number, door: 
 }
 
 /** Upper floors with the stairs across the middle: bedrooms front and back, off the landing beside the stairwell. */
-function crossUpper(c: Cross, program: Program, W: number, V: number, door: number): FloorLayout[] {
+function crossUpper(c: Cross, program: Program, W: number, V: number, door: number, opts: Pick<ZoneOptions, "primaryPrivate"> = {}): FloorLayout[] {
   const spaces = nightSpaces(program);
   const out: FloorLayout[] = [];
   const front: [number, number] = [0, c.middle[0]];
@@ -560,7 +566,7 @@ function crossUpper(c: Cross, program: Program, W: number, V: number, door: numb
       const rooms = [...f.rooms, ...b.rooms, ...(farPlaced ? [farPlaced] : []), ...extra];
       const master = rooms.find((r) => r.type === "primary_bedroom");
       // The master bedroom on the garden side, and the biggest bedroom.
-      const quiet = (master && master.box.v0 >= c.middle[1] - EPS ? 0 : 0.5) + (master && rooms.some((r) => r.type === "bedroom" && area(r.box) > area(master.box) + 0.2) ? 2 : 0);
+      const quiet = (master && master.box.v0 >= c.middle[1] - EPS ? 0 : quietCost(opts)) + (master && rooms.some((r) => r.type === "bedroom" && area(r.box) > area(master.box) + 0.2) ? 2 : 0);
       const score = f.score + b.score + miss(farPlaced ? [farPlaced] : []) + quiet + ((landingEnd * (c.middle[0] > 0 ? MIDDLE : len(c.middle))) / (W * V)) * 25;
       out.push({ tag: `${far ? far.type[0] : "n"}${frontSet.map((x) => x.key).join("")}`, hall: { u0: 0, u1: landingEnd, v0: c.middle[0], v1: c.middle[1] }, rooms, score });
     }
@@ -574,9 +580,9 @@ function crossPlans(frame: Frame, ground: Program, upper: Program, opts: StoreyO
   const plans: StoreyPlan[] = [];
   let problem: string | null = null;
   for (const c of crossesFor(W, V, opts)) {
-    const grounds = crossGround(c, ground.spaces, W, V, opts.doorWidth);
+    const grounds = crossGround(c, ground.spaces, W, V, opts.doorWidth, opts);
     if (!grounds.length) problem = "the living spaces don't fit round the hall.";
-    const uppers = grounds.length ? crossUpper(c, upper, W, V, opts.doorWidth) : [];
+    const uppers = grounds.length ? crossUpper(c, upper, W, V, opts.doorWidth, opts) : [];
     if (grounds.length && !uppers.length) problem = "the bedrooms don't fit round the landing.";
     for (const g of grounds) {
       for (const u of uppers) {

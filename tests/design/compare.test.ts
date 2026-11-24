@@ -39,7 +39,8 @@ describe("comparing two plans", () => {
     expect(c.changed.a.length).toBeLessThan(c.pairs.length);
     expect(c.changed.b).toEqual(c.changed.a);
     const moved = c.pairs.filter((p) => p.changed);
-    expect(moved.reduce((sum, p) => sum + (p.areaChange ?? 0), 0)).toBeCloseTo(0, 1);
+    // What one room loses the others gain, less a little wall: the walls meeting the moved one get shorter.
+    expect(Math.abs(moved.reduce((sum, p) => sum + (p.areaChange ?? 0), 0))).toBeLessThan(0.15);
     // Without a brief there's nothing to rank by it.
     expect(c.metrics.map((m) => m.key)).not.toContain("brief");
   });

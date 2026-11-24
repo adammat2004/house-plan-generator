@@ -1,8 +1,9 @@
 import { EPS, roundToPrecision } from "../geometry/numeric";
 import type { RoomType } from "../plan/types";
+import { LIVING, programGraph, type ProgramGraph } from "./concept/programGraph";
 import type { SpaceSpec } from "./program";
 import { clearMin, proportionOk, ROOM_RULES, SLOT_WALLS } from "./roomRules";
-import { distributeWidths } from "./wingLayout";
+import { distributeWidths } from "./slots";
 import type { Box, Placed } from "./zonePlanner";
 
 /**
@@ -12,7 +13,7 @@ import type { Box, Placed } from "./zonePlanner";
  * the wings beside them. Pure and deterministic.
  */
 
-export const LIVING: ReadonlySet<RoomType> = new Set(["living", "kitchen", "kitchen_dining", "dining"]);
+export { LIVING };
 
 /** A room something can open off: its key and type. */
 export interface Parent {
@@ -27,23 +28,21 @@ export interface BandRules {
   via: (parent: Parent, child: SpaceSpec) => number;
 }
 
-/** Downstairs: living spaces off the hall or each other, a utility off the kitchen, a garage off the utility. */
-export const DOWN: BandRules = {
-  hall: (s) => (LIVING.has(s.type) ? 0 : s.type === "office" || s.type === "wc" || s.type === "storage" ? 0.3 : s.type === "garage" ? 0.5 : s.type === "utility" ? 1 : 1.5),
-  via: (parent, child) => {
-    if (parent.type === "utility") return child.type === "garage" ? 0.5 : Infinity;
-    if (!LIVING.has(parent.type)) return Infinity;
-    if (LIVING.has(child.type)) return 0;
-    if (child.type === "utility") return parent.type === "kitchen" || parent.type === "kitchen_dining" ? 0 : 2;
-    return child.type === "office" ? 1 : child.type === "wc" ? 1.5 : Infinity;
-  },
-};
+/** Downstairs, from the program's graph: living spaces off the hall or each other, a utility off the kitchen, a garage off the utility. */
+export const downRules = (graph: ProgramGraph): BandRules => ({
+  hall: (s) => graph.down("hall", s.type),
+  via: (parent, child) => graph.down(parent.type, child.type),
+});
 
-/** Upstairs: everything off the landing, an ensuite off its own bedroom only (nightSpaces keys it after the bedroom). */
-export const UP: BandRules = {
-  hall: (s) => (s.type === "ensuite" ? Infinity : 0),
-  via: (parent, child) => (child.type === "ensuite" && child.key === `${parent.key}-ensuite` ? 0 : Infinity),
-};
+/** Upstairs, from the program's graph: everything off the landing, an ensuite off its own bedroom only (nightSpaces keys it after the bedroom). */
+export const upRules = (graph: ProgramGraph): BandRules => ({
+  hall: (s) => graph.up("hall", s),
+  via: (parent, child) => graph.up(parent, child),
+});
+
+/** The rules for a brief with no preferences. */
+export const DOWN: BandRules = downRules(programGraph());
+export const UP: BandRules = upRules(programGraph());
 
 /**
  * Where a band meets something its rooms can open off, along the band: the

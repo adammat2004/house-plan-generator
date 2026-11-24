@@ -1,10 +1,11 @@
 "use client";
 
-import { memo, useId } from "react";
+import { memo, type ReactNode, useId } from "react";
 import type { Ring } from "@/domain/geometry/polygons";
 import type { Rect } from "@/domain/geometry/vector";
 import type { Level, PlanDocument, RoomType } from "@/domain/plan/types";
-import { PLAN_THEME as T, ROOM_FILL, ZONE_FILL } from "../../rendering/konva/theme";
+import { PLAN_THEME as T } from "../../rendering/konva/theme";
+import { roomColour, zoneColour } from "@/design/roomColours";
 import { FINISH_TONE, finishTile, roomFinish, type FinishId } from "../../rendering/scene/finishes";
 import { buildPlanScene, type PlanScene } from "../../rendering/scene/planScene";
 import { buildStairScene, type StairPrimitive } from "../../rendering/scene/stairScene";
@@ -79,11 +80,16 @@ function StairDrawing({ stair }: { stair: StairPrimitive }) {
 const WARM_FILL: Partial<Record<RoomType, string>> = { hall: "#f8f4ec", bathroom: "#ede7dc", ensuite: "#ede7dc", wc: "#ede7dc", utility: "#ede7dc" };
 const WARM_DEFAULT = "#f1e9da";
 
-/** "finish" draws each floor as it's laid (herringbone, tiles…), as the plan in the editor does. */
-export type PlanPalette = "type" | "warm" | "zones" | "finish";
+/**
+ * How a drawing fills its rooms: "schematic" by use (the 2D Plan's colours),
+ * "zones" by the part of the day each serves, "warm" in neutral creams, and
+ * "finish" with each floor as it's laid (herringbone, tiles…), as the
+ * furnished plan does.
+ */
+export type PlanPalette = "schematic" | "warm" | "zones" | "finish";
 
 const fillFor = (palette: Exclude<PlanPalette, "finish">, type: RoomType) =>
-  palette === "warm" ? (WARM_FILL[type] ?? WARM_DEFAULT) : palette === "zones" ? ZONE_FILL[type] : ROOM_FILL[type];
+  palette === "warm" ? (WARM_FILL[type] ?? WARM_DEFAULT) : palette === "zones" ? zoneColour(type) : roomColour(type);
 
 /** Finishes too fine to show in a small drawing are drawn as their colour. */
 const SVG_PLAIN: ReadonlySet<FinishId> = new Set(["carpet", "concrete"]);
@@ -112,7 +118,7 @@ function FinishDefs({ id, finishes }: { id: string; finishes: FinishId[] }) {
  */
 export function PlanDrawing({
   scene,
-  palette = "type",
+  palette = "schematic",
   detail = false,
   highlight,
   stairs,
@@ -130,7 +136,7 @@ export function PlanDrawing({
     if (!room) return WARM_DEFAULT;
     if (palette !== "finish") return fillFor(palette, room.type);
     const finish = roomFinish(room);
-    return finish ? `url(#${id}-${finish})` : ROOM_FILL[room.type];
+    return finish ? `url(#${id}-${finish})` : roomColour(room.type);
   };
   const roomsById = new Map(scene.rooms.map((r) => [r.id, r]));
   return (
@@ -192,25 +198,28 @@ export function PlanDrawing({
 /** A small drawing of a plan's rooms and walls, derived from the same scene as the canvas. */
 export const PlanThumbnail = memo(function PlanThumbnail({
   level,
-  palette = "type",
+  palette = "schematic",
   className = "plan-thumb",
   pad = 0.3,
   detail = false,
   highlight,
   plan,
+  children,
 }: {
   level: Level;
   /** The house the floor is in, to draw its stairs. */
   plan?: PlanDocument;
   /** Rooms to outline, e.g. the ones a proposal changes. */
   highlight?: readonly string[];
-  /** "type" tints rooms by use (as in Design); "warm" draws every floor in cream; "zones" colours day, night and wet rooms. */
+  /** How rooms are filled: by use ("schematic", as the 2D Plan), in cream ("warm"), by zone ("zones") or by finish ("finish"). */
   palette?: PlanPalette;
   className?: string;
   /** Margin around the house, m. */
   pad?: number;
   /** Also draw door swings, window frames and furniture (for larger drawings). */
   detail?: boolean;
+  /** Drawn over the plan in world metres with y flipped (a point is at x, −y), such as room placement markers. */
+  children?: ReactNode;
 }) {
   const scene = buildPlanScene(level);
   const r = scene.outsideRect;
@@ -222,6 +231,7 @@ export const PlanThumbnail = memo(function PlanThumbnail({
       <g transform="scale(1,-1)">
         <PlanDrawing scene={scene} palette={palette} detail={detail} highlight={highlight} stairs={stairsOn(plan, level)} />
       </g>
+      {children}
     </svg>
   );
 });

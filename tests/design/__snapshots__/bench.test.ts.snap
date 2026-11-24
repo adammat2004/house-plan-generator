@@ -1,0 +1,882 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`generation benchmark > annexe 1`] = `
+{
+  "bedroomsOnLiving": 0,
+  "candidates": 3,
+  "circulationShare": {
+    "max": 0.11,
+    "mean": 0.07,
+  },
+  "entries": {
+    "hall": 3,
+  },
+  "failing": {
+    "room_shape": 2,
+  },
+  "furnitureMissing": 1,
+  "hallByKind": {
+    "corridor": 0,
+    "entry": 0.07,
+    "hub": 0,
+    "landing": 0,
+  },
+  "hallPerDoor": 2.36,
+  "hallShare": {
+    "max": 0.11,
+    "mean": 0.07,
+  },
+  "ideas": 2,
+  "meanDepth": 2,
+  "meanGraphDistance": 0.29,
+  "meanScore": 75.6,
+  "meanSpatialDistance": 0.33,
+  "minGlazing": 0.07,
+  "name": "annexe",
+  "pairs": {
+    "distinct": 2,
+    "identical": 0,
+    "sameIdea": 1,
+  },
+  "privacyGradient": 0,
+}
+`;
+
+exports[`generation benchmark > bungalow 1`] = `
+{
+  "bedroomsOnLiving": 2,
+  "candidates": 3,
+  "circulationShare": {
+    "max": 0.18,
+    "mean": 0.13,
+  },
+  "entries": {
+    "hall": 2,
+    "living": 1,
+  },
+  "failing": {},
+  "furnitureMissing": 2,
+  "hallByKind": {
+    "corridor": 0.03,
+    "entry": 0.09,
+    "hub": 0,
+    "landing": 0,
+  },
+  "hallPerDoor": 2.34,
+  "hallShare": {
+    "max": 0.15,
+    "mean": 0.12,
+  },
+  "ideas": 3,
+  "meanDepth": 2.5,
+  "meanGraphDistance": 0.45,
+  "meanScore": 88.27,
+  "meanSpatialDistance": 0.32,
+  "minGlazing": 0.11,
+  "name": "bungalow",
+  "pairs": {
+    "distinct": 3,
+    "identical": 0,
+    "sameIdea": 0,
+  },
+  "privacyGradient": -0.33,
+}
+`;
+
+exports[`generation benchmark > bungalow U 1`] = `
+{
+  "bedroomsOnLiving": 0,
+  "candidates": 3,
+  "circulationShare": {
+    "max": 0.2,
+    "mean": 0.19,
+  },
+  "entries": {
+    "hall": 3,
+  },
+  "failing": {
+    "kitchen_connected": 2,
+    "master_largest": 1,
+    "room_shape": 3,
+  },
+  "furnitureMissing": 9,
+  "hallByKind": {
+    "corridor": 0,
+    "entry": 0.19,
+    "hub": 0,
+    "landing": 0,
+  },
+  "hallPerDoor": 3.29,
+  "hallShare": {
+    "max": 0.2,
+    "mean": 0.19,
+  },
+  "ideas": 3,
+  "meanDepth": 2.06,
+  "meanGraphDistance": 0.17,
+  "meanScore": 48.07,
+  "meanSpatialDistance": 0.47,
+  "minGlazing": 0.07,
+  "name": "bungalow U",
+  "pairs": {
+    "distinct": 2,
+    "identical": 0,
+    "sameIdea": 1,
+  },
+  "privacyGradient": -0.11,
+}
+`;
+
+exports[`generation benchmark > bungalow two storeys kitchen to the garden 1`] = `
+{
+  "bedroomsOnLiving": 0,
+  "candidates": 3,
+  "circulationShare": {
+    "max": 0.29,
+    "mean": 0.23,
+  },
+  "entries": {
+    "hall": 3,
+  },
+  "failing": {
+    "kitchen_connected": 2,
+    "master_largest": 1,
+  },
+  "furnitureMissing": 2,
+  "hallByKind": {
+    "corridor": 0,
+    "entry": 0.13,
+    "hub": 0,
+    "landing": 0.1,
+  },
+  "hallPerDoor": 5.18,
+  "hallShare": {
+    "max": 0.29,
+    "mean": 0.23,
+  },
+  "ideas": 2,
+  "meanDepth": 2.33,
+  "meanGraphDistance": 0.27,
+  "meanScore": 57.73,
+  "meanSpatialDistance": 0.42,
+  "minGlazing": 0.08,
+  "name": "bungalow two storeys kitchen to the garden",
+  "pairs": {
+    "distinct": 2,
+    "identical": 0,
+    "sameIdea": 1,
+  },
+  "privacyGradient": 0,
+}
+`;
+
+exports[`generation benchmark > bungalow wide shallow 16 × 8 1`] = `
+{
+  "bedroomsOnLiving": 1,
+  "candidates": 3,
+  "circulationShare": {
+    "max": 0.16,
+    "mean": 0.13,
+  },
+  "entries": {
+    "hall": 3,
+  },
+  "failing": {
+    "front_door": 2,
+    "kitchen_connected": 2,
+    "master_largest": 1,
+    "room_shape": 3,
+  },
+  "furnitureMissing": 5,
+  "hallByKind": {
+    "corridor": 0,
+    "entry": 0.13,
+    "hub": 0,
+    "landing": 0,
+  },
+  "hallPerDoor": 2.16,
+  "hallShare": {
+    "max": 0.16,
+    "mean": 0.13,
+  },
+  "ideas": 3,
+  "meanDepth": 2,
+  "meanGraphDistance": 0.3,
+  "meanScore": 42.37,
+  "meanSpatialDistance": 0.59,
+  "minGlazing": 0.1,
+  "name": "bungalow wide shallow 16 × 8",
+  "pairs": {
+    "distinct": 3,
+    "identical": 0,
+    "sameIdea": 0,
+  },
+  "privacyGradient": 0,
+}
+`;
+
+exports[`generation benchmark > family-3 1`] = `
+{
+  "bedroomsOnLiving": 2,
+  "candidates": 3,
+  "circulationShare": {
+    "max": 0.11,
+    "mean": 0.1,
+  },
+  "entries": {
+    "hall": 2,
+    "kitchen_dining": 1,
+  },
+  "failing": {},
+  "furnitureMissing": 1,
+  "hallByKind": {
+    "corridor": 0.03,
+    "entry": 0.07,
+    "hub": 0,
+    "landing": 0,
+  },
+  "hallPerDoor": 2.14,
+  "hallShare": {
+    "max": 0.11,
+    "mean": 0.1,
+  },
+  "ideas": 3,
+  "meanDepth": 2.47,
+  "meanGraphDistance": 0.3,
+  "meanScore": 87.83,
+  "meanSpatialDistance": 0.2,
+  "minGlazing": 0.11,
+  "name": "family-3",
+  "pairs": {
+    "distinct": 2,
+    "identical": 0,
+    "sameIdea": 1,
+  },
+  "privacyGradient": 0.5,
+}
+`;
+
+exports[`generation benchmark > family-3 L 1`] = `
+{
+  "bedroomsOnLiving": 0,
+  "candidates": 3,
+  "circulationShare": {
+    "max": 0.15,
+    "mean": 0.14,
+  },
+  "entries": {
+    "hall": 3,
+  },
+  "failing": {
+    "room_shape": 2,
+  },
+  "furnitureMissing": 5,
+  "hallByKind": {
+    "corridor": 0,
+    "entry": 0.14,
+    "hub": 0,
+    "landing": 0,
+  },
+  "hallPerDoor": 2.36,
+  "hallShare": {
+    "max": 0.15,
+    "mean": 0.14,
+  },
+  "ideas": 3,
+  "meanDepth": 2.13,
+  "meanGraphDistance": 0.42,
+  "meanScore": 70.13,
+  "meanSpatialDistance": 0.46,
+  "minGlazing": 0.12,
+  "name": "family-3 L",
+  "pairs": {
+    "distinct": 3,
+    "identical": 0,
+    "sameIdea": 0,
+  },
+  "privacyGradient": -0.33,
+}
+`;
+
+exports[`generation benchmark > family-3 deep 8.5 × 16 1`] = `
+{
+  "bedroomsOnLiving": 1,
+  "candidates": 3,
+  "circulationShare": {
+    "max": 0.11,
+    "mean": 0.11,
+  },
+  "entries": {
+    "hall": 2,
+    "kitchen_dining": 1,
+  },
+  "failing": {},
+  "furnitureMissing": 0,
+  "hallByKind": {
+    "corridor": 0.03,
+    "entry": 0.08,
+    "hub": 0,
+    "landing": 0,
+  },
+  "hallPerDoor": 2.38,
+  "hallShare": {
+    "max": 0.11,
+    "mean": 0.11,
+  },
+  "ideas": 2,
+  "meanDepth": 2.47,
+  "meanGraphDistance": 0.29,
+  "meanScore": 88.77,
+  "meanSpatialDistance": 0.12,
+  "minGlazing": 0.12,
+  "name": "family-3 deep 8.5 × 16",
+  "pairs": {
+    "distinct": 2,
+    "identical": 0,
+    "sameIdea": 1,
+  },
+  "privacyGradient": 0.5,
+}
+`;
+
+exports[`generation benchmark > family-3 drawn L 1`] = `
+{
+  "bedroomsOnLiving": 1,
+  "candidates": 3,
+  "circulationShare": {
+    "max": 0.13,
+    "mean": 0.12,
+  },
+  "entries": {
+    "hall": 2,
+    "kitchen_dining": 1,
+  },
+  "failing": {
+    "master_largest": 1,
+    "room_shape": 1,
+  },
+  "furnitureMissing": 2,
+  "hallByKind": {
+    "corridor": 0.03,
+    "entry": 0.08,
+    "hub": 0,
+    "landing": 0,
+  },
+  "hallPerDoor": 1.69,
+  "hallShare": {
+    "max": 0.13,
+    "mean": 0.11,
+  },
+  "ideas": 3,
+  "meanDepth": 2.17,
+  "meanGraphDistance": 0.45,
+  "meanScore": 71.67,
+  "meanSpatialDistance": 0.31,
+  "minGlazing": 0.11,
+  "name": "family-3 drawn L",
+  "pairs": {
+    "distinct": 3,
+    "identical": 0,
+    "sameIdea": 0,
+  },
+  "privacyGradient": 0.67,
+}
+`;
+
+exports[`generation benchmark > family-3 drawn T 1`] = `
+{
+  "bedroomsOnLiving": 0,
+  "candidates": 3,
+  "circulationShare": {
+    "max": 0.2,
+    "mean": 0.2,
+  },
+  "entries": {
+    "hall": 3,
+  },
+  "failing": {
+    "daylight": 1,
+    "master_largest": 2,
+    "room_shape": 3,
+  },
+  "furnitureMissing": 3,
+  "hallByKind": {
+    "corridor": 0,
+    "entry": 0.2,
+    "hub": 0,
+    "landing": 0,
+  },
+  "hallPerDoor": 3.89,
+  "hallShare": {
+    "max": 0.2,
+    "mean": 0.2,
+  },
+  "ideas": 3,
+  "meanDepth": 2,
+  "meanGraphDistance": 0.11,
+  "meanScore": 38.1,
+  "meanSpatialDistance": 0.38,
+  "minGlazing": 0,
+  "name": "family-3 drawn T",
+  "pairs": {
+    "distinct": 2,
+    "identical": 0,
+    "sameIdea": 1,
+  },
+  "privacyGradient": 0,
+}
+`;
+
+exports[`generation benchmark > family-3 drawn U 1`] = `
+{
+  "bedroomsOnLiving": 0,
+  "candidates": 3,
+  "circulationShare": {
+    "max": 0.24,
+    "mean": 0.2,
+  },
+  "entries": {
+    "hall": 3,
+  },
+  "failing": {
+    "master_largest": 1,
+  },
+  "furnitureMissing": 0,
+  "hallByKind": {
+    "corridor": 0.06,
+    "entry": 0.07,
+    "hub": 0,
+    "landing": 0,
+  },
+  "hallPerDoor": 1.83,
+  "hallShare": {
+    "max": 0.15,
+    "mean": 0.14,
+  },
+  "ideas": 1,
+  "meanDepth": 3,
+  "meanGraphDistance": 0.14,
+  "meanScore": 68.4,
+  "meanSpatialDistance": 0.25,
+  "minGlazing": 0.09,
+  "name": "family-3 drawn U",
+  "pairs": {
+    "distinct": 0,
+    "identical": 0,
+    "sameIdea": 3,
+  },
+  "privacyGradient": 1.33,
+}
+`;
+
+exports[`generation benchmark > family-3 in 12 × 9 1`] = `
+{
+  "bedroomsOnLiving": 2,
+  "candidates": 3,
+  "circulationShare": {
+    "max": 0.15,
+    "mean": 0.13,
+  },
+  "entries": {
+    "hall": 3,
+  },
+  "failing": {
+    "front_door": 1,
+    "master_largest": 2,
+    "room_shape": 2,
+  },
+  "furnitureMissing": 2,
+  "hallByKind": {
+    "corridor": 0,
+    "entry": 0.12,
+    "hub": 0,
+    "landing": 0,
+  },
+  "hallPerDoor": 1.67,
+  "hallShare": {
+    "max": 0.14,
+    "mean": 0.12,
+  },
+  "ideas": 3,
+  "meanDepth": 2.07,
+  "meanGraphDistance": 0.29,
+  "meanScore": 57.3,
+  "meanSpatialDistance": 0.51,
+  "minGlazing": 0.11,
+  "name": "family-3 in 12 × 9",
+  "pairs": {
+    "distinct": 3,
+    "identical": 0,
+    "sameIdea": 0,
+  },
+  "privacyGradient": -0.17,
+}
+`;
+
+exports[`generation benchmark > family-3 kitchen to the garden 1`] = `
+{
+  "bedroomsOnLiving": 3,
+  "candidates": 3,
+  "circulationShare": {
+    "max": 0.17,
+    "mean": 0.12,
+  },
+  "entries": {
+    "hall": 2,
+    "living": 1,
+  },
+  "failing": {},
+  "furnitureMissing": 1,
+  "hallByKind": {
+    "corridor": 0.03,
+    "entry": 0.08,
+    "hub": 0,
+    "landing": 0,
+  },
+  "hallPerDoor": 2.05,
+  "hallShare": {
+    "max": 0.14,
+    "mean": 0.11,
+  },
+  "ideas": 2,
+  "meanDepth": 2.27,
+  "meanGraphDistance": 0.16,
+  "meanScore": 84.27,
+  "meanSpatialDistance": 0.3,
+  "minGlazing": 0.11,
+  "name": "family-3 kitchen to the garden",
+  "pairs": {
+    "distinct": 0,
+    "identical": 0,
+    "sameIdea": 3,
+  },
+  "privacyGradient": 0.17,
+}
+`;
+
+exports[`generation benchmark > family-3 two storeys 1`] = `
+{
+  "bedroomsOnLiving": 0,
+  "candidates": 3,
+  "circulationShare": {
+    "max": 0.22,
+    "mean": 0.19,
+  },
+  "entries": {
+    "hall": 3,
+  },
+  "failing": {
+    "master_largest": 1,
+  },
+  "furnitureMissing": 3,
+  "hallByKind": {
+    "corridor": 0,
+    "entry": 0.1,
+    "hub": 0,
+    "landing": 0.1,
+  },
+  "hallPerDoor": 4.5,
+  "hallShare": {
+    "max": 0.22,
+    "mean": 0.19,
+  },
+  "ideas": 3,
+  "meanDepth": 2.17,
+  "meanGraphDistance": 0.35,
+  "meanScore": 66.87,
+  "meanSpatialDistance": 0.28,
+  "minGlazing": 0.08,
+  "name": "family-3 two storeys",
+  "pairs": {
+    "distinct": 2,
+    "identical": 0,
+    "sameIdea": 1,
+  },
+  "privacyGradient": 0,
+}
+`;
+
+exports[`generation benchmark > family-3 two storeys in 7.5 × 9 1`] = `
+{
+  "bedroomsOnLiving": 0,
+  "candidates": 3,
+  "circulationShare": {
+    "max": 0.26,
+    "mean": 0.25,
+  },
+  "entries": {
+    "hall": 3,
+  },
+  "failing": {},
+  "furnitureMissing": 1,
+  "hallByKind": {
+    "corridor": 0,
+    "entry": 0.12,
+    "hub": 0,
+    "landing": 0.12,
+  },
+  "hallPerDoor": 3.4,
+  "hallShare": {
+    "max": 0.26,
+    "mean": 0.25,
+  },
+  "ideas": 1,
+  "meanDepth": 2,
+  "meanGraphDistance": 0,
+  "meanScore": 66.17,
+  "meanSpatialDistance": 0.17,
+  "minGlazing": 0.15,
+  "name": "family-3 two storeys in 7.5 × 9",
+  "pairs": {
+    "distinct": 0,
+    "identical": 0,
+    "sameIdea": 3,
+  },
+  "privacyGradient": 0,
+}
+`;
+
+exports[`generation benchmark > family-4 1`] = `
+{
+  "bedroomsOnLiving": 2,
+  "candidates": 3,
+  "circulationShare": {
+    "max": 0.14,
+    "mean": 0.13,
+  },
+  "entries": {
+    "hall": 3,
+  },
+  "failing": {},
+  "furnitureMissing": 0,
+  "hallByKind": {
+    "corridor": 0,
+    "entry": 0.12,
+    "hub": 0,
+    "landing": 0,
+  },
+  "hallPerDoor": 2.04,
+  "hallShare": {
+    "max": 0.12,
+    "mean": 0.12,
+  },
+  "ideas": 2,
+  "meanDepth": 2.14,
+  "meanGraphDistance": 0.13,
+  "meanScore": 83.17,
+  "meanSpatialDistance": 0.25,
+  "minGlazing": 0.09,
+  "name": "family-4",
+  "pairs": {
+    "distinct": 0,
+    "identical": 0,
+    "sameIdea": 3,
+  },
+  "privacyGradient": -0.5,
+}
+`;
+
+exports[`generation benchmark > family-4 T 1`] = `
+{
+  "bedroomsOnLiving": 0,
+  "candidates": 3,
+  "circulationShare": {
+    "max": 0.12,
+    "mean": 0.11,
+  },
+  "entries": {
+    "hall": 3,
+  },
+  "failing": {},
+  "furnitureMissing": 4,
+  "hallByKind": {
+    "corridor": 0.06,
+    "entry": 0.04,
+    "hub": 0,
+    "landing": 0,
+  },
+  "hallPerDoor": 1.47,
+  "hallShare": {
+    "max": 0.11,
+    "mean": 0.1,
+  },
+  "ideas": 2,
+  "meanDepth": 3.1,
+  "meanGraphDistance": 0.12,
+  "meanScore": 80.13,
+  "meanSpatialDistance": 0.12,
+  "minGlazing": 0.07,
+  "name": "family-4 T",
+  "pairs": {
+    "distinct": 0,
+    "identical": 0,
+    "sameIdea": 3,
+  },
+  "privacyGradient": 0.83,
+}
+`;
+
+exports[`generation benchmark > family-4 any shape 1`] = `
+{
+  "bedroomsOnLiving": 1,
+  "candidates": 3,
+  "circulationShare": {
+    "max": 0.13,
+    "mean": 0.12,
+  },
+  "entries": {
+    "hall": 3,
+  },
+  "failing": {},
+  "furnitureMissing": 0,
+  "hallByKind": {
+    "corridor": 0,
+    "entry": 0.12,
+    "hub": 0,
+    "landing": 0,
+  },
+  "hallPerDoor": 2.1,
+  "hallShare": {
+    "max": 0.12,
+    "mean": 0.12,
+  },
+  "ideas": 2,
+  "meanDepth": 2.14,
+  "meanGraphDistance": 0.13,
+  "meanScore": 85.67,
+  "meanSpatialDistance": 0.25,
+  "minGlazing": 0.09,
+  "name": "family-4 any shape",
+  "pairs": {
+    "distinct": 0,
+    "identical": 0,
+    "sameIdea": 3,
+  },
+  "privacyGradient": -0.5,
+}
+`;
+
+exports[`generation benchmark > family-4 two storeys 1`] = `
+{
+  "bedroomsOnLiving": 0,
+  "candidates": 3,
+  "circulationShare": {
+    "max": 0.16,
+    "mean": 0.15,
+  },
+  "entries": {
+    "hall": 3,
+  },
+  "failing": {
+    "room_shape": 1,
+  },
+  "furnitureMissing": 3,
+  "hallByKind": {
+    "corridor": 0,
+    "entry": 0.08,
+    "hub": 0,
+    "landing": 0.08,
+  },
+  "hallPerDoor": 3.65,
+  "hallShare": {
+    "max": 0.16,
+    "mean": 0.15,
+  },
+  "ideas": 1,
+  "meanDepth": 2,
+  "meanGraphDistance": 0.1,
+  "meanScore": 69.97,
+  "meanSpatialDistance": 0.22,
+  "minGlazing": 0.09,
+  "name": "family-4 two storeys",
+  "pairs": {
+    "distinct": 0,
+    "identical": 0,
+    "sameIdea": 3,
+  },
+  "privacyGradient": 0,
+}
+`;
+
+exports[`generation benchmark > starter 1`] = `
+{
+  "bedroomsOnLiving": 2,
+  "candidates": 3,
+  "circulationShare": {
+    "max": 0.17,
+    "mean": 0.09,
+  },
+  "entries": {
+    "hall": 1,
+    "kitchen_dining": 2,
+  },
+  "failing": {},
+  "furnitureMissing": 0,
+  "hallByKind": {
+    "corridor": 0.03,
+    "entry": 0.04,
+    "hub": 0,
+    "landing": 0,
+  },
+  "hallPerDoor": 1.13,
+  "hallShare": {
+    "max": 0.13,
+    "mean": 0.07,
+  },
+  "ideas": 2,
+  "meanDepth": 2.22,
+  "meanGraphDistance": 0.33,
+  "meanScore": 92.47,
+  "meanSpatialDistance": 0.22,
+  "minGlazing": 0.09,
+  "name": "starter",
+  "pairs": {
+    "distinct": 2,
+    "identical": 0,
+    "sameIdea": 1,
+  },
+  "privacyGradient": 1.33,
+}
+`;
+
+exports[`generation benchmark > work-from-home 1`] = `
+{
+  "bedroomsOnLiving": 0,
+  "candidates": 3,
+  "circulationShare": {
+    "max": 0.14,
+    "mean": 0.11,
+  },
+  "entries": {
+    "hall": 3,
+  },
+  "failing": {
+    "room_shape": 2,
+  },
+  "furnitureMissing": 2,
+  "hallByKind": {
+    "corridor": 0,
+    "entry": 0.11,
+    "hub": 0,
+    "landing": 0,
+  },
+  "hallPerDoor": 2.02,
+  "hallShare": {
+    "max": 0.14,
+    "mean": 0.11,
+  },
+  "ideas": 2,
+  "meanDepth": 2,
+  "meanGraphDistance": 0.18,
+  "meanScore": 68.8,
+  "meanSpatialDistance": 0.26,
+  "minGlazing": 0.09,
+  "name": "work-from-home",
+  "pairs": {
+    "distinct": 2,
+    "identical": 0,
+    "sameIdea": 1,
+  },
+  "privacyGradient": 0,
+}
+`;

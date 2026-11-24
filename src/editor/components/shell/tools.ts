@@ -1,8 +1,8 @@
-import { ArmchairIcon, DoorIcon, OutlineIcon, RoomIcon, SelectIcon, StairsIcon, WallIcon, WindowIcon } from "@/components/ui/icons";
+import { ArmchairIcon, DoorIcon, EraserIcon, OutlineIcon, RoomIcon, SelectIcon, StairsIcon, WallIcon, WindowIcon } from "@/components/ui/icons";
 import { design, editor, editorStores } from "../../state/editor";
 import type { FurnitureKind } from "@/domain/plan/types";
 import { stepAvailable, stepOf, type Step } from "../../state/steps";
-import { hasFurniture, inRefine, only3d, type PlanView, type SessionState, type ToolId, type Workspace } from "../../state/stores";
+import { inRefine, only3d, type PlanView, type SessionState, type ToolId, type Workspace } from "../../state/stores";
 import { toolController } from "../../tools/instance";
 
 export interface ToolDef {
@@ -39,6 +39,13 @@ export const TOOLS: ReadonlyArray<ToolDef> = [
     key: "S",
     Icon: StairsIcon,
     hint: "Click to place stairs up to the next floor; they settle against a wall when close. Shift+R turns them before you place them.",
+  },
+  {
+    id: "erase",
+    label: "Erase",
+    key: "E",
+    Icon: EraserIcon,
+    hint: "Brush over rooms to erase them, then Regenerate to lay them out again. Halls, pinned rooms and everything else stay as they are.",
   },
 ];
 
@@ -109,12 +116,12 @@ export function pickFurniture(kind: FurnitureKind) {
   requestAnimationFrame(() => toolController.revealBesideCatalog());
 }
 
-/** Opens a plan in Refine: furnished when it has furniture, unless the user has picked a view. */
+/** Opens a plan in Refine on the 2D plan, unless the user has picked a view. */
 export function openConcept(planId: string) {
   editor.switchPlan(planId);
   if (editorStores.session.getState().workspace !== "design") editor.setWorkspace("design");
   editor.setDesignView("plan");
-  if (!editorStores.session.getState().viewChosen) editor.setView(hasFurniture(editor.current()) ? "furnished" : "plan");
+  if (!editorStores.session.getState().viewChosen) editor.setView("plan");
   editor.setDesigner({ focusPlanId: planId });
   requestAnimationFrame(() => toolController.fitPlan());
 }

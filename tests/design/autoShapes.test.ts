@@ -50,8 +50,8 @@ describe("houses shaped from the rooms", () => {
         expect(validateDocument(c.document)).toEqual([]);
         expect(familyOf(c.document)).toBe(family);
         expect(c.footprint!.width).toBeLessThanOrEqual(17);
-        // The wing planner's layouts, or (for an L) zone layouts with the bedrooms and living spaces in its two legs.
-        expect(c.variant).toMatch(new RegExp(`^(wings-[a-z-]+\\.p\\d+\\.c\\d+|zones-[lr]\\.L\\.[a-z0-9.-]+)@${family}:`));
+        // The wing planner's layouts, zone layouts with the bedrooms and living spaces in an L's two legs, or (U and T) a bedroom wing either side of the living spaces.
+        expect(c.variant).toMatch(new RegExp(`^(wings-[a-z-]+\\.p\\d+\\.c\\d+|zones-[lr]\\.L\\.[a-z0-9.-]+|zones-c\\.[a-z0-9.-]+)@${family}:`));
         expect(c.summary).toMatch(new RegExp(`^An? ${family}-shaped \\d+(\\.5)? × \\d+(\\.5)? m house\\.`));
       }
       expect(new Set(result.candidates.map((c) => c.variant)).size).toBe(result.candidates.length);

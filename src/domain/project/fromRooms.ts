@@ -66,6 +66,8 @@ export function projectFromRooms(
         ...(c.arrangement ? { arrangement: c.arrangement } : {}),
         ...(c.variant ? { variant: c.variant } : {}),
         title: titles[i],
+        brief: normalised,
+        at: options.now,
       },
       scope: { kind: "plan" },
       createdAt: options.now,

@@ -9,6 +9,7 @@ import { ChevronRightIcon, DoorIcon, TrashIcon, WindowIcon } from "@/components/
 import { addOpeningHere } from "../shell/planActions";
 import { InspectorFrame, MM_FIELD, MoreSettings, mm, run, Section } from "./frame";
 import { friendlyName } from "./names";
+import { lengthText } from "@/components/units";
 
 /** Walls are reshaped by dragging them and their end handles; this card adds doors and windows to them and sets exact sizes. */
 export function WallInspector({ level, wallId }: { level: Level; wallId: string }) {
@@ -44,7 +45,7 @@ export function WallInspector({ level, wallId }: { level: Level; wallId: string 
   return (
     <InspectorFrame
       title={friendlyName(level, wallId)}
-      summary={`${axis.length.toFixed(3)} m · ${mm(wall.thickness)} mm thick`}
+      summary={`${lengthText(axis.length, 3)} · ${mm(wall.thickness)} mm thick`}
     >
       <Section title="Quick actions">
         <div className="quick-actions">

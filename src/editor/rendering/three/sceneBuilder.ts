@@ -10,6 +10,7 @@ import type { FurnitureTone } from "./furnitureModel";
 import { modelFurnitureColour } from "../scene/style";
 import type { FurnitureModels } from "./furnitureAssets";
 import type { Box, HouseModel } from "./houseModel";
+import { roofSurfaces, type P3, type RoofPiece } from "./roofModel";
 
 /**
  * Meshes, materials and light for a HouseModel, shared by the interactive
@@ -48,6 +49,8 @@ export interface LightTarget {
 
 /** Floors in 3D are painted at this density, px per metre. */
 const FLOOR_DENSITY = 256;
+/** Metres of wall per repeat of a textured exterior finish. */
+const WALL_TILE = 1.2;
 
 /** Pattern textures, made once per owner and shared by its materials. */
 export class TextureCache {
@@ -89,7 +92,7 @@ export class TextureCache {
 
 const EXTERIOR: Record<Appearance["exterior"], string> = { white_render: "#f1eee7", brick: "#9d5b43", timber: "#8c6a49", dark_render: "#33373a" };
 const FRAMES: Record<Appearance["frames"], string> = { black: "#24282b", white: "#f4f4f1", oak: "#b4885a" };
-const ROOF: Record<Appearance["roof"], string> = { membrane: "#3b3f42", zinc: "#8d949a" };
+const ROOF: Record<Appearance["roof"], string> = { membrane: "#3b3f42", zinc: "#8d949a", slate: "#4b5157", tile: "#9b5a45" };
 /** Muted, so the house stays the subject. */
 const GROUND: Record<Ground, string> = { lawn: "#a9b48f", gravel: "#cfc7b6", paving: "#d9d1c3" };
 /** Ground radius, m. It fades into the sky from about halfway out, so there's no horizon line. */
@@ -241,6 +244,7 @@ export function buildHouse(group: THREE.Group, model: HouseModel, opts: BuildOpt
     if (box.furnitureId && modelled.has(box.furnitureId)) continue;
     group.add(boxMesh(box, { interior, top, exterior, exteriorTiled: !!exteriorMap, frame, glass, door, roof, stair, furniture: furnitureMaterial }));
   }
+  if (model.roofs?.length) group.add(roofMesh(model.roofs, roof, frame, exterior, !!exteriorMap));
 
   // Floors as thin slabs following each room's outline.
   for (const floor of model.floors) {
@@ -368,7 +372,7 @@ function boxMesh(
       const alongZ = box.outward.x * s - box.outward.y * c;
       const face = Math.abs(alongZ) >= Math.abs(alongX) ? (alongZ > 0 ? 4 : 5) : alongX > 0 ? 0 : 1;
       faces[face] = m.exterior;
-      if (m.exteriorTiled) worldUVs(geometry, box.length, box.height, box.depth, 1.2);
+      if (m.exteriorTiled) worldUVs(geometry, box.length, box.height, box.depth, WALL_TILE);
     }
     material = faces;
   } else if (box.kind === "furniture") material = m.furniture(box.tone ?? "white");
@@ -384,6 +388,65 @@ function boxMesh(
   mesh.castShadow = box.kind !== "glass" && box.tone !== "glass";
   mesh.receiveShadow = true;
   return mesh;
+}
+
+/**
+ * A pitched roof: the slopes and soffits in the roof finish, the fascias in
+ * the window frames' colour. Faces sharing a plane come merged from
+ * `roofSurfaces`; where faces of different planes run into each other the
+ * higher shows, which makes the valleys.
+ */
+function roofMesh(pieces: readonly RoofPiece[], material: THREE.Material, trim: THREE.Material, wall: THREE.Material, wallTiled: boolean): THREE.Group {
+  const surfaces = roofSurfaces(pieces);
+  const main: number[] = [];
+  const edge: number[] = [];
+  const gable: number[] = [];
+  const push = (out: number[], a: P3, b: P3, c: P3) => out.push(a.x, a.z, -a.y, b.x, b.z, -b.y, c.x, c.z, -c.y);
+  /** Flat polygons as triangles facing up (or down), lifted onto z(x, y). */
+  const fill = (polygons: MultiPolygon, z: (x: number, y: number) => number, up: boolean) => {
+    for (const polygon of polygons) {
+      const contour = polygon.outer.map((p) => new THREE.Vector2(p.x, p.y));
+      const holes = polygon.holes.map((h) => h.map((p) => new THREE.Vector2(p.x, p.y)));
+      const all = [...contour, ...holes.flat()];
+      for (const [i, j, k] of THREE.ShapeUtils.triangulateShape(contour, holes)) {
+        const [a, b, c] = [all[i], all[j], all[k]].map((v) => ({ x: v.x, y: v.y, z: z(v.x, v.y) }));
+        const ccw = (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x) > 0;
+        if (ccw === up) push(main, a, b, c);
+        else push(main, a, c, b);
+      }
+    }
+  };
+  for (const slope of surfaces.slopes) fill(slope.polygons, (x, y) => slope.a * x + slope.b * y + slope.c, true);
+  for (const soffit of surfaces.soffits) fill(soffit.polygons, () => soffit.z, false);
+  for (const [a, b, c] of surfaces.ends) push(main, a, b, c);
+  for (const [a, b, c] of surfaces.gables) push(gable, a, b, c);
+  for (const f of surfaces.fascias) {
+    const [a0, b0, b1, a1] = [{ ...f.a, z: f.z0 }, { ...f.b, z: f.z0 }, { ...f.b, z: f.z1 }, { ...f.a, z: f.z1 }];
+    push(edge, a0, b0, b1);
+    push(edge, a0, b1, a1);
+  }
+  const group = new THREE.Group();
+  for (const [positions, mat] of [
+    [main, material],
+    [edge, trim],
+    [gable, wall],
+  ] as const) {
+    if (!positions.length) continue;
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+    // Gable ends tile the wall finish as the walls do: along the face and up, in metres.
+    if (mat === wall && wallTiled) {
+      const uv: number[] = [];
+      for (let i = 0; i < positions.length; i += 3) uv.push((positions[i] - positions[i + 2]) / WALL_TILE, positions[i + 1] / WALL_TILE);
+      geometry.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2));
+    }
+    geometry.computeVertexNormals();
+    const mesh = new THREE.Mesh(geometry, mat);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    group.add(mesh);
+  }
+  return group;
 }
 
 /** Cuts a model off at a height for the cutaway: its materials are copied with a clipping plane (the renderer needs localClippingEnabled). */

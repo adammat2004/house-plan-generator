@@ -1,4 +1,4 @@
-import type { Door, ExternalWallPreference, FloorMaterial, Furniture, Id, Opening, PlanDocument, Point2, RoomType, Staircase, Window } from "../plan/types";
+import type { Circulation, Door, ExternalWallPreference, FloorMaterial, Furniture, Id, Opening, PlanDocument, Point2, RoomType, Staircase, Window } from "../plan/types";
 
 export type IssueCode =
   | "not-found"
@@ -61,6 +61,8 @@ export interface RoomChanges {
   externalWall?: ExternalWallPreference | null;
   /** Pins the room; `false` or `null` unpins it. */
   locked?: boolean | null;
+  /** What a hall is for; `null` clears it. */
+  circulation?: Circulation | null;
 }
 
 export type FurnitureChanges = Partial<Pick<Furniture, "position" | "rotation" | "width" | "depth" | "height">>;

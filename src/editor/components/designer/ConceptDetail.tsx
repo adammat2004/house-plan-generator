@@ -9,6 +9,7 @@ import {
   ArrowRightIcon,
   BathIcon,
   BedIcon,
+  CheckIcon,
   ChevronDownIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
@@ -20,21 +21,22 @@ import {
   SunIcon,
   WarningIcon,
 } from "@/components/ui/icons";
-import type { Level, PlanDocument } from "@/domain/plan/types";
-import { useAreaText } from "@/components/units";
-import { useRenders } from "../../state/editor";
+import type { PlanDocument } from "@/domain/plan/types";
+import { areaLabel, sizeText, useAreaText } from "@/components/units";
 import { usePhoneLayout } from "../shell/phone";
 import { SendToComputer } from "../shell/SendToComputer";
 import { openConcept } from "../shell/tools";
 import { ConceptPreview, HousePreview } from "./ConceptPreview";
-import { RoomGallery, useLook } from "./RoomGallery";
-import { useStill } from "./useStill";
+import { ExteriorPicture } from "./ExteriorPicture";
+import { checkPlacements } from "@/domain/design/placement";
+import { useProjectState } from "../../state/editor";
+import { RoomGallery } from "./RoomGallery";
 import type { Concept } from "./concepts";
 import type { PlanPalette } from "./PlanThumbnail";
 
 const VIEWS: ReadonlyArray<{ id: string; label: string; palette: PlanPalette }> = [
   { id: "plan", label: "Plan", palette: "finish" },
-  { id: "uses", label: "Room uses", palette: "type" },
+  { id: "uses", label: "Room uses", palette: "schematic" },
   { id: "zones", label: "Day and night", palette: "zones" },
 ];
 
@@ -107,6 +109,7 @@ export function ConceptDetail({ concept }: { concept: Concept }) {
                 </button>
               ))}
             </div>
+            <PlacedRooms plan={concept.plan} />
             <h3 className="detail-heading">Key features</h3>
             {a.features.length ? (
               <ul className="feature-list">
@@ -138,13 +141,13 @@ export function ConceptDetail({ concept }: { concept: Concept }) {
               {shown.map((r) => (
                 <div key={r.id}>
                   <dt>{r.name}</dt>
-                  <dd>{r.area.toFixed(1)} m²</dd>
+                  <dd>{areaLabel(r.area, 1)}</dd>
                 </div>
               ))}
               {other > 0 && (
                 <div>
                   <dt>Other rooms</dt>
-                  <dd>{other.toFixed(1)} m²</dd>
+                  <dd>{areaLabel(other, 1)}</dd>
                 </div>
               )}
               <div className="is-total">
@@ -178,7 +181,7 @@ export function ConceptDetail({ concept }: { concept: Concept }) {
               <div>
                 <dt>Outside size</dt>
                 <dd>
-                  {a.outside.width.toFixed(2)} × {a.outside.depth.toFixed(2)} m
+                  {sizeText(a.outside.width, a.outside.depth)}
                 </dd>
               </div>
             )}
@@ -221,18 +224,24 @@ export function ConceptDetail({ concept }: { concept: Concept }) {
   );
 }
 
-/** The house from the garden: its photo render if there is one, else the 3D view. */
-export function ExteriorPicture({ planId, level }: { planId: string; level: Level | PlanDocument }) {
-  const { appearance } = useLook();
-  const photo = useRenders((s) => s.byPlan[planId]?.exterior);
-  const { ref, url } = useStill(level, { kind: "exterior" }, { width: 640, height: 360 }, appearance);
-  const src = photo?.url ?? url;
-  if (url === null && !photo) return null;
+/** Where the rooms placed on the house ended up in this layout: each one met, or where it went instead. */
+function PlacedRooms({ plan }: { plan: PlanDocument }) {
+  const brief = useProjectState((s) => s.brief);
+  if (!brief.placements || !brief.rooms) return null;
+  const checks = checkPlacements(plan, brief.placements, brief.rooms);
   return (
-    <div className="exterior-picture" ref={ref} data-testid="exterior-picture">
-      {/* eslint-disable-next-line @next/next/no-img-element -- object and data URLs made in the browser */}
-      {src ? <img src={src} alt="The house from the garden" /> : <span className="photo-empty">Drawing…</span>}
-      <span className="photo-badge">{photo ? "Photo render" : "3D view"}</span>
-    </div>
+    <>
+      <h3 className="detail-heading">Rooms you placed</h3>
+      <ul className="placed-list" data-testid="placed-list">
+        {checks.map((c) => (
+          <li key={c.key} className={c.honoured ? "is-met" : "is-missed"}>
+            {c.honoured ? <CheckIcon width={14} height={14} /> : <WarningIcon width={14} height={14} />}
+            <span>
+              {c.name}: {c.honoured ? `at the ${c.wanted}, as placed` : c.at ? `at the ${c.at}, not the ${c.wanted}` : "not in this layout"}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </>
   );
 }

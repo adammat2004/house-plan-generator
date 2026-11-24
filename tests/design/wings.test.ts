@@ -5,7 +5,12 @@ import { roomConnections } from "@/domain/design/analysis";
 import { assessSense, findingsFor } from "@/domain/design/sense";
 import type { PlanningResult } from "@/domain/design/planner";
 import { arrangementTitle, planLayouts } from "@/domain/design/stripPlanner";
+import { programFromBrief } from "@/domain/design/program";
+import { planWings } from "@/domain/design/wingLayout";
 import { wingArrangementOf } from "@/domain/design/wingPlanner";
+import { isSplitZone, isZoneLayout, zoneFamily } from "@/domain/design/zoneLayouts";
+import { BRIEF_PRESETS } from "@/domain/brief/rooms";
+import { withPicks } from "@/domain/brief/schema";
 import { analyzeEnvelope } from "@/domain/geometry/envelope";
 import type { Point2, PlanDocument } from "@/domain/plan/types";
 import { OUTLINES, randomOutline } from "../fixtures/outlines";
@@ -37,11 +42,15 @@ function checkLayout(doc: PlanDocument, label: string) {
   const rooms = Object.values(lvl.rooms);
   expect(rooms.filter((r) => r.type === "unspecified"), label).toEqual([]);
   const halls = rooms.filter((r) => r.type === "hall");
-  expect(halls, label).toHaveLength(1);
+  // One hall, or one per bedroom wing either side of the living spaces.
+  expect(halls.length, label).toBeGreaterThanOrEqual(1);
+  expect(halls.length, label).toBeLessThanOrEqual(2);
   // Every room can be reached from the front door through doors.
   expect(findingsFor(assessSense(lvl), ["reachable"]), label).toEqual([]);
-  // The front door opens into the hall from outside.
-  expect(roomConnections(lvl, halls[0].id).some((c) => c.kind === "door" && c.target.kind !== "room"), `${label}: front door`).toBe(true);
+  // The front door opens into the hall from outside, or into a living space at the street end of a row of them.
+  const entry = rooms.find((r) => roomConnections(lvl, r.id).some((c) => c.kind === "door" && c.target.kind === "outside")) ?? halls[0];
+  expect(roomConnections(lvl, entry.id).some((c) => c.kind === "door" && c.target.kind !== "room"), `${label}: front door`).toBe(true);
+  expect(["hall", "living", "kitchen_dining", "dining", "kitchen"], `${label}: front door`).toContain(entry.type);
 }
 
 describe("wing planner", () => {
@@ -56,7 +65,7 @@ describe("wing planner", () => {
         expect(result.candidates.length, label).toBe(3);
         for (const c of result.candidates) {
           checkLayout(c.document, `${label} ${c.arrangement}`);
-          expect(wingArrangementOf(c.arrangement!), c.arrangement).not.toBeNull();
+          expect(wingArrangementOf(c.arrangement!) ?? (isSplitZone(c.arrangement) ? c.arrangement : null), c.arrangement).not.toBeNull();
           expect(arrangementTitle(c.arrangement!)).toBeTruthy();
         }
         const walls = result.candidates.map((c) => JSON.stringify(Object.values(level(c.document).walls).map((w) => [level(c.document).vertices[w.startVertexId], level(c.document).vertices[w.endVertexId]])));
@@ -95,7 +104,8 @@ describe("wing planner", () => {
     expect(more.candidates.length).toBeGreaterThan(0);
     for (const c of more.candidates) expect(shown).not.toContain(c.arrangement);
     const similar = generate(source, DEFAULT_BRIEF, { similarTo: shown[0], exclude: shown }, 1);
-    expect(wingArrangementOf(similar.candidates[0].arrangement!)).toBe(wingArrangementOf(shown[0]));
+    const familyOf = (id: string) => (isZoneLayout(id) ? zoneFamily(id) : wingArrangementOf(id));
+    expect(familyOf(similar.candidates[0].arrangement!)).toBe(familyOf(shown[0]));
   });
 
   it("says how much floor the rooms need when the house is too small", () => {
@@ -132,5 +142,19 @@ describe("wing planner", () => {
     }
     console.info(`random outlines laid out: ${laid} of ${tried}`);
     expect(laid / tried).toBeGreaterThan(0.5);
+  });
+
+  it("lays a wing of living spaces out as a row reached from the hall, with no hall of its own", () => {
+    // A main wing running back from the street, the bedrooms in it beside a hall from the front door,
+    // and a wing to the side at the garden end that meets the hall at its end.
+    const ring = [{ x: 0.15, y: 0.15 }, { x: 5.35, y: 0.15 }, { x: 5.35, y: 10.15 }, { x: 11.85, y: 10.15 }, { x: 11.85, y: 15.35 }, { x: 0.15, y: 15.35 }];
+    const brief = withPicks(DEFAULT_BRIEF, BRIEF_PRESETS.find((p) => p.id === "bungalow")!.picks);
+    const best = planWings(ring, programFromBrief(brief), { hallWidth: 1.2, doorWidth: 0.9, rearSide: "north" }).plans[0];
+    // Some living spaces open off each other rather than each off the hall: a row with no hall of its own.
+    const DAY = new Set(["living", "kitchen_dining", "dining", "kitchen", "utility", "office", "wc"]);
+    const byKey = new Map(best.rooms.map((r) => [r.key, r]));
+    const chained = best.rooms.filter((r) => DAY.has(r.type) && r.via && DAY.has(byKey.get(r.via)?.type ?? ""));
+    expect(chained.length, best.id).toBeGreaterThanOrEqual(1);
+    expect(best.rooms.filter((r) => r.type === "living" || r.type === "kitchen_dining").some((r) => r.gardenDoor), best.id).toBe(true);
   });
 });

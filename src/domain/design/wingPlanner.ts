@@ -12,6 +12,7 @@ import { emitLayout } from "./layoutEmitter";
 import type { PlanCandidate, PlanningRequest, PlanningResult } from "./planner";
 import { programFromBrief, type Relaxation } from "./program";
 import { planWings, WING_ARRANGEMENTS, type LayoutPlan, type WingArrangement } from "./wingLayout";
+import { repeats } from "./select/pick";
 import { hallWidthFor } from "./zoning";
 
 /**
@@ -110,7 +111,7 @@ export function planWingLayouts(request: PlanningRequest): PlanningResult {
       }
       const walls = built.document.levels[0];
       const fingerprint = JSON.stringify(Object.values(walls.walls).map((w) => [walls.vertices[w.startVertexId], walls.vertices[w.endVertexId]]));
-      if (made.has(fingerprint)) continue;
+      if (made.has(fingerprint) || (intent.count > 1 && repeats(built.document, candidates.map((c) => c.document)))) continue;
       made.add(fingerprint);
       offered.add(plan.id);
       const notes = [...program.notes, ...plan.notes, ...built.notes];

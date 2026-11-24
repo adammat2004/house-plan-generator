@@ -116,6 +116,7 @@ export function assessHouseSense(doc: PlanDocument): HouseSense {
   };
   const metrics: HouseSenseMetrics = {
     hallShare: total > 0 ? weighted((m) => m.hallShare, (i) => areas[i], 0) : 0,
+    circulationShare: total > 0 ? weighted((m) => m.circulationShare, (i) => areas[i], 0) : 0,
     areaMiss: weighted((m) => m.areaMiss, targeted, 0),
     cornerDoors: weighted((m) => m.cornerDoors, internalDoors, 1),
     gardenDoorFromLiving: perFloor[0].metrics.gardenDoorFromLiving,
@@ -126,7 +127,7 @@ export function assessHouseSense(doc: PlanDocument): HouseSense {
     groundWc: Object.values(doc.levels[0].rooms).some((r) => WET.has(r.type)),
   };
   const extra = (1 - metrics.wetStacked!) * 6 + (metrics.groundWc ? 0 : 4);
-  const result: HouseSense = { findings, metrics, score: senseScore(metrics, findings.length, extra) };
+  const result: HouseSense = { findings, metrics, score: senseScore(metrics, findings, extra) };
   cache.set(doc, result);
   return result;
 }

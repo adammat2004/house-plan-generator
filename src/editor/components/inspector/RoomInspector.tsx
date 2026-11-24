@@ -7,6 +7,7 @@ import { DEFAULT_INTERIOR_STYLE } from "@/domain/design/renderRequest";
 import { deriveRoomRegions, roomFaceIndices } from "@/domain/geometry/derive";
 import { formatArea } from "@/domain/geometry/numeric";
 import { isGeneratedRoomName, ROOM_TYPE_LABEL, suggestRoomName } from "@/domain/plan/rooms";
+import { CIRCULATION_LABEL } from "@/domain/design/circulation";
 import { EXTERNAL_WALL_PREFERENCES, FLOOR_MATERIALS, ROOM_TYPES } from "@/domain/plan/schema";
 import type { ExternalWallPreference, FloorMaterial, Level, RoomType } from "@/domain/plan/types";
 import { describeEntity } from "@/domain/commands";
@@ -129,7 +130,7 @@ export function RoomInspector({ level, roomId, focusKey }: { level: Level; roomI
           <span className="card-area" data-testid="room-area">
             {area !== null ? areaText(area, 1) : "—"}
           </span>
-          <span className="card-subtitle">{floors > 1 ? level.name : room.type === "unspecified" ? "Room" : ROOM_TYPE_LABEL[room.type]}</span>
+          <span className="card-subtitle">{floors > 1 ? level.name : room.type === "unspecified" ? "Room" : room.circulation ? CIRCULATION_LABEL[room.circulation] : ROOM_TYPE_LABEL[room.type]}</span>
         </>
       }
     >

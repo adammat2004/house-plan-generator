@@ -5,7 +5,11 @@ import type { Ring } from "../geometry/polygons";
 import type { Rect } from "../geometry/vector";
 import type { RoomType } from "../plan/types";
 import type { Program, SpaceSpec } from "./program";
-import { ENSUITE_TARGET } from "./roomRules";
+import { bandOf, DOWN } from "./bands";
+import { clearMin, ENSUITE_TARGET } from "./roomRules";
+import { distributeWidths } from "./slots";
+
+export { distributeWidths } from "./slots";
 
 /**
  * Plans rooms inside any right-angle outline, as labelled rectangles; no
@@ -16,7 +20,10 @@ import { ENSUITE_TARGET } from "./roomRules";
  * or between two bands of rooms (double-loaded); a small wing can instead be
  * one band opening off its parent's hall. Halls of neighbouring wings are
  * joined, through a short connector where they don't already meet, so the
- * hall is one space. Bands are cut into rooms along their length, in
+ * hall is one space. A wing of living spaces that meets its parent at one end
+ * can instead be a row of rooms opening into each other, with no hall of its
+ * own: the room at the junction opens off the parent's hall, the rest off it
+ * and each other, as in a zone layout's day zone. Bands are cut into rooms along their length, in
  * proportion to the rooms' target areas, and every room keeps a stretch of
  * hall to open onto. Thin fringe (a bay, the strip beside a notch) joins
  * the room or hall next to it.
@@ -32,6 +39,8 @@ const SHALLOW = 2;
 const MAX_SINGLE = 6.2;
 const MAX_OPEN = 7;
 const MAX_DEPTH_RATIO = 3;
+/** Widths of wing that take a row of living spaces, m: as a zone layout's day zone. */
+const ROW_WIDTH = [3.1, 6.4] as const;
 const MAX_SERVICE_RATIO = 4.5;
 const GRID = 0.05;
 const snap = (v: number) => roundToPrecision(Math.round(v / GRID) * GRID);
@@ -107,7 +116,7 @@ interface Wing {
   children: number[];
 }
 
-type HallChoice = { kind: "single" | "double"; lo: number; hi: number } | { kind: "open" };
+type HallChoice = { kind: "single" | "double"; lo: number; hi: number } | { kind: "open" } | { kind: "row" };
 
 interface Band {
   wing: number;
@@ -121,8 +130,10 @@ interface Band {
   endContact: { lo: boolean; hi: boolean };
   /** Fringe beyond the band's outer side: along-range and extra depth. */
   extra: Array<{ lo: number; hi: number; depth: number }>;
-  /** Which way the band's outer side faces, when it is mostly outline. */
+  /** Which way the band's outer side faces, when it is mostly outline (a row: its far end). */
   facing: EnvelopeSide | null;
+  /** A whole wing of living spaces in a row, reached from the parent's hall at one end, each room opening into the next. */
+  row?: boolean;
 }
 
 const alongOf = (r: Rect, a: Axis): [number, number] => (a === "x" ? [r.minX, r.maxX] : [r.minY, r.maxY]);
@@ -225,6 +236,9 @@ function hallChoices(w: Wing, fringe: FringePiece[], h: number, root: boolean): 
   }
   for (const a of [...depths].sort((p, q) => p - q)) out.push({ kind: "double", lo: snap(c0 + a), hi: snap(c0 + a + h) });
   if (!root && w.junction) {
+    // A wing of living spaces in a row from the junction at its end: no hall of its own. Tried first, as it saves the most hall.
+    const atEnd = w.junction.horizontal === (w.along === "y");
+    if (atEnd && T >= ROW_WIDTH[0] - EPS && T <= ROW_WIDTH[1] + EPS) out.unshift({ kind: "row" });
     // A wing one room deep, opening off its parent's hall.
     const depth = w.junction.horizontal ? w.rect.maxY - w.rect.minY : w.rect.maxX - w.rect.minX;
     if (depth >= MIN_BAND - EPS && depth <= MAX_OPEN + EPS) out.push({ kind: "open" });
@@ -268,7 +282,12 @@ function wingTree(cores: Rect[]): Wing[] {
 interface Geometry {
   halls: Rect[];
   bands: Band[];
+  /** The hall reaches the street front for a front door's width, so the front door can be on the street. */
+  street: boolean;
 }
+
+/** Hall along the street front a front door needs, m. */
+const FRONT_DOOR_RUN = 1.2;
 
 /** Halls joined across every junction, and the bands of rooms left around them; null if they can't be joined. */
 function buildGeometry(wings: Wing[], choices: HallChoice[], fringe: FringePiece[], ring: Ring, opts: WingLayoutOptions): Geometry | null {
@@ -278,7 +297,7 @@ function buildGeometry(wings: Wing[], choices: HallChoice[], fringe: FringePiece
   const strip = new Map<number, Rect>();
   for (const w of wings) {
     const c = choiceOf(w);
-    if (c.kind === "open") {
+    if (c.kind === "open" || c.kind === "row") {
       if (w.children.length) return null;
       continue;
     }
@@ -331,6 +350,10 @@ function buildGeometry(wings: Wing[], choices: HallChoice[], fringe: FringePiece
   const raw: Array<Omit<Band, "contact" | "endContact" | "extra" | "facing">> = [];
   for (const w of wings) {
     const c = choiceOf(w);
+    if (c.kind === "row") {
+      raw.push({ wing: w.index, rect: w.rect, along: w.along, hallSide: crossSide(w.along, false), row: true });
+      continue;
+    }
     if (c.kind === "open") {
       const j = w.junction!;
       const along: Axis = j.horizontal ? "x" : "y";
@@ -387,6 +410,15 @@ function buildGeometry(wings: Wing[], choices: HallChoice[], fringe: FringePiece
       });
     b.endContact = { lo: endTouch(lowEnd), hi: endTouch(highEnd) };
     if (!b.contact && !b.endContact.lo && !b.endContact.hi) return null;
+    if (b.row) {
+      // A row is reached at one end only, and faces the way its far end does.
+      if (b.endContact.lo === b.endContact.hi) return null;
+      const far = sideSeg(b.rect, b.endContact.lo ? highEnd : lowEnd);
+      const facing = b.endContact.lo ? highEnd : lowEnd;
+      const onEnd = edges.filter((e) => e.horizontal === far.horizontal && Math.abs(e.line - far.line) <= EPS && e.facing === facing).reduce((acc, e) => acc + Math.max(0, overlap(e.min, e.max, far.lo, far.hi)), 0);
+      b.facing = onEnd >= (far.hi - far.lo) / 2 ? facing : null;
+      continue;
+    }
     const outer = OPPOSITE_SIDE[b.hallSide];
     const os = sideSeg(b.rect, outer);
     for (const f of fringe) {
@@ -404,7 +436,12 @@ function buildGeometry(wings: Wing[], choices: HallChoice[], fringe: FringePiece
     }
     b.facing = onOutline >= (a1 - a0) / 2 ? outer : null;
   }
-  return { halls, bands };
+  const front = OPPOSITE_SIDE[opts.rearSide];
+  const street = halls.some((k) => {
+    const seg = sideSeg(k, front);
+    return edges.some((e) => e.facing === front && e.horizontal === seg.horizontal && Math.abs(e.line - seg.line) < EPS && overlap(e.min, e.max, seg.lo, seg.hi) >= FRONT_DOOR_RUN - EPS);
+  });
+  return { halls, bands, street };
 }
 
 function hallConnected(halls: Rect[], h: number): boolean {
@@ -477,37 +514,6 @@ function slotBand(b: Band, spaces: SpaceSpec[], door: number): Slot[] | null {
   return slots;
 }
 
-/** Widths along a band in proportion to target areas, never below the minimums, snapped to the grid. */
-export function distributeWidths(length: number, spaces: SpaceSpec[], mins: number[]): number[] | null {
-  if (mins.reduce((a, b) => a + b, 0) > length + 1e-9) return null;
-  const widths = spaces.map(() => 0);
-  const fixed = new Set<number>();
-  for (;;) {
-    const free = spaces.map((_, i) => i).filter((i) => !fixed.has(i));
-    const remaining = length - [...fixed].reduce((sum, i) => sum + mins[i], 0);
-    const total = free.reduce((sum, i) => sum + spaces[i].target, 0);
-    free.forEach((i) => (widths[i] = (remaining * spaces[i].target) / total));
-    const short = free.filter((i) => widths[i] < mins[i] - 1e-9);
-    if (!short.length) break;
-    short.forEach((i) => {
-      fixed.add(i);
-      widths[i] = mins[i];
-    });
-  }
-  const cuts = [0];
-  let acc = 0;
-  for (let i = 0; i < spaces.length - 1; i++) {
-    acc += widths[i];
-    const lo = cuts[i] + mins[i];
-    const hi = length - mins.slice(i + 1).reduce((a, b) => a + b, 0);
-    cuts.push(roundToPrecision(Math.min(Math.max(snap(acc), Math.ceil((lo - 1e-9) / GRID) * GRID), Math.floor((hi + 1e-9) / GRID) * GRID)));
-    if (cuts[i + 1] - cuts[i] < mins[i] - 1e-6) return null;
-  }
-  cuts.push(roundToPrecision(length));
-  if (length - cuts[cuts.length - 2] < mins[mins.length - 1] - 1e-6) return null;
-  return cuts;
-}
-
 function dayPreference(b: Band, arrangement: WingArrangement, rear: EnvelopeSide, rootWing: number): number {
   const front = OPPOSITE_SIDE[rear];
   const garden = b.facing === rear ? 1 : b.facing === front ? -1 : 0;
@@ -540,6 +546,13 @@ function zone(bands: Band[], program: Program, arrangement: WingArrangement, rea
   const fits = (i: number, s: SpaceSpec) => {
     const b = bands[i];
     const list = [...assigned[i], s];
+    if (b.row) {
+      // Living spaces, a study, a utility or a WC, in a row that fits the wing's length.
+      if (s.zone !== "day") return false;
+      const cross = crossOf(b.rect, b.along)[1] - crossOf(b.rect, b.along)[0];
+      const need = list.reduce((acc, x) => acc + Math.max(x.minWidth, clearMin(x.type, cross)), 0);
+      return need <= bandLength(b) + EPS && list.reduce((acc, x) => acc + x.target, 0) <= bandArea(b) * 1.35 + 2;
+    }
     const need = list.reduce((acc, x) => acc + Math.max(x.minWidth, contactNeed(x, door)), 0);
     const target = list.reduce((acc, x) => acc + x.target + (x.ensuite ? ENSUITE_TARGET : 0), 0);
     if (need > bandLength(b) + EPS || target > bandArea(b) * 1.35 + 2) return false;
@@ -681,7 +694,7 @@ export function planWings(axisRing: Ring, program: Program, opts: WingLayoutOpti
           problem = "the rooms don't fit the wings at their minimum sizes.";
           continue;
         }
-        plans.push({ id: `wings-${arrangement}.p${pi}.c${ci}`, arrangement, rooms: plan.rooms, fringe: partition.fringe, notes, score: plan.score });
+        plans.push({ id: `wings-${arrangement}.p${pi}.c${ci}`, arrangement, ...(plan.entrance ? { entrance: plan.entrance } : {}), rooms: plan.rooms, fringe: partition.fringe, notes, score: plan.score });
       }
     });
   });
@@ -689,12 +702,57 @@ export function planWings(axisRing: Ring, program: Program, opts: WingLayoutOpti
   return { plans, problem };
 }
 
-function roomsFor(geometry: Geometry, zoned: SpaceSpec[][], reverse: boolean, opts: WingLayoutOptions, notes: string[]): { rooms: LabeledRoom[]; score: number } | null {
+/** Living spaces that get doors to the garden where they reach it (the emitter places them only on a garden wall long enough). */
+const GARDEN_ROOMS: ReadonlySet<RoomType> = new Set(["living", "kitchen_dining", "dining"]);
+
+/**
+ * A row band's rooms, in the order whose doors suit them best: the first
+ * opening off the parent's hall at the junction end, the others off the
+ * room beside them (`bandOf` with the downstairs rules). With `entryAtFar`,
+ * an order with a living space at the far end comes first, for the front
+ * door. Null if no order works.
+ */
+function rowRooms(b: Band, spaces: SpaceSpec[], door: number, entryAtFar = false): Array<{ spec: SpaceSpec; rect: Rect; via?: string; far: boolean }> | null {
+  const [a0, a1] = alongOf(b.rect, b.along);
+  const [c0, c1] = crossOf(b.rect, b.along);
+  // bandOf starts at the low end of its range; a junction at the high end runs the row the other way.
+  const fromHigh = !b.endContact.lo;
+  const along: [number, number] = fromHigh ? [-a1, -a0] : [a0, a1];
+  const ends = entryAtFar && spaces.length > 1 ? spaces.filter((s) => ROW_ENTRY.has(s.type)) : [];
+  const withEntry = ends.map((s) => bandOf(spaces, along, [c0, c1], [], true, DOWN, door, s.key)).filter((r) => !!r).sort((p, q) => p.score - q.score)[0];
+  const result = withEntry ?? bandOf(spaces, along, [c0, c1], [], true, DOWN, door);
+  if (!result) return null;
+  const end = Math.max(...result.rooms.map((p) => p.box.u1));
+  return result.rooms.map((p) => {
+    const [u0, u1] = fromHigh ? [-p.box.u1, -p.box.u0] : [p.box.u0, p.box.u1];
+    return { spec: spaces.find((s) => s.key === p.key)!, rect: make(b.along, roundToPrecision(u0), roundToPrecision(u1), c0, c1), ...(p.via !== "hall" ? { via: p.via } : {}), far: Math.abs(p.box.u1 - end) < EPS };
+  });
+}
+
+/** Rooms the front door may open into at the street end of a row, when the hall doesn't reach the street. */
+const ROW_ENTRY: ReadonlySet<RoomType> = new Set(["living", "kitchen_dining", "dining", "kitchen"]);
+
+function roomsFor(geometry: Geometry, zoned: SpaceSpec[][], reverse: boolean, opts: WingLayoutOptions, notes: string[]): { rooms: LabeledRoom[]; score: number; entrance?: string } | null {
   const rooms: LabeledRoom[] = [{ key: "hall", kind: "hall", name: "Hall", type: "hall", window: "none", rects: geometry.halls }];
+  let entrance: string | undefined;
   let error = 0;
   let aspect = 0;
   for (const [i, band] of geometry.bands.entries()) {
     const spaces = zoned[i];
+    if (band.row) {
+      // A row reaching the street can take the front door into its street-end living space, the hall then reached through the row.
+      const streetRow = !geometry.street && !entrance && band.facing === OPPOSITE_SIDE[opts.rearSide];
+      const row = rowRooms(band, spaces, opts.doorWidth, streetRow);
+      if (!row) return null;
+      // Not the room at the junction: it opens off the hall, and the front door can't be its way in as well.
+      const far = row.find((x) => x.far && x.via);
+      if (streetRow && far && ROW_ENTRY.has(far.spec.type)) entrance = far.spec.key;
+      for (const { spec: s, rect, via } of row) {
+        rooms.push({ key: s.key, kind: s.type === "storage" ? "storage" : "room", name: s.name, type: s.type, target: s.target, window: s.window, rects: [rect], ...(via ? { via } : {}), ...(GARDEN_ROOMS.has(s.type) ? { gardenDoor: true } : {}) });
+        error += Math.abs(area(rect) - s.target) / Math.max(s.target, 2);
+      }
+      continue;
+    }
     let slots = slotBand(band, orderForBand(band, spaces, reverse), opts.doorWidth);
     if (!slots) slots = slotBand(band, orderForBand(band, spaces, !reverse), opts.doorWidth);
     if (!slots) return null;
@@ -710,7 +768,7 @@ function roomsFor(geometry: Geometry, zoned: SpaceSpec[][], reverse: boolean, op
           notes.push(`${s.name} was too small to hold an ensuite.`);
           rooms.push({ key: s.key, kind, name: s.name, type: s.type, target: s.target, window: s.window, rects: [slot.rect] });
         }
-      } else rooms.push({ key: s.key, kind, name: s.name, type: s.type, target: s.type === "storage" ? undefined : s.target, window: s.window, rects: [slot.rect] });
+      } else rooms.push({ key: s.key, kind, name: s.name, type: s.type, target: s.type === "storage" ? undefined : s.target, window: s.window, rects: [slot.rect], ...(GARDEN_ROOMS.has(s.type) ? { gardenDoor: true } : {}) });
       const w = slot.rect.maxX - slot.rect.minX;
       const d = slot.rect.maxY - slot.rect.minY;
       error += Math.abs(area(slot.rect) - s.target - (s.ensuite ? ENSUITE_TARGET : 0)) / Math.max(s.target, 2);
@@ -721,5 +779,6 @@ function roomsFor(geometry: Geometry, zoned: SpaceSpec[][], reverse: boolean, op
   const hallArea = geometry.halls.reduce((acc, r) => acc + area(r), 0);
   const total = rooms.reduce((acc, r) => acc + r.rects.reduce((a, x) => a + area(x), 0), 0);
   // Hall is floor no room gets: weigh it heavily, so wings open off one hall where they can.
-  return { rooms, score: error + 25 * (hallArea / total) + aspect + notes.length * 0.3 };
+  // A hall that misses the street front puts the front door on a side wall or the garden: as bad as the hall it saves.
+  return { rooms, score: error + 25 * (hallArea / total) + aspect + notes.length * 0.3 + (geometry.street || entrance ? 0 : 5), ...(entrance ? { entrance } : {}) };
 }

@@ -61,6 +61,44 @@ function picksOf(brief: HouseBrief): RoomPicks {
   return picksFromCounts(brief.bedrooms, brief.bathrooms, spaces, prefs.has("open_plan") && !prefs.has("separate_living_room"));
 }
 
+/**
+ * The name the nth room of a pick (counting from 1) gets in a generated plan.
+ * The one source of room names: placement hints find their room by it.
+ * Bedrooms count on from 2 (the master is the first, picked or not), singles after the doubles.
+ */
+export function pickRoomName(pick: RoomPick, n: number, picks: RoomPicks): string {
+  switch (pick) {
+    case "open_plan":
+      return "Kitchen / Living / Dining";
+    case "kitchen_dining":
+      return "Kitchen / Dining";
+    case "kitchen":
+      return "Kitchen";
+    case "dining_room":
+      return "Dining Room";
+    case "living_room":
+      return n === 1 ? "Living Room" : "Snug";
+    case "utility":
+      return "Utility";
+    case "office":
+      return n === 1 ? "Office" : "Office 2";
+    case "garage":
+      return "Garage";
+    case "master_bedroom":
+      return "Master Bedroom";
+    case "ensuite":
+      return "Ensuite";
+    case "double_bedroom":
+      return `Bedroom ${n + 1}`;
+    case "single_bedroom":
+      return `Bedroom ${n + 1 + (picks.double_bedroom ?? 0)}`;
+    case "family_bathroom":
+      return n === 1 ? "Bathroom" : `Bathroom ${n}`;
+    case "wc":
+      return n === 1 ? "WC" : "WC 2";
+  }
+}
+
 function programFromPicks(brief: HouseBrief, picks: RoomPicks, relax: Relaxation): Program {
   const prefs = new Set(brief.preferences);
   const notes: string[] = [];
@@ -96,25 +134,25 @@ function programFromPicks(brief: HouseBrief, picks: RoomPicks, relax: Relaxation
   }
   if (openPlan) {
     const parts = ROOM_KINDS.living.target * scale.living + ROOM_KINDS.kitchen.target * scale.kitchen + ROOM_KINDS.dining.target;
-    push("kitchen_dining", "Kitchen / Living / Dining", Math.round(parts * OPEN_PLAN_SHARE), OPEN_PLAN_MIN_SLOT);
+    push("kitchen_dining", pickRoomName("open_plan", 1, picks), Math.round(parts * OPEN_PLAN_SHARE), OPEN_PLAN_MIN_SLOT);
   }
-  if (kitchenDining) add("kitchen_dining", "Kitchen / Dining", { scale: scale.kitchen });
-  if (kitchen) add("kitchen", "Kitchen", { scale: scale.kitchen });
-  if (dining) add("dining", "Dining Room");
-  for (let i = 0; i < livingRooms; i++) add(i === 0 ? "living" : "snug", i === 0 ? "Living Room" : "Snug", { scale: scale.living });
-  if (count("utility")) add("utility", "Utility");
-  for (let i = 0; i < count("office"); i++) add("office", i === 0 ? "Office" : "Office 2");
-  if (count("garage")) add("garage", "Garage");
+  const name = (pick: RoomPick, n = 1) => pickRoomName(pick, n, picks);
+  if (kitchenDining) add("kitchen_dining", name("kitchen_dining"), { scale: scale.kitchen });
+  if (kitchen) add("kitchen", name("kitchen"), { scale: scale.kitchen });
+  if (dining) add("dining", name("dining_room"));
+  for (let i = 0; i < livingRooms; i++) add(i === 0 ? "living" : "snug", name("living_room", i + 1), { scale: scale.living });
+  if (count("utility")) add("utility", name("utility"));
+  for (let i = 0; i < count("office"); i++) add("office", name("office", i + 1));
+  if (count("garage")) add("garage", name("garage"));
 
-  let number = 1;
   if (count("master_bedroom")) {
     const ensuite = count("ensuite") > 0;
-    add(ensuite ? "master_with_ensuite" : "master", "Master Bedroom", { scale: scale.bedrooms, ensuite });
+    add(ensuite ? "master_with_ensuite" : "master", name("master_bedroom"), { scale: scale.bedrooms, ensuite });
   }
-  for (let i = 0; i < count("double_bedroom"); i++) add("double", `Bedroom ${++number}`, { scale: scale.bedrooms });
-  for (let i = 0; i < count("single_bedroom"); i++) add("single", `Bedroom ${++number}`, { scale: scale.bedrooms });
-  for (let i = 0; i < count("family_bathroom"); i++) add(i === 0 ? "bathroom" : "extra_bathroom", i === 0 ? "Bathroom" : `Bathroom ${i + 1}`);
-  for (let i = 0; i < count("wc"); i++) add("wc", i === 0 ? "WC" : "WC 2");
+  for (let i = 0; i < count("double_bedroom"); i++) add("double", name("double_bedroom", i + 1), { scale: scale.bedrooms });
+  for (let i = 0; i < count("single_bedroom"); i++) add("single", name("single_bedroom", i + 1), { scale: scale.bedrooms });
+  for (let i = 0; i < count("family_bathroom"); i++) add(i === 0 ? "bathroom" : "extra_bathroom", name("family_bathroom", i + 1));
+  for (let i = 0; i < count("wc"); i++) add("wc", name("wc", i + 1));
   return { spaces, preferences: prefs, notes };
 }
 

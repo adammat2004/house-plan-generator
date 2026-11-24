@@ -17,6 +17,7 @@ import {
   selectRoomFromList,
   toScreen,
   vertexOf,
+  openRoomPicker,
 } from "./support";
 
 test.describe("Milestone 1 editing workflow", () => {
@@ -393,11 +394,13 @@ test.describe("Milestone 1 editing workflow", () => {
 
     // Map shows the house on its site, with the garden side just marked.
     await page.getByTestId("step-map").click();
+    await page.getByTestId("site-mode-dream").click();
     await expect(page.getByTestId("brief-shell")).toContainText("Garden side North");
     await expect(page.getByTestId("map-garden-north")).toHaveAttribute("aria-checked", "true");
     await page.getByTestId("map-continue").click();
     const panel = page.getByTestId("brief-panel");
-    await expect(panel.getByRole("heading", { name: "Choose your rooms" })).toBeVisible();
+    await expect(panel.getByRole("heading", { name: "My rooms" })).toBeVisible();
+    await openRoomPicker(page);
     // The default brief shows as picked rooms: a master bedroom and two doubles.
     await expect(panel.getByTestId("pick-double_bedroom-count")).toHaveText("2");
     await panel.getByTestId("pick-double_bedroom-dec").click();

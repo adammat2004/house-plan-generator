@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { useStore } from "zustand";
+import { placedBy } from "@/domain/design/placement";
 import { assessHouse, briefFit, PLAN_FEATURE_LABEL, type PlanAssessment } from "@/domain/design/analysis";
 import { assessHouseSense, type HouseSense } from "@/domain/design/houseSense";
 import { arrangementTitle } from "@/domain/design/stripPlanner";
@@ -84,9 +85,11 @@ export function useConcepts(): { shells: PlanEntry[]; concepts: Concept[]; recom
     const choices = concepts.filter((c) => c.meta.origin.kind === "generated");
     if (choices.length > 1) {
       let best = -Infinity;
+      const placed = placedBy(brief);
       for (const c of choices) {
-        // How well it answers the brief, and how much sense it makes (a 0–100 score worth up to 4 brief points).
-        const score = briefFit(c.assessment, brief) + c.sense.score / 25;
+        // How well it answers the brief, how much sense it makes (a 0–100 score worth up to 4 brief points), and whether it puts placed rooms where they were placed.
+        const distance = placed ? placed({ document: c.plan }) : null;
+        const score = briefFit(c.assessment, brief) + c.sense.score / 25 + (placed ? (distance === null ? 0 : 2 - distance) : 0);
         if (score > best + 1e-9) [best, recommendedId] = [score, c.meta.id];
       }
     }

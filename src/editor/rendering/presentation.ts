@@ -17,7 +17,7 @@ export function scaleBarLength(metresPerPixel: number, target: number): number {
 
 let serif: string | null = null;
 
-/** The title face (Newsreader), from the --font-serif token once it's on the page. */
+/** The title face (DM Serif Display), from the --font-serif token once it's on the page. */
 function serifFont(): string {
   if (serif) return serif;
   const value = typeof document === "undefined" ? "" : getComputedStyle(document.documentElement).getPropertyValue("--font-serif").trim();

@@ -4,7 +4,7 @@ import { planRegion } from "@/domain/design/regionPlanner";
 import { furnitureRect } from "@/domain/furniture/geometry";
 import { deriveLevelGeometry, deriveRoomRegions, roomFaceIndices } from "@/domain/geometry/derive";
 import type { Level, PlanDocument, Point2 } from "@/domain/plan/types";
-import { drag, freshHome, getDoc, getProject, historySize, selectRoomFromList } from "./support";
+import { drag, freshHome, getDoc, getProject, historySize, selectRoomFromList, openRoomPicker } from "./support";
 
 const undoKey = process.platform === "darwin" ? "Meta+z" : "Control+z";
 const levelOf = (doc: unknown) => (doc as PlanDocument).levels[0];
@@ -63,9 +63,9 @@ test.describe("Editing a concept in Design", () => {
     page.on("pageerror", (e) => errors.push(e.message));
     await freshHome(page);
     await page.getByTestId("start-rooms").click();
-    await expect(page.getByTestId("room-picker")).toBeVisible();
+    await openRoomPicker(page);
     await page.getByTestId("generate-layouts").click();
-    await expect(page.getByTestId("concept-board").locator(".layout-card:not(.is-loading)")).toHaveCount(3);
+    await expect(page.getByTestId("concept-board").locator(".layout-card:not(.is-loading)")).toHaveCount(5);
 
     // Open a concept with two bedrooms side by side, and clear its furniture so the wall between them is free to grab.
     const plan = (await getProject(page)).plans.slice(1).find((p) => bedroomWall(levelOf(p.document), true))!;
@@ -136,3 +136,39 @@ test.describe("Editing a concept in Design", () => {
     expect(errors).toEqual([]);
   });
 });
+
+test("erases rooms with a brush and lays them out again", async ({ page }) => {
+  await freshHome(page);
+  await page.getByTestId("start-rooms").click();
+  await page.getByTestId("generate-layouts").click();
+  await expect(page.getByTestId("concept-board").locator(".layout-card:not(.is-loading)")).toHaveCount(5);
+  await page.getByTestId(/^open-concept-/).click();
+  await page.keyboard.press("e");
+  await expect(page.getByTestId("tool-erase")).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByTestId("erase-bar")).toContainText("Brush over the rooms");
+
+  // Brush from one bedroom into another: every room the brush crosses is marked once, halls never.
+  const doc = await getDoc(page);
+  const rooms = Object.values(doc.levels[0].rooms) as Array<{ id: string; type: string }>;
+  const [a, b] = rooms.filter((r) => r.type === "bedroom" || r.type === "primary_bedroom");
+  const canvas = (await page.getByTestId("plan-canvas").boundingBox())!;
+  const centre = async (id: string) => {
+    const p = (await page.evaluate((roomId) => window.__floorPlanEditor!.roomCentre(roomId), id))!;
+    return { x: canvas.x + p.x, y: canvas.y + p.y };
+  };
+  const from = await centre(a.id);
+  await page.mouse.move(from.x, from.y);
+  await page.mouse.down();
+  await page.mouse.move(from.x + 4, from.y + 4, { steps: 2 });
+  await page.mouse.up();
+  const to = await centre(b.id);
+  await page.mouse.move(to.x, to.y);
+  await page.mouse.down();
+  await page.mouse.up();
+  const erased = (await page.evaluate(() => window.__floorPlanEditor!.getSession())) as { tool: string };
+  expect(erased.tool).toBe("erase");
+  await expect(page.getByTestId("erase-bar")).toContainText("2 rooms erased");
+  await page.getByTestId("erase-clear").click();
+  await expect(page.getByTestId("erase-bar")).toContainText("Brush over the rooms");
+});
+

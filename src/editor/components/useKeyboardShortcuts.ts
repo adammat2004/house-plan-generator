@@ -10,7 +10,7 @@ import { inRefine } from "../state/stores";
 import { selectionBounds } from "../viewport/anchor";
 import { chooseView, goToStep, selectTool, VIEW_CHOICES } from "./shell/tools";
 
-const TOOL_KEYS: Record<string, ToolId> = { v: "select", w: "wall", r: "room", d: "door", n: "window", u: "furniture", o: "outline", s: "stairs" };
+const TOOL_KEYS: Record<string, ToolId> = { v: "select", w: "wall", r: "room", d: "door", n: "window", u: "furniture", o: "outline", s: "stairs", e: "erase" };
 /** Arrow keys nudge furniture by this much (m); with Shift, ten times as far. */
 const NUDGE = 0.05;
 const ARROWS: Record<string, [number, number]> = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, 1], ArrowDown: [0, -1] };
@@ -109,6 +109,11 @@ export function useKeyboardShortcuts() {
         return;
       }
       if (e.key === "Escape") {
+        // Putting a camera down: stop.
+        if (editorStores.session.getState().cameraPick) {
+          editorStores.session.setState({ cameraPick: null });
+          return;
+        }
         // An option on show goes first: back to the plan as it is.
         if (editorStores.documents.getState().staged) {
           editor.unstage();

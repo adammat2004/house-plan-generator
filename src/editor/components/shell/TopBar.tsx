@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { Logo } from "@/components/brand";
+import { BRAND, Logo } from "@/components/brand";
 import { Menu, MenuItem, SegmentedControl } from "@/components/ui/controls";
 import { CheckIcon, ChevronDownIcon, CloudIcon, CubeIcon, DownloadIcon, RoomIcon, SofaIcon } from "@/components/ui/icons";
 import { editor, useProjectState, useSessionState } from "../../state/editor";
@@ -21,6 +21,9 @@ export interface TopBarActions {
   onExportPresentation: () => void;
   onExport3dPng: () => void;
   onExport3dModel: () => void;
+  onExportPdf: () => void;
+  onExportDxf: () => void;
+  onExportIfc: () => void;
 }
 
 /**
@@ -35,6 +38,9 @@ export function TopBar(actions: TopBarActions) {
       <div className="top-bar-start">
         <Link href="/" className="brand" aria-label="All projects" data-tooltip="All projects" data-tooltip-side="bottom" data-testid="home-link">
           <Logo size={30} />
+          <span className="brand-wordmark" aria-hidden>
+            {BRAND.name}
+          </span>
         </Link>
         <div className="project-title">
           <ProjectName />
@@ -53,11 +59,21 @@ export function TopBar(actions: TopBarActions) {
           testId="export-menu"
           className="export-menu"
           summary={
-            <span className="btn btn-primary">
+            <span className="btn btn-secondary">
               <DownloadIcon width={18} height={18} /> <span className="export-label">Export</span> <ChevronDownIcon width={16} height={16} />
             </span>
           }
         >
+          <MenuItem onSelect={actions.onExportPdf} data-testid="export-pdf">
+            Drawings, plans and elevations <small>.pdf</small>
+          </MenuItem>
+          <MenuItem onSelect={actions.onExportDxf} data-testid="export-dxf">
+            CAD plan <small>.dxf</small>
+          </MenuItem>
+          <MenuItem onSelect={actions.onExportIfc} data-testid="export-ifc">
+            BIM model <small>.ifc</small>
+          </MenuItem>
+          <hr />
           <MenuItem onSelect={actions.onExportJson} data-testid="export-json">
             Project file <small>.json</small>
           </MenuItem>

@@ -100,8 +100,20 @@ export default function ThreeView({ active }: { active: boolean }) {
   }, [camera, cameraKey, interiorRoomId]);
 
   useEffect(() => {
-    // The settings panel floats over the left of the view: its width plus its gutter (.present-panel); on phones it sits along the bottom instead.
-    viewer.current?.setInsets(panelOpen && !phone ? 344 : 0, 0);
+    // The settings panel floats over the left of the view: keep the house clear of it, measured as laid out
+    // (its right edge plus the gutter). On phones it sits along the bottom instead.
+    if (!panelOpen || phone) {
+      viewer.current?.setInsets(0, 0);
+      return;
+    }
+    const frame = requestAnimationFrame(() => {
+      const panel = document.querySelector<HTMLElement>("[data-testid=present-panel]");
+      const box = host.current?.getBoundingClientRect();
+      const edge = panel?.getBoundingClientRect();
+      const gutter = Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--gutter")) || 24;
+      viewer.current?.setInsets(box && edge && edge.width ? Math.max(0, edge.right - box.left + gutter) : 0, 0);
+    });
+    return () => cancelAnimationFrame(frame);
   }, [panelOpen, phone]);
 
   if (failed) {

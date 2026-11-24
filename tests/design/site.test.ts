@@ -112,4 +112,46 @@ describe("the site", () => {
     // Without a plot, the usual margins.
     expect(buildGarden(level(doc))!.plot.maxY - buildGarden(level(doc))!.plot.minY).toBeCloseTo(10 + 9 + 5);
   });
+
+  it("opens a project and a link saved before sites could be traced exactly as they were", () => {
+    // Saved as before the change: no `traced`.
+    const old = { ...projectFromPlan(newHouse(), { now: "n" }), site: { plot: { width: 15, depth: 35 }, setbacks: { front: 6, side: 1, rear: 11 }, north: 30 } };
+    const loaded = loadProjectDocument(JSON.parse(JSON.stringify(old)), "n");
+    expect(loaded.ok && loaded.project.site).toEqual(old.site);
+    expect(loaded.ok && loaded.project.site && "traced" in loaded.project.site).toBe(false);
+    // Layouts for it are sized exactly as before.
+    expect(generationPlot({ site: old.site })).toEqual({ maxWidth: 13, maxDepth: 18 });
+
+    const rooms = projectFromRooms(DEFAULT_BRIEF, { id: "p1", idPrefix: "g", now: "n", name: "Mine" });
+    if (!rooms.ok) throw new Error(rooms.message);
+    const withSite = { ...rooms.project, site: old.site };
+    const snapshot = snapshotOf(withSite, withSite.plans[1].id)!;
+    expect(projectFromSnapshot(JSON.parse(JSON.stringify(snapshot)), { id: "p2", idPrefix: "h", now: "n" })?.site).toEqual(old.site);
+  });
+
+  it("keeps a traced site through saving and a link, and refuses one that isn't a site", () => {
+    const traced: Site = {
+      ...site(),
+      traced: {
+        boundary: [[-9.06, 53.27], [-9.0596, 53.27], [-9.0596, 53.2705], [-9.06, 53.2705]],
+        exportGrid: "EPSG:2157",
+        edges: [{ road: true }, {}, { setback: 12 }, { role: "side" }],
+        entrance: [-9.0598, 53.27],
+        wastewater: [[-9.0599, 53.2703], [-9.0598, 53.2703], [-9.0598, 53.2704]],
+        placement: { x: 4, y: 7, rotation: 0 },
+      },
+    };
+    const project = { ...projectFromPlan(newHouse(), { now: "n" }), site: traced };
+    const loaded = loadProjectDocument(JSON.parse(JSON.stringify(project)), "n");
+    expect(loaded.ok && loaded.project.site).toEqual(traced);
+
+    const rooms = projectFromRooms(DEFAULT_BRIEF, { id: "p1", idPrefix: "g", now: "n", name: "Mine" });
+    if (!rooms.ok) throw new Error(rooms.message);
+    const withSite = { ...rooms.project, site: traced };
+    const snapshot = snapshotOf(withSite, withSite.plans[1].id)!;
+    expect(projectFromSnapshot(JSON.parse(JSON.stringify(snapshot)), { id: "p2", idPrefix: "h", now: "n" })?.site).toEqual(traced);
+
+    const twoCorners = { ...project, site: { ...traced, traced: { ...traced.traced!, boundary: traced.traced!.boundary.slice(0, 2) } } };
+    expect(loadProjectDocument(JSON.parse(JSON.stringify(twoCorners)), "n").ok).toBe(false);
+  });
 });

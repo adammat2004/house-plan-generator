@@ -12,7 +12,7 @@ const base = {
   "aria-hidden": true,
 } as const;
 
-type IconProps = SVGProps<SVGSVGElement>;
+export type IconProps = SVGProps<SVGSVGElement>;
 
 export const SelectIcon = (p: IconProps) => (
   <svg {...base} {...p}>
@@ -121,6 +121,13 @@ export const MagnetIcon = (p: IconProps) => (
 export const TrashIcon = (p: IconProps) => (
   <svg {...base} {...p}>
     <path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3" />
+  </svg>
+);
+
+export const EraserIcon = (p: IconProps) => (
+  <svg {...base} {...p}>
+    <path d="M16.5 3.5l4 4L10 18H6l-2.5-2.5z" />
+    <path d="M10.5 8.5l5 5M6 18h14" />
   </svg>
 );
 

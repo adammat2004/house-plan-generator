@@ -30,6 +30,14 @@ GEMINI_API_KEY=...
 
 Both keys stay on the server (`/api/design/interpret`, `/api/design/render`). Visitors are limited to 30 AI requests and 20 photos per 10 minutes. If Claude hasn't answered within 25 seconds, the built-in reader answers instead; a photo gives up after 50 seconds. Browser tests run with both keys blanked, so they never make paid calls.
 
+To trace a real site on satellite imagery (Map step, "I have a site"), add a [MapTiler](https://www.maptiler.com/) key:
+
+```bash
+NEXT_PUBLIC_MAPTILER_KEY=...
+```
+
+Unlike the keys above, this one is public — it's read in the browser, not on the server, same as any map SDK key — so restrict it at MapTiler to this app's domains, and set a spend cap there too (see Deploying). Without it, the Map step falls back to the plot-size boxes it always had. This key is baked into the build at `next build` time, so `npm run test:e2e` and `npm run test:screens` blank it explicitly, even if it's set in `.env.local`, so those stay deterministic.
+
 | Script              | Purpose                                                    |
 | ------------------- | ---------------------------------------------------------- |
 | `npm run typecheck` | Strict TypeScript                                          |
@@ -52,6 +60,7 @@ The app has no accounts, so anyone who can reach a deployed copy can spend from 
 - **Set a spend limit with each provider.** This is the real ceiling; everything the app does is per server instance.
   - Anthropic: a spend limit on the workspace the key belongs to.
   - Google: a budget on the Cloud project behind the Gemini key. Budgets alert rather than stop spending, so also lower the image model's requests-per-day quota.
+  - MapTiler: restrict `NEXT_PUBLIC_MAPTILER_KEY` to this app's domains in its dashboard, and set a usage cap there. It's a public key, visible in the deployed page, so domain restriction is the thing actually stopping someone else from using it.
 - **Set `TRUSTED_PROXY_HOPS`** to the number of proxies in front of the app. Each proxy adds the address it was reached from to the end of `x-forwarded-for`, and a visitor can write anything before that, so the per-visitor limits count from the right.
   - `1` (the default): one load balancer or platform edge, as on most hosts.
   - `2` or more: for example a CDN in front of the host's own proxy.

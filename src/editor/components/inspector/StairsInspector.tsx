@@ -8,6 +8,7 @@ import { Button, MenuItem, NumberField, ReadoutRow, SegmentedControl, SelectFiel
 import { RefreshIcon, TrashIcon } from "@/components/ui/icons";
 import { editor } from "../../state/editor";
 import { InspectorFrame, MM_FIELD, mm, run, Section } from "./frame";
+import { sizeText } from "@/components/units";
 
 const SHAPES: ReadonlyArray<{ value: StairShape; label: string }> = [
   { value: "straight", label: "Straight" },
@@ -31,7 +32,7 @@ export function StairsInspector({ plan, staircase }: { plan: PlanDocument; stair
   const span = stairSpan(plan, staircase);
   const from = span ? plan.levels[span.from] : undefined;
   const above = span ? plan.levels.slice(span.from + 1) : [];
-  const size = `${(p.bounds.maxX - p.bounds.minX).toFixed(2)} × ${(p.bounds.maxY - p.bounds.minY).toFixed(2)} m`;
+  const size = sizeText(p.bounds.maxX - p.bounds.minX, p.bounds.maxY - p.bounds.minY);
   return (
     <InspectorFrame
       title={stairsLabel(plan, id)}

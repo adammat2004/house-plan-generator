@@ -7,6 +7,8 @@ import { floorThicknessOf, floorToFloor, levelIndex } from "@/domain/plan/levels
 import { CURRENT_SCHEMA_VERSION } from "@/domain/plan/schema";
 import type { Id, Level, PlanDocument } from "@/domain/plan/types";
 import { buildHouseModel, CUTAWAY_HEIGHT, parapets, ROOF_SLAB, type Box, type DimensionLabel, type FloorPiece, type FurniturePlacement, type HouseModel, type HouseModelOptions } from "./houseModel";
+import { leanToRoof, pitchedRoof, roofTop, type RoofPiece } from "./roofModel";
+import { lengthText } from "@/components/units";
 
 /**
  * The whole house in 3D: every floor's model from `buildHouseModel`, raised
@@ -189,9 +191,19 @@ function build(doc: PlanDocument, base: HouseModelOptions, top: number): HouseMo
     }
   }
 
-  // A flat roof over every part of a floor that no floor above covers. A floor
-  // shown with the ones above it left off stays open, like a dollhouse.
-  if (base.roof && !base.cutaway) {
+  // A roof over every part of a floor that no floor above covers: hipped or
+  // gabled over the top floor and a lean-to against the walls above, or flat throughout.
+  // A floor shown with the ones above it left off stays open, like a dollhouse.
+  const roofs: RoofPiece[] = [];
+  const pitched = base.roofForm === "hipped" || base.roofForm === "gabled" ? base.roofForm : null;
+  if (base.roof && !base.cutaway && pitched) {
+    for (let i = 0; i <= top; i++) {
+      if (i === top && top < n - 1) continue;
+      if (!outlines[i].length) continue;
+      if (i === top) roofs.push(...pitchedRoof(pitched, outlines[i], wallTops[i]));
+      else roofs.push(...leanToRoof(outlines[i], outlines[i + 1], wallTops[i], doc.levels[i + 1].elevation));
+    }
+  } else if (base.roof && !base.cutaway) {
     for (let i = 0; i <= top; i++) {
       if (i === top && top < n - 1) continue;
       const above = i < top ? outlines[i + 1] : null;
@@ -208,10 +220,11 @@ function build(doc: PlanDocument, base: HouseModelOptions, top: number): HouseMo
     const z = (base.cutaway ? doc.levels[top].elevation + CUTAWAY_HEIGHT : height) + 0.4;
     if (env.ok) {
       labels.push(
-        { text: `${env.info.width.toFixed(3)} m`, at: { x: (o.minX + o.maxX) / 2, y: o.maxY + 0.6 }, z },
-        { text: `${env.info.depth.toFixed(3)} m`, at: { x: o.minX - 0.6, y: (o.minY + o.maxY) / 2 }, z },
+        { text: lengthText(env.info.width, 3), at: { x: (o.minX + o.maxX) / 2, y: o.maxY + 0.6 }, z },
+        { text: lengthText(env.info.depth, 3), at: { x: o.minX - 0.6, y: (o.minY + o.maxY) / 2 }, z },
       );
     }
   }
-  return { boxes, floors, outside: g.outside, outline: g.outline, slabs: [], wallHeight: height, labels, site: g.site, ceilings, furniture };
+  const flatTop = base.roof && !base.cutaway && top === n - 1 ? ROOF_SLAB + 0.3 : 0;
+  return { boxes, floors, outside: g.outside, outline: g.outline, slabs: [], wallHeight: height, labels, site: g.site, ceilings, furniture, ...(roofs.length ? { roofs } : {}), top: roofs.length ? Math.max(height, roofTop(roofs)) : height + flatTop };
 }

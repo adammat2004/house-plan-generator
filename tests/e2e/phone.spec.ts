@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { freshHome, getDoc } from "./support";
+import { freshHome, getDoc, openRoomPicker } from "./support";
 
 /**
  * A touch-only phone (the "phone" project: 390 × 844, touch). Rooms and
@@ -30,7 +30,7 @@ test("picks rooms and compares layouts on a phone, then sends one to a computer"
 
   // Rooms: the plan above the list, nothing wider than the screen, counters that work by touch.
   await page.getByTestId("start-rooms").tap();
-  await expect(page.getByTestId("room-picker")).toBeVisible();
+  await openRoomPicker(page);
   await expect(page.getByTestId("compact-stepper")).toContainText("Step 2 of 5");
   const preview = (await page.locator(".rooms-preview").boundingBox())!;
   const list = (await page.getByTestId("room-picker").boundingBox())!;
@@ -44,7 +44,7 @@ test("picks rooms and compares layouts on a phone, then sends one to a computer"
   // Layouts: one column of cards, and a sheet for the chosen one.
   await page.getByTestId("generate-layouts").tap();
   const board = page.getByTestId("concept-board");
-  await expect(board.locator(".layout-card")).toHaveCount(3);
+  await expect(board.locator(".layout-card")).toHaveCount(5);
   const [a, b] = await Promise.all([board.getByTestId("concept-Plan A").boundingBox(), board.getByTestId("concept-Plan B").boundingBox()]);
   expect(b!.y).toBeGreaterThan(a!.y + a!.height - 1);
   const sheet = page.getByTestId("concept-detail");

@@ -10,6 +10,7 @@ import type {
   staircaseSchema,
   wallSchema,
   windowSchema,
+  CIRCULATION_KINDS,
   EXTERNAL_WALL_PREFERENCES,
   FURNITURE_KINDS,
   FURNITURE_ROTATIONS,
@@ -30,6 +31,7 @@ export type Room = z.infer<typeof roomSchema>;
 export type RoomType = (typeof ROOM_TYPES)[number];
 export type FloorMaterial = (typeof FLOOR_MATERIALS)[number];
 export type ExternalWallPreference = (typeof EXTERNAL_WALL_PREFERENCES)[number];
+export type Circulation = (typeof CIRCULATION_KINDS)[number];
 export type Level = z.infer<typeof levelSchema>;
 export type PlanDocument = z.infer<typeof planDocumentSchema>;
 export type Furniture = z.infer<typeof furnitureSchema>;

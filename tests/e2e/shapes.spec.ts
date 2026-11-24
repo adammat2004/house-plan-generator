@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { AXIS, clickAt, createHouse, drag, drawWall, freshEditor, freshHome, getDoc, getProject, historySize, level } from "./support";
+import { AXIS, clickAt, createHouse, drag, drawWall, freshEditor, freshHome, getDoc, getProject, historySize, level, openRoomPicker } from "./support";
 
 test.describe("House shapes", () => {
   test.beforeEach(async ({ page }) => {
@@ -59,7 +59,7 @@ test.describe("House shapes", () => {
     await page.getByTestId("generate-layouts").click();
     const board = page.getByTestId("concept-board");
     // Three new layouts beside the user's own L-shaped house.
-    await expect(board.locator(".layout-card:not(.is-loading)")).toHaveCount(4);
+    await expect(board.locator(".layout-card:not(.is-loading)")).toHaveCount(6);
     await expect(board.getByTestId("concept-My plan")).toBeVisible();
     const project = await getProject(page);
     for (const plan of project.plans.slice(1)) {
@@ -72,13 +72,14 @@ test.describe("House shapes", () => {
   test("lets the planner shape the house when starting from rooms", async ({ page }) => {
     await freshHome(page);
     await page.getByTestId("start-rooms").click();
-    await expect(page.getByTestId("room-picker")).toBeVisible();
+    await openRoomPicker(page);
+    await page.getByTestId("studio-shape").click();
     await expect(page.getByTestId("brief-shape-any")).toHaveAttribute("aria-checked", "true");
     await page.getByTestId("brief-shape-L").click();
     await expect(page.getByTestId("brief-shape-L")).toHaveAttribute("aria-checked", "true");
     await page.getByTestId("generate-layouts").click();
     const board = page.getByTestId("concept-board");
-    await expect(board.locator(".layout-card:not(.is-loading)")).toHaveCount(3);
+    await expect(board.locator(".layout-card:not(.is-loading)")).toHaveCount(5);
     const project = await getProject(page);
     expect((project.brief as unknown as { houseShape?: string }).houseShape).toBe("L");
     for (const plan of project.plans.slice(1)) expect(level(plan.document).envelope.wallIds).toHaveLength(6);

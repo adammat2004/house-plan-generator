@@ -9,7 +9,7 @@ import { ROOM_TYPE_LABEL } from "../plan/rooms";
 import { FLOOR_MATERIALS, FURNITURE_KINDS, ROOM_TYPES } from "../plan/schema";
 import { storeysWord } from "../plan/levels";
 import type { Id, Level, PlanDocument } from "../plan/types";
-import { EXTERIOR_FINISHES, FRAME_FINISHES, INTERIOR_STYLES, ROOF_FINISHES, type Appearance, type InteriorStyle } from "../project/schema";
+import { EXTERIOR_FINISHES, EXTERIOR_STYLES, FRAME_FINISHES, INTERIOR_STYLES, ROOF_FINISHES, ROOF_FORMS, type Appearance, type InteriorStyle } from "../project/schema";
 import { roomConnections, roomRegion } from "./analysis";
 
 /**
@@ -50,9 +50,13 @@ const exteriorViewSchema = z.object({
   exterior: z.enum(EXTERIOR_FINISHES),
   frames: z.enum(FRAME_FINISHES),
   roof: z.enum(ROOF_FINISHES),
+  /** Absent for a flat roof, as before pitched roofs. */
+  roofForm: z.enum(ROOF_FORMS).optional(),
   storeys: storeysSchema,
   /** The outline's family when the house isn't a rectangle. */
   shape: z.enum(["L", "T", "U", "Z", "custom"]).optional(),
+  /** The architectural style asked for; absent for none in particular. */
+  style: z.enum(EXTERIOR_STYLES).optional(),
 });
 
 export const renderRequestSchema = z.object({
@@ -64,7 +68,14 @@ export const renderRequestSchema = z.object({
 
 export type RenderRequest = z.infer<typeof renderRequestSchema>;
 export type RenderView = RenderRequest["view"];
-export type StillTarget = { kind: "exterior" } | { kind: "aerial" } | { kind: "room"; roomId: Id };
+/** A camera put down on the plan: where it stands and the point it looks at, in plan metres. */
+export interface CameraSpot {
+  eye: { x: number; y: number };
+  look: { x: number; y: number };
+}
+
+/** A view to picture: the house, the house from above, or a room (from its own best spot, or one picked on the plan). */
+export type StillTarget = { kind: "exterior" } | { kind: "aerial" } | { kind: "room"; roomId: Id; spot?: CameraSpot };
 
 /** A plan's floors, or the one floor given. Photos of a house of one floor work exactly as they did for a Level. */
 const floorsOf = (source: Level | PlanDocument): Level[] => ("levels" in source ? source.levels : [source]);
@@ -86,7 +97,9 @@ export function photoTargets(source: Level | PlanDocument, limit = 10): StillTar
   return [{ kind: "exterior" as const }, ...rooms.map(({ room }) => ({ kind: "room" as const, roomId: room.id }))].slice(0, limit);
 }
 
-export const targetKey = (target: StillTarget) => (target.kind === "room" ? target.roomId : target.kind);
+const spotKey = (spot: CameraSpot) => [spot.eye.x, spot.eye.y, spot.look.x, spot.look.y].map((v) => Math.round(v * 100) / 100).join(",");
+
+export const targetKey = (target: StillTarget) => (target.kind === "room" ? (target.spot ? `${target.roomId}@${spotKey(target.spot)}` : target.roomId) : target.kind);
 
 /** The facts about a view that the prompt is written from. Null if the room has gone. */
 export function renderViewFor(source: Level | PlanDocument, target: StillTarget, appearance: Appearance): RenderView | null {
@@ -95,7 +108,7 @@ export function renderViewFor(source: Level | PlanDocument, target: StillTarget,
     const env = analyzeEnvelope(floors[0]);
     // A rectangle with a bay is still a rectangle in a photo.
     const shape = env.ok ? (describeOutline(env.info).shape ?? undefined) : undefined;
-    return { kind: "exterior", exterior: appearance.exterior, frames: appearance.frames, roof: appearance.roof, storeys: floors.length, ...(shape ? { shape } : {}) };
+    return { kind: "exterior", exterior: appearance.exterior, frames: appearance.frames, roof: appearance.roof, ...(appearance.roofForm === "hipped" || appearance.roofForm === "gabled" ? { roofForm: appearance.roofForm } : {}), storeys: floors.length, ...(shape ? { shape } : {}), ...(appearance.exteriorStyle ? { style: appearance.exteriorStyle } : {}) };
   }
   if (target.kind === "aerial") {
     const rooms = floors.flatMap((level) => Object.values(level.rooms).map((r) => r.type));
@@ -144,6 +157,24 @@ const EXTERIOR_WORDS: Record<Extract<RenderView, { kind: "exterior" }>["exterior
   dark_render: "charcoal render walls",
 };
 
+const EXTERIOR_STYLE_WORDS: Record<(typeof EXTERIOR_STYLES)[number], string> = {
+  contemporary: "a contemporary style with clean lines and large glazing",
+  farmhouse: "a modern farmhouse style with simple forms, board details and a welcoming porch feel",
+  cottage: "a cottage style with a cosy, traditional character",
+  craftsman: "a craftsman style with exposed rafter tails, tapered porch posts and timber details",
+  scandinavian: "a Scandinavian style with simple forms, natural timber and minimal detailing",
+  mediterranean: "a Mediterranean style with warm tones, textured surfaces and shaded openings",
+};
+
+const ROOF_WORDS: Record<(typeof ROOF_FINISHES)[number], string> = { membrane: "dark", zinc: "standing-seam zinc", slate: "natural slate", tile: "terracotta clay tile" };
+
+/** The roof in words: "a hipped natural slate roof", "a dark flat roof". */
+const roofWords = (view: { roof: (typeof ROOF_FINISHES)[number]; roofForm?: (typeof ROOF_FORMS)[number] }) =>
+  view.roofForm === "hipped" ? `a hipped ${ROOF_WORDS[view.roof]} roof with deep eaves`
+  : view.roofForm === "gabled" ? `a pitched ${ROOF_WORDS[view.roof]} roof with gable ends flush with the walls`
+  : view.roof === "zinc" ? "a zinc roof"
+  : "a dark flat roof";
+
 /** The prompt sent with the render. Written on the server from structured fields only. */
 export function renderPrompt(view: RenderView, style: InteriorStyle): string {
   const keep =
@@ -156,7 +187,8 @@ export function renderPrompt(view: RenderView, style: InteriorStyle): string {
   }
   if (view.kind === "exterior") {
     const shape = view.shape ? `${view.shape === "L" ? "an" : "a"} ${FAMILY_WORD[view.shape]} ` : "a ";
-    return `Turn this 3D massing render into a photorealistic architectural photograph of ${shape}${storeysWord(view.storeys)} house seen from its garden: ${EXTERIOR_WORDS[view.exterior]}, ${view.frames} window frames, a ${view.roof === "zinc" ? "zinc" : "dark flat"} roof, a neat lawn, planting and soft daylight. ${keep}`;
+    const style = view.style ? ` in ${EXTERIOR_STYLE_WORDS[view.style]}` : "";
+    return `Turn this 3D massing render into a photorealistic architectural photograph of ${shape}${storeysWord(view.storeys)} house${style} seen from its garden: ${EXTERIOR_WORDS[view.exterior]}, ${view.frames} window frames, ${roofWords(view)}, a neat lawn, planting and soft daylight. ${keep}`;
   }
   const items = [...new Set(view.furniture.map((k) => FURNITURE_CATALOG[k].label.toLowerCase()))];
   const room = ROOM_TYPE_LABEL[view.roomType].toLowerCase();
@@ -191,7 +223,9 @@ export function renderKey(source: Level | PlanDocument, target: StillTarget, app
   const floors = floorsOf(source);
   if (target.kind === "room") {
     const level = floorOfRoom(source, target.roomId);
-    return level ? floorKey(level, target, appearance, style) : "gone";
+    if (!level) return "gone";
+    // A picked spot is its own picture of the room.
+    return target.spot ? hash(JSON.stringify([floorKey(level, target, appearance, style), spotKey(target.spot)])) : floorKey(level, target, appearance, style);
   }
   if (floors.length === 1) return floorKey(floors[0], target, appearance, style);
   return hash(JSON.stringify([target.kind, floors.length, ...floors.map((l) => floorKey(l, target, appearance, style))]));
@@ -212,7 +246,11 @@ function floorKey(level: Level, target: StillTarget, appearance: Appearance, sty
       .filter((o) => level.envelope.wallIds.includes(o.wallId))
       .map((o) => [o.wallId, o.kind, r2(o.offset), r2(o.width), r2(o.height)])
       .sort();
-    return hash(JSON.stringify(["exterior", outline, openings, level.rearWallId, appearance.exterior, appearance.frames, appearance.roof]));
+    // A flat roof keeps the key it had before pitched roofs, so its photos stay current.
+    const form = appearance.roofForm === "hipped" || appearance.roofForm === "gabled" ? [appearance.roofForm] : [];
+    // Likewise a house with no style asked for.
+    const style = appearance.exteriorStyle ? [appearance.exteriorStyle] : [];
+    return hash(JSON.stringify(["exterior", outline, openings, level.rearWallId, appearance.exterior, appearance.frames, appearance.roof, ...form, ...style]));
   }
   const room = level.rooms[target.roomId];
   const region = roomRegion(level, target.roomId);

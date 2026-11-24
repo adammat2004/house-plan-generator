@@ -6,8 +6,9 @@
 set -euo pipefail
 
 if [ -n "${PLAYWRIGHT_DOCKER:-}" ]; then
-  # Inside the image (or the CI job that runs in it).
-  npx next build
+  # Inside the image (or the CI job that runs in it). Blanked so a real key
+  # in a developer's .env.local never gets baked into the baseline build.
+  NEXT_PUBLIC_MAPTILER_KEY= npx next build
   exec npx playwright test --project=screens "$@"
 fi
 

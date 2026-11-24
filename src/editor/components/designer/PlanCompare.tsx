@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { comparePlans, type PlanMetric } from "@/domain/design/compare";
 import { ArrowLeftIcon, ArrowRightIcon, CheckIcon, FitIcon } from "@/components/ui/icons";
-import { useAreaText } from "@/components/units";
+import { sizeText, useAreaText } from "@/components/units";
 import { editor, useProjectState, useSessionState } from "../../state/editor";
 import { openConcept } from "../shell/tools";
 import { conceptName, useConcepts, type Concept } from "./concepts";
@@ -153,7 +153,7 @@ function Compare({ pair }: { pair: [string, string] }) {
         return String(v);
     }
   };
-  const size = (s: { width: number; depth: number } | null) => (s ? `${s.width.toFixed(1)} × ${s.depth.toFixed(1)} m` : "—");
+  const size = (s: { width: number; depth: number } | null) => (s ? sizeText(s.width, s.depth, 1) : "—");
 
   return (
     <section className="plan-compare" aria-label="Compare plans" data-testid="plan-compare">

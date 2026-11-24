@@ -163,14 +163,14 @@ export function finishTile(id: FinishId | OutdoorId): FinishTile {
 function makeTile(id: FinishId | OutdoorId): FinishTile {
   switch (id) {
     case "lawn":
-      // Mown in 1.4 m stripes, with a little grain.
+      // Mown in 1.4 m stripes, kept faint, with a little grain.
       return {
         id,
         width: 2.8,
         height: 0.7,
         base: "#b9c79b",
         parts: [
-          { ring: rect(0, 0, 1.4, 0.7), fill: "#b2c193" },
+          { ring: rect(0, 0, 1.4, 0.7), fill: "#b6c497" },
           ...scatter(2.8, 0.7, 260, 17, (x, y, rnd) => ({ ring: rect(x, y, 0.012, 0.03), fill: rnd() < 0.5 ? "#a9b98a" : "#c4d1a8" }), 0.04),
         ],
       };

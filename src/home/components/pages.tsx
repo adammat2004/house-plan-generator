@@ -2,9 +2,9 @@
 
 import Link from "next/link";
 import { useId, useMemo, useState, type ReactNode } from "react";
-import { Toggle } from "@/components/ui/controls";
+import { SegmentedControl, Toggle } from "@/components/ui/controls";
 import { ArrowRightIcon, PlayCircleIcon } from "@/components/ui/icons";
-import { setAreaUnits, useAreaText, useSquareFeet } from "@/components/units";
+import { setAreaUnits, useAreaText, useImperial, useSquareFeet } from "@/components/units";
 import { PROJECT_TEMPLATES, templateArea } from "@/domain/project/templates";
 import { PlanThumbnail } from "@/editor/components/designer/PlanThumbnail";
 import type { ProjectSummary } from "@/persistence/planStorage";
@@ -79,7 +79,7 @@ function ProjectGrid({ limit, sort = "edited" }: { limit?: number; sort?: Sort }
     ) : (
       <div className="empty-state" data-testid="no-projects">
         <strong>No projects yet</strong>
-        <span>Choose your rooms and you&rsquo;ll have three floor plans in seconds.</span>
+        <span>Choose your rooms and you&rsquo;ll have five floor plans in seconds.</span>
         <StartDesigningButton className="btn btn-primary btn-md" />
       </div>
     );
@@ -114,7 +114,7 @@ export function HomeDashboard() {
       <section className="home-hero" aria-labelledby="hero-title">
         <div className="hero-copy">
           <h1 id="hero-title">Design your home</h1>
-          <p>Choose your rooms and get three floor plans in seconds. Then move walls, furnish it and walk round it in 3D.</p>
+          <p>Choose your rooms and get five floor plans in seconds. Then move walls, furnish it and walk round it in 3D.</p>
           <div className="hero-actions">
             <StartDesigningButton />
             <Link href="/help" className="btn btn-secondary btn-lg">
@@ -156,7 +156,7 @@ export function HomeDashboard() {
   );
 }
 
-function PageTitle({ title, lead, children }: { title: string; lead?: ReactNode; children?: ReactNode }) {
+export function PageTitle({ title, lead, children }: { title: string; lead?: ReactNode; children?: ReactNode }) {
   return (
     <div className="page-title">
       <div>
@@ -240,25 +240,30 @@ export function TemplatesPage() {
 
 const STEPS = [
   {
-    title: "Rooms",
-    text: "Say how many bedrooms, bathrooms and living spaces you want, and whether the house has one storey or two. The plan beside the list redraws as you go. Add notes about anything else, and a plot size if you have one.",
+    title: "Map",
+    text: "Optionally, say how big your plot is, how much garden to leave front, back and sides, and which way is north. Leave it blank and each house is sized to its rooms.",
   },
   {
-    title: "Layouts",
-    text: "Get three floor plans drawn from your rooms, side by side at the same scale. Each has a name that says how it differs, and things to check. Ask for three more whenever you like.",
+    title: "Requirements",
+    text: "Say how many bedrooms, bathrooms and living spaces you want, the shape of house, and whether it has one storey or two. The plan beside the list redraws as you go. Add notes about anything else in your own words.",
+  },
+  {
+    title: "Explore",
+    text: "Get five layouts drawn from your rooms, each with the house from the garden and its plan at the same scale. Each has a name that says how it differs, and things to check. Ask for more layouts whenever you like.",
   },
   {
     title: "Refine",
-    text: "Open the layout you like. Click a room to rename it, resize it or swap it with another, ask for changes in your own words, and add furniture. Switch to Walls to move walls, doors and windows. Add a floor (up to three) and put in stairs from the bar at the bottom.",
+    text: "Open the layout you like. Click a room to rename it, resize it or swap it with another, drag walls, doors and windows, ask for changes in your own words, and add furniture. Switch between the 2D plan, 3D and the furnished plan at the top. Add a floor (up to three) and put in stairs.",
   },
   {
-    title: "3D",
-    text: "Walk round the house, change the light and the finishes, and turn rooms into photos. Export an image of the plan or a project file whenever you want.",
+    title: "Review",
+    text: "See the design summed up with its rooms, finishes and things to check, change the roof and finishes in 3D, turn rooms into photos, and download a presentation image, the plan, a 3D model or the project file.",
   },
 ];
 
 const SHORTCUTS: Array<[string, string]> = [
-  ["1 2 3 4", "Rooms, Layouts, Refine, 3D"],
+  ["1 2 3 4 5", "Map, Requirements, Explore, Refine, Review"],
+  ["⇧1 ⇧2 ⇧3", "2D Plan, 3D View, Furnished"],
   ["V", "Select"],
   ["U", "Furniture"],
   ["W", "Wall"],
@@ -275,7 +280,7 @@ const SHORTCUTS: Array<[string, string]> = [
 export function HelpPage() {
   return (
     <>
-      <PageTitle title="How it works" lead="From a list of rooms to a house you can walk round, in four steps. Everything saves as you go, in this browser." />
+      <PageTitle title="How it works" lead="From a list of rooms to a house you can walk round, in five steps. Everything saves as you go, in this browser." />
       <ol className="help-steps">
         {STEPS.map((s, i) => (
           <li key={s.title} className="home-card">
@@ -312,6 +317,7 @@ export function SettingsPage() {
   const name = useProfileName();
   const count = useLibrary((s) => (s.status === "ready" ? s.projects.length : null));
   const sqft = useSquareFeet();
+  const imperial = useImperial();
   const nameId = useId();
   return (
     <>
@@ -335,8 +341,18 @@ export function SettingsPage() {
       </section>
       <section className="home-card settings-card">
         <h2>Units</h2>
-        <p className="settings-lead">Plans are measured in metres. Areas can show square feet as well.</p>
-        <Toggle label="Show square feet too" hint="e.g. 152 m² · 1,636 sq ft" checked={sqft} onChange={() => setAreaUnits(sqft ? "metric" : "both")} testId="setting-sqft" />
+        <p className="settings-lead">How lengths and areas are shown and typed. Plans are saved the same either way.</p>
+        <SegmentedControl
+          label="Units"
+          value={imperial ? "imperial" : "metric"}
+          options={[
+            { value: "metric", label: "Metric (m)" },
+            { value: "imperial", label: "Imperial (ft-in)" },
+          ]}
+          onChange={(u) => setAreaUnits(u === "imperial" ? "imperial" : "auto")}
+          testIdPrefix="setting-units"
+        />
+        {!imperial && <Toggle label="Show square feet too" hint="e.g. 152 m² · 1,636 sq ft" checked={sqft} onChange={() => setAreaUnits(sqft ? "metric" : "both")} testId="setting-sqft" />}
       </section>
       <section className="home-card settings-card">
         <h2>Storage</h2>

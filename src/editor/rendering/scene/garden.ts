@@ -27,9 +27,13 @@ export interface GardenTree {
 export interface Garden {
   /** The plot the garden fills. */
   plot: Rect;
+  /** Whether the plot is the site's own (a real boundary) rather than one made up round the house. */
+  fromSite: boolean;
   /** Which side the garden is on; the street is opposite. */
   rear: EnvelopeSide;
   lawn: MultiPolygon;
+  /** The lawn reaching the plot's edge, where there's no hedge (a made-up garden). */
+  lawnToEdge: MultiPolygon;
   /** Gravel at the foot of the walls. */
   apron: MultiPolygon;
   terrace: MultiPolygon;
@@ -209,7 +213,8 @@ function makeGarden(level: Level, site: Site | undefined): Garden | null {
   const hedges = difference(rectToPolygon(plot), [rectToPolygon(inner), ...(gate ? [gate] : [])]);
   const lawn = difference(rectToPolygon(inner), [housePoly, ...apron, ...terrace, ...path]);
 
-  return { plot, rear, lawn, apron, terrace, path, hedges, trees: plantTrees(inner, house, lawn, [...terrace, ...path], outsideRing) };
+  const lawnToEdge = given ? lawn : difference(rectToPolygon(plot), [housePoly, ...apron, ...terrace, ...path]);
+  return { plot, fromSite: !!given, rear, lawn, lawnToEdge, apron, terrace, path, hedges, trees: plantTrees(inner, house, lawn, [...terrace, ...path], outsideRing) };
 }
 
 /**

@@ -1,26 +1,61 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useEffect, useRef, useState } from "react";
 import { facingLabel } from "@/domain/commands";
 import { analyzeEnvelope, type EnvelopeSide } from "@/domain/geometry/envelope";
 import { describeOutline } from "@/domain/geometry/outlineDescription";
 import { ArrowRightIcon, WarningIcon } from "@/components/ui/icons";
 import { buildableLimits, facing, houseOnPlot, NORTH_STEP, parseSiteLength, siteFromLimits, siteIssues, turnNorth, type Setbacks, type Site } from "@/domain/project/site";
-import { editor, useDocumentState, useProjectState, useSessionState } from "../../state/editor";
+import { editor, editorStores, useDocumentState, useProjectState, useSessionState } from "../../state/editor";
 import { toolController } from "../../tools/instance";
 import { usePhoneLayout } from "../shell/phone";
 import { goToStep } from "../shell/tools";
+import { sizeText } from "@/components/units";
+
+const SiteMap = dynamic(() => import("./SiteMap"), { ssr: false, loading: () => null });
 
 /**
- * Step 1, Map: the house on its site. For a house sized from its rooms, how
- * much room the plot leaves; for the user's own house, its size and which
- * side looks onto the garden (which also puts the street on the other side).
- * The plan beside the panel is for looking at.
+ * Step 1, Map: the house on its site. Someone with a real site traces it on
+ * satellite imagery (`SiteMap`); someone without one keeps the plot of old —
+ * how much room it leaves, or (for a fixed house) which side the garden is.
+ * The plan (or, while tracing, the satellite map) beside the panel is for
+ * looking at.
  */
 export function MapWorkspace() {
-  const site = useSessionState((s) => s.workspace === "site");
-  if (!site) return null;
-  return <MapPanel />;
+  const onSite = useSessionState((s) => s.workspace === "site");
+  const mode = useSessionState((s) => s.site.mode);
+  const mapFailed = useSessionState((s) => s.site.mapFailed);
+  const stage = useSessionState((s) => s.site.stage);
+  const project = useProjectState((s) => s.site);
+
+  // The very first time Map opens this session, go straight to the screen
+  // the project's own data implies, so a reopened project doesn't re-ask a
+  // question it was already answered. Gated on the session's own state
+  // still being at its untouched default ("ask"/"find"): once the user
+  // (or this effect) has made a real choice, later visits to Map must show
+  // that wizard progress as it stands, not re-derive it from the boundary
+  // alone — a boundary saved after Trace's Done exists well before Road,
+  // Entrance and Wastewater are finished, so re-deriving on every visit
+  // would silently skip the user back to "done" mid-wizard.
+  useEffect(() => {
+    if (!onSite) return;
+    const current = editorStores.session.getState().site;
+    if (current.mode !== "ask" || current.stage !== "find") return;
+    const traced = project?.traced;
+    if (traced && traced.boundary.length >= 3) editor.setSiteUi({ mode: "trace", stage: "done" });
+    else if (project?.plot?.width || project?.plot?.depth) editor.setSiteUi({ mode: "dream" });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only when the step is opened, not on every edit within it.
+  }, [onSite]);
+
+  if (!onSite) return null;
+  const site: Site = project ?? { setbacks: { front: 6, side: 1, rear: 11 } };
+  return (
+    <>
+      {mode === "trace" && <SiteMap site={site} stage={stage} onStage={(s) => editor.setSiteUi({ stage: s })} />}
+      {(mode !== "trace" || mapFailed) && <MapPanel mode={mode} mapFailed={mapFailed} />}
+    </>
+  );
 }
 
 let revealPlotOnOpen = false;
@@ -31,7 +66,7 @@ export function revealPlot() {
   goToStep("map");
 }
 
-function MapPanel() {
+function MapPanel({ mode, mapFailed }: { mode: "ask" | "dream" | "trace"; mapFailed: boolean }) {
   const auto = useProjectState((s) => s.sizing?.footprint === "auto");
   const panel = useRef<HTMLElement>(null);
   // On a phone the panel is a sheet along the bottom, so the plan fits above it.
@@ -45,9 +80,33 @@ function MapPanel() {
     field?.select();
   }, []);
 
+  if (mode === "ask") {
+    return (
+      <aside className="map-panel floating" aria-label="Your plot" data-chrome={phone ? "bottom" : "left"} data-testid="map-panel" ref={panel}>
+        <div className="map-panel-scroll">
+          <h2 className="map-title">Your plot</h2>
+          <p className="map-lead">Do you have a real site, or are you still dreaming?</p>
+          <div className="map-section site-mode-choice">
+            <button type="button" className="btn btn-primary btn-lg btn-block" onClick={() => editor.setSiteUi({ mode: "trace", stage: "find" })} data-testid="site-mode-trace">
+              I have a site
+            </button>
+            <button type="button" className="btn btn-secondary btn-lg btn-block" onClick={() => editor.setSiteUi({ mode: "dream" })} data-testid="site-mode-dream">
+              No site yet
+            </button>
+          </div>
+        </div>
+      </aside>
+    );
+  }
+
   return (
     <aside className="map-panel floating" aria-label="Your plot" data-chrome={phone ? "bottom" : "left"} data-testid="map-panel" ref={panel}>
       <div className="map-panel-scroll">
+        {mode === "trace" && mapFailed && (
+          <p className="field-hint is-error site-map-fallback-note" data-testid="site-map-fallback-note">
+            The map isn&apos;t available right now, so your plot works the old way for now.
+          </p>
+        )}
         <h2 className="map-title">Your plot</h2>
         <p className="map-lead">{auto ? "How big your plot is and what to leave free. Every layout is sized to fit what's left." : "Your house on its plot: how big the plot is, which side the garden is, and which way is north."}</p>
         <div className="map-section">
@@ -68,6 +127,11 @@ function MapPanel() {
           ) : (
             <button type="button" className="link-btn" onClick={() => editor.setSizing({ footprint: "auto" })} data-testid="use-auto-size">
               Size the house from the rooms instead
+            </button>
+          )}
+          {mode === "dream" && (
+            <button type="button" className="link-btn" onClick={() => editor.setSiteUi({ mode: "trace", stage: "find" })} data-testid="site-mode-switch-trace">
+              I have a site instead
             </button>
           )}
         </div>
@@ -292,7 +356,7 @@ function HouseFacts() {
         House{" "}
         <strong>
           {env.info.isRectangle ? "" : `${describeOutline(env.info).words}, `}
-          {env.info.width.toFixed(1)} × {env.info.depth.toFixed(1)} m
+          {sizeText(env.info.width, env.info.depth, 1)}
         </strong>
       </span>
       <span>

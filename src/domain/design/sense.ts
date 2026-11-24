@@ -8,12 +8,19 @@ import { ROOM_RULES } from "./roomRules";
 /**
  * Does a plan make sense to a person? validateDocument only checks that the
  * geometry holds together; this checks what someone walking round the house
- * would notice. Hard rules are things a sensible house never does (a room you
- * can't reach, a bedroom with no window); the score ranks plans that pass
- * them (less hallway, doors in corners, a garden door from the living space).
+ * would notice. Findings are things a sensible house doesn't do; the score
+ * ranks plans (less circulation, doors in corners, a garden door from the
+ * living space), and each finding costs it what it's worth.
+ *
+ * The hard rules (HARD_RULES: a room you can't reach, a front door on the
+ * wrong side or into a bedroom, a living room with no window, a bathroom
+ * opening onto the kitchen) come before any score: `bySense` never ranks a
+ * plan that breaks more of them above one that breaks fewer. The others
+ * (a narrow room, a small master) are costs a better plan elsewhere can
+ * outweigh.
  *
  *   level ──► facts per room (area, bounds, doors, windows)
- *         ──► hard rules  → findings  (the planner drops a candidate once a rule is enforced)
+ *         ──► rules       → findings  (hard ones first when ranking)
  *         ──► soft scores → score     (higher is better; ranks candidates)
  *
  * It reads plans only, so it judges hand-edited plans the same way as
@@ -32,6 +39,18 @@ export const SENSE_RULES = [
 
 export type SenseRule = (typeof SENSE_RULES)[number];
 
+/** Rules no sensible house breaks: ranking puts any plan that keeps more of them first. */
+export const HARD_RULES: ReadonlySet<string> = new Set<string>(["reachable", "front_door", "daylight", "wet_room_privacy", "stairs"]);
+
+/** What a finding costs the score, by rule: the hard rules most, then by how much it spoils living in the house. */
+export const FINDING_COST: Record<string, number> = { reachable: 15, front_door: 12, daylight: 12, wet_room_privacy: 10, stairs: 12, kitchen_connected: 6, room_shape: 4, master_largest: 3 };
+
+/** The score's charge for a list of findings. */
+export const findingsCost = (findings: ReadonlyArray<{ rule: string }>) => findings.reduce((sum, f) => sum + (FINDING_COST[f.rule] ?? 5), 0);
+
+/** How many hard rules a plan breaks (counting each finding). */
+export const hardCount = (findings: ReadonlyArray<{ rule: string }>) => findings.filter((f) => HARD_RULES.has(f.rule)).length;
+
 export interface SenseFinding {
   rule: SenseRule;
   roomIds: Id[];
@@ -41,6 +60,12 @@ export interface SenseFinding {
 export interface SenseMetrics {
   /** Hall floor area over all room floor area. */
   hallShare: number;
+  /**
+   * Hall plus the stores that open only off it and weren't asked for (the
+   * cupboards a planner cuts from a hall strip), over all room floor area:
+   * floor spent on getting about rather than living in.
+   */
+  circulationShare: number;
   /** Mean of |area − target| / target over rooms with a target. */
   areaMiss: number;
   /** Share of internal doors within 0.6 m of a corner of their stretch of wall. */
@@ -175,7 +200,11 @@ export function assessSense(level: Level): PlanSense {
 
   // ── Soft scores ──
   const total = rooms.reduce((sum, r) => sum + r.area, 0);
-  const hallShare = total > 0 ? rooms.filter((r) => r.type === "hall").reduce((sum, r) => sum + r.area, 0) / total : 0;
+  const hallArea = rooms.filter((r) => r.type === "hall").reduce((sum, r) => sum + r.area, 0);
+  const hallShare = total > 0 ? hallArea / total : 0;
+  const isHall = (id: Id) => byId.get(id)?.type === "hall";
+  const cutFromHall = rooms.filter((r) => r.type === "storage" && !level.rooms[r.id].targetArea && doorsTo(r).length > 0 && doorsTo(r).every((c) => c.target.kind === "room" && isHall(c.target.roomId)));
+  const circulationShare = total > 0 ? (hallArea + cutFromHall.reduce((sum, r) => sum + r.area, 0)) / total : 0;
   const targeted = rooms.filter((r) => (level.rooms[r.id]?.targetArea ?? 0) > 0);
   const areaMiss = targeted.length ? targeted.reduce((sum, r) => sum + Math.abs(r.area - level.rooms[r.id].targetArea!) / level.rooms[r.id].targetArea!, 0) / targeted.length : 0;
   const geometry = deriveLevelGeometry(level);
@@ -191,23 +220,23 @@ export function assessSense(level: Level): PlanSense {
   const primaryPrivate = rooms
     .filter((r) => r.type === "primary_bedroom")
     .every((m) => !roomWalls(level, m.id).some((w) => !w.external && rooms.some((o) => LIVING.has(o.type) && roomWalls(level, o.id).some((ow) => ow.wallId === w.wallId))));
-  const metrics: SenseMetrics = { hallShare, areaMiss, cornerDoors, gardenDoorFromLiving, irregularRooms: irregular, utilityByKitchen, primaryPrivate };
-  const result: PlanSense = { findings, metrics, score: senseScore(metrics, findings.length) };
+  const metrics: SenseMetrics = { hallShare, circulationShare, areaMiss, cornerDoors, gardenDoorFromLiving, irregularRooms: irregular, utilityByKitchen, primaryPrivate };
+  const result: PlanSense = { findings, metrics, score: senseScore(metrics, findings) };
   cache.set(level, result);
   return result;
 }
 
 /** The soft score: 100 less what the metrics and findings cost. `extra` is any further cost, for houses of several floors. */
-export function senseScore(m: SenseMetrics, findings: number, extra = 0): number {
+export function senseScore(m: SenseMetrics, findings: ReadonlyArray<{ rule: string }>, extra = 0): number {
   let score = 100;
-  score -= Math.max(0, m.hallShare - 0.08) * 150;
+  score -= Math.max(0, m.circulationShare - 0.08) * 150;
   score -= m.areaMiss * 30;
   score -= (1 - m.cornerDoors) * 10;
   score -= m.gardenDoorFromLiving ? 0 : 8;
   score -= m.irregularRooms * 4;
   score -= m.utilityByKitchen ? 0 : 4;
   score -= m.primaryPrivate ? 0 : 4;
-  score -= findings * 5;
+  score -= findingsCost(findings);
   score -= extra;
   return Math.max(0, Math.min(100, Math.round(score * 10) / 10));
 }
@@ -224,5 +253,6 @@ function list(names: string[]): string {
   return names.length <= 1 ? (names[0] ?? "") : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
 }
 
-/** Orders plans best first: fewest things wrong, then the highest score. */
-export const bySense = (a: PlanSense, b: PlanSense) => a.findings.length - b.findings.length || b.score - a.score;
+/** Orders plans best first: fewest hard rules broken, then the highest score. Works for whole houses too. */
+export const bySense = (a: { findings: ReadonlyArray<{ rule: string }>; score: number }, b: { findings: ReadonlyArray<{ rule: string }>; score: number }) =>
+  hardCount(a.findings) - hardCount(b.findings) || b.score - a.score;

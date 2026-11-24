@@ -4,7 +4,7 @@ import { useStore } from "zustand";
 import { createStore } from "zustand/vanilla";
 import { createPlanDocument } from "@/domain/commands";
 import type { Point2 } from "@/domain/plan/types";
-import { projectFromPlan, type ProjectDetails, type ProjectDocument } from "@/domain/project/schema";
+import { NEW_PROJECT_APPEARANCE, projectFromPlan, type ProjectDetails, type ProjectDocument } from "@/domain/project/schema";
 import type { HouseShape } from "@/domain/brief/schema";
 import type { PlotLimits } from "@/domain/design/footprint";
 import { projectFromRooms } from "@/domain/project/fromRooms";
@@ -16,6 +16,7 @@ import { newDocumentId, newIdPrefix } from "@/editor/state/ids";
 import { browserLibrary } from "@/persistence/browserLibrary";
 import type { ProjectSummary } from "@/persistence/planStorage";
 import { DRAFT_NAME, isUntouchedDraft, STARTING_BRIEF } from "./drafts";
+import { catalogueAppearance, type CatalogueEntry } from "@/domain/project/catalogue";
 
 /**
  * The home screen's view of the project library, plus the actions that add
@@ -56,6 +57,11 @@ async function add(project: ProjectDocument): Promise<string> {
   return project.id;
 }
 
+/** Adds a project made just now: it starts with today's look unless it brings its own. */
+function addNew(project: ProjectDocument): Promise<string> {
+  return add({ appearance: NEW_PROJECT_APPEARANCE, ...project });
+}
+
 /** A new project with a rectangular house of the given dimensions. Throws with a readable message. */
 export async function createProjectFromDimensions(values: CreateHouseValues, details?: ProjectDetails): Promise<string> {
   const id = newDocumentId();
@@ -70,13 +76,13 @@ export async function createProjectFromDimensions(values: CreateHouseValues, det
   });
   // The internal wall thickness is an editor default rather than part of the plan.
   editorStores.session.setState((s) => ({ settings: { ...s.settings, internalThickness: values.internalThickness } }));
-  return add({ ...projectFromPlan(plan, { now: now() }), id, ...(details ? { details } : {}) });
+  return addNew({ ...projectFromPlan(plan, { now: now() }), id, ...(details ? { details } : {}) });
 }
 
 /** A new project with the default house outline, or the given one, ready for drawing walls. */
 export async function createBlankProject(name = "Untitled house", details?: ProjectDetails, outline?: Point2[]): Promise<string> {
   const plan = createPlanDocument({ id: newDocumentId(), name, ...(outline ? { outline } : {}) });
-  return add({ ...projectFromPlan(plan, { now: now() }), id: newDocumentId(), ...(details ? { details } : {}) });
+  return addNew({ ...projectFromPlan(plan, { now: now() }), id: newDocumentId(), ...(details ? { details } : {}) });
 }
 
 /**
@@ -89,7 +95,7 @@ export async function createRoomsProject(options: { name: string; plot?: PlotLim
   const brief = { ...STARTING_BRIEF, ...(houseShape ? { houseShape } : {}) };
   const result = projectFromRooms(brief, { id: newDocumentId(), idPrefix: newIdPrefix(), now: now(), count: 0, ...rest });
   if (!result.ok) throw new Error(result.message);
-  return add(result.project);
+  return addNew(result.project);
 }
 
 /**
@@ -117,7 +123,7 @@ export async function openSentLink(payload: string): Promise<string | null> {
   const project = projectFromSnapshot(snapshot, { id, idPrefix: newIdPrefix(), now: now() });
   if (!project) return null;
   try {
-    return await add(project);
+    return await addNew(project);
   } catch (error) {
     // Opened twice at once (a re-run effect): the other open made it.
     if (await exists()) return id;
@@ -125,10 +131,17 @@ export async function openSentLink(payload: string): Promise<string | null> {
   }
 }
 
+/** A new project from a house in the catalogue: its rooms, five layouts with the catalogue's first, and its look. */
+export async function createProjectFromCatalogue(entry: CatalogueEntry): Promise<string> {
+  const result = projectFromRooms(entry.brief, { id: newDocumentId(), idPrefix: newIdPrefix(), now: now(), name: entry.name, count: 5 });
+  if (!result.ok) throw new Error(result.message);
+  return add({ ...result.project, appearance: catalogueAppearance(entry) });
+}
+
 export async function createProjectFromTemplate(template: ProjectTemplate): Promise<string> {
   const project = projectFromTemplate(template, { id: newDocumentId(), idPrefix: newIdPrefix(), now: now() });
   if (!project) throw new Error(`The ${template.name} template couldn't be laid out.`);
-  return add(project);
+  return addNew(project);
 }
 
 /**
@@ -136,6 +149,7 @@ export async function createProjectFromTemplate(template: ProjectTemplate): Prom
  * It always gets a new id, so importing the same file twice never overwrites a project.
  */
 export async function createProjectFromImport(project: ProjectDocument, name: string, details?: ProjectDetails): Promise<string> {
+  // A saved project keeps its look: without one it stays flat-roofed, as it was made.
   return add({ ...project, id: newDocumentId(), name: name.trim() || project.name, ...(details ? { details } : {}) });
 }
 

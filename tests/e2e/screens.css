@@ -1,6 +1,8 @@
 /* Applied while taking pixel baselines (tests/e2e/screens.spec.ts): hides what changes by itself. */
 .save-status,
 .three-canvas,
-.exterior-picture img {
+.exterior-picture img,
+.three-card img,
+.card-cover {
   visibility: hidden !important;
 }

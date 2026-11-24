@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import type { Level, PlanDocument } from "@/domain/plan/types";
 import type { Appearance } from "@/domain/project/schema";
+import { targetKey } from "@/domain/design/renderRequest";
 import { prepareStillModels, renderStill, type StillView } from "../../rendering/three/stills";
 
 /**
@@ -31,7 +32,7 @@ function pump() {
   });
 }
 
-const keyOf = (view: StillView, size: Size, appearance: Appearance) => `${view.kind === "room" ? view.roomId : "exterior"}|${size.width}x${size.height}|${JSON.stringify(appearance)}`;
+const keyOf = (view: StillView, size: Size, appearance: Appearance) => `${view.kind === "room" ? targetKey(view) : "exterior"}|${size.width}x${size.height}|${JSON.stringify(appearance)}`;
 
 /** A cached still, if one was rendered already. */
 export function cachedStill(level: Level | PlanDocument, view: StillView, size: Size, appearance: Appearance): string | null | undefined {
@@ -44,8 +45,8 @@ export function useStill(level: Level | PlanDocument, view: StillView, size: Siz
   const [element, setElement] = useState<Element | null>(null);
   const [result, setResult] = useState<{ level: Level | PlanDocument; key: string; url: string | null } | null>(null);
   const known = cache.get(level)?.get(key);
-  const viewKind = view.kind;
-  const roomId = view.kind === "room" ? view.roomId : null;
+  // The view as it is when the still is drawn; its key covers everything that changes the picture.
+  const shown: StillView = view.kind === "room" ? view : { kind: "exterior" };
 
   useEffect(() => {
     if (!element || known !== undefined) return;
@@ -56,7 +57,7 @@ export function useStill(level: Level | PlanDocument, view: StillView, size: Siz
       observer.disconnect();
       queued = () => {
         if (cancelled) return;
-        const still = renderStill(level, viewKind === "room" && roomId ? { kind: "room", roomId } : { kind: "exterior" }, { ...size, appearance });
+        const still = renderStill(level, shown, { ...size, appearance });
         if (!cache.has(level)) cache.set(level, new Map());
         cache.get(level)!.set(key, still);
         setResult({ level, key, url: still });

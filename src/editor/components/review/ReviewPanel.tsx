@@ -8,10 +8,11 @@ import { DEFAULT_INTERIOR_STYLE } from "@/domain/design/renderRequest";
 import { floorLabel, levelOf, storeysWord } from "@/domain/plan/levels";
 import { INTERIOR_STYLE_LABEL } from "@/domain/project/schema";
 import { DownloadIcon, WarningIcon } from "@/components/ui/icons";
-import { useAreaText } from "@/components/units";
+import { sizeText, useAreaText } from "@/components/units";
 import { editor, useDocumentState, useProjectState, useSessionState } from "../../state/editor";
 import { toolController } from "../../tools/instance";
-import { ExteriorPicture } from "../designer/ConceptDetail";
+import { ExteriorPicture } from "../designer/ExteriorPicture";
+import { RoomTile } from "../designer/RoomTile";
 import { useConcepts } from "../designer/concepts";
 import { RoomGallery } from "../designer/RoomGallery";
 import { MATERIAL_LABEL } from "../inspector/RoomInspector";
@@ -60,7 +61,7 @@ function Review() {
     `${a.bedrooms} bed`,
     `${a.bathrooms} bath`,
     ...(a.storeys && a.storeys > 1 ? [storeysWord(a.storeys)] : []),
-    ...(a.outside ? [`${a.outside.width.toFixed(1)} × ${a.outside.depth.toFixed(1)} m`] : []),
+    ...(a.outside ? [sizeText(a.outside.width, a.outside.depth, 1)] : []),
   ].join(" · ");
 
   return (
@@ -108,6 +109,7 @@ function Review() {
                   return (
                     <li key={r.id}>
                       <button type="button" className={picked ? "is-active" : undefined} onClick={() => showRoom(r.id)}>
+                        <RoomTile type={room?.type ?? "unspecified"} size={22} className="schedule-swatch" />
                         <span className="schedule-name">{r.name}</span>
                         <span className="schedule-finish">{finish ? MATERIAL_LABEL[finish] : ""}</span>
                         <span className="schedule-area">{areaText(r.area, 1)}</span>

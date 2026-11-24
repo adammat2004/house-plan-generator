@@ -95,7 +95,8 @@ export function createRenders(deps: RenderDeps) {
         await deps.storage.prune(projectId, livePlanIds);
         const records = await deps.storage.list(projectId);
         if (store.getState().projectId !== projectId) return;
-        for (const r of records) keep(r.planId, r.view, r, new Blob([r.bytes], { type: r.mimeType }));
+        // Home's cover (state/covers.ts) is kept with the photos but isn't one.
+        for (const r of records) if (r.view !== "cover") keep(r.planId, r.view, r, new Blob([r.bytes], { type: r.mimeType }));
       } catch {
         // Photos are a nicety: without storage the project still works.
       }

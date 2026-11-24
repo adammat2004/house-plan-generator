@@ -5,18 +5,22 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { BRAND } from "@/components/brand";
 import { startAutosave } from "@/persistence/autosave";
+import { startCovers } from "../state/covers";
 import { browserLibrary } from "@/persistence/browserLibrary";
 import { readProjectFile } from "@/persistence/jsonFile";
 import { loadPreviousRevision, loadStartupProject, type PlanStorage } from "@/persistence/planStorage";
 import { design, editor, editorStores, renders, useProjectState, useSessionState } from "../state/editor";
 import { saveStatusStore, setSaveStatus } from "../state/saveStatus";
 import { stepAvailable } from "../state/steps";
-import { DEFAULT_VIEW3D, hasFurniture, in3d, inRefine, projectAutosaveSource, projectDocument } from "../state/stores";
+import { DEFAULT_VIEW3D, in3d, inRefine, projectAutosaveSource, projectDocument } from "../state/stores";
 import { toolController } from "../tools/instance";
 import { worldToScreen } from "../viewport/viewport";
+import { roomBounds } from "@/domain/design/analysis";
 import { CreateHouseDialog, type CreateHouseValues } from "./CreateHouseDialog";
 import { OutlineConfirmDialog } from "./OutlineConfirmDialog";
 import { AiDesignerPanel } from "./designer/AiDesignerPanel";
+import { ThreeCard } from "./designer/ThreeCard";
+import { FurnishRenderButton, RenderPanel } from "./designer/RenderPanel";
 import { BriefPanel } from "./designer/BriefPanel";
 import { ConceptBoard } from "./designer/ConceptBoard";
 import { PlanPill } from "./designer/RefineChrome";
@@ -28,6 +32,8 @@ import { ReviewPanel } from "./review/ReviewPanel";
 import { MapWorkspace } from "./site/MapWorkspace";
 import { export3dModel, export3dPng, exportPlanPng, exportPresentationPng, exportProjectFile } from "./shell/exports";
 import { CanvasDock } from "./shell/CanvasControls";
+import { EraseBar } from "./shell/EraseBar";
+import { exportDxf, exportIfc, exportPdf } from "./shell/drawingExports";
 import { FloorCard } from "./shell/FloorCard";
 import { SelectionToolbar } from "./shell/SelectionToolbar";
 import { StagedBanner } from "./shell/StagedBanner";
@@ -63,6 +69,8 @@ declare global {
       furniture3d: () => Promise<{ models: number; boxes: number } | null>;
       /** How many pieces the plan draws from the asset library's pictures. */
       planSprites: () => number;
+      /** The middle of a room on the floor on show, on screen; null if it isn't there. */
+      roomCentre: (roomId: string) => { x: number; y: number } | null;
     };
   }
 }
@@ -133,8 +141,8 @@ export default function EditorApp({ projectId, start }: EditorAppProps) {
       }
       const roomsFirst = result.project.sizing?.footprint === "auto";
       const hasLayouts = result.project.plans.some((p) => p.origin.kind === "generated");
-      // A drawn house, or a layout sent from another device, opens in Refine: furnished when it has furniture.
-      editor.setView(hasFurniture(editor.current()) ? "furnished" : "plan");
+      // A drawn house, or a layout sent from another device, opens in Refine on the 2D plan.
+      editor.setView("plan");
       if (start === "draw") selectTool("wall");
       else if (start === "map") editor.setWorkspace("site");
       else if (start === "rooms" || start === "requirements") editor.setWorkspace("brief");
@@ -149,7 +157,17 @@ export default function EditorApp({ projectId, start }: EditorAppProps) {
       if (start) window.history.replaceState(window.history.state, "", `/editor?project=${encodeURIComponent(projectId)}`);
       editorStores.session.setState({ ready: true });
       setPhase({ kind: "ready" });
-      stop = startAutosave(projectAutosaveSource(editorStores), store, setSaveStatus);
+      const stopSaving = startAutosave(projectAutosaveSource(editorStores), store, setSaveStatus);
+      const stopCovers = startCovers(editorStores, {
+        // three.js loads only when a cover is drawn.
+        still: async (plan, appearance) => (await import("../rendering/three/stills")).renderStillBlob(plan, { kind: "exterior" }, { width: 640, height: 400, appearance, quality: 0.8 }),
+        put: (record) => browserLibrary().renders.put(record),
+        now: () => new Date().toISOString(),
+      });
+      stop = () => {
+        stopSaving();
+        stopCovers();
+      };
     });
     return () => {
       cancelled = true;
@@ -173,6 +191,10 @@ export default function EditorApp({ projectId, start }: EditorAppProps) {
       },
       furniture3d: () => whenFurnitureReady().then(furnitureStats3d),
       planSprites: planSpriteCount,
+      roomCentre: (roomId) => {
+        const b = roomBounds(editor.activeLevel(), roomId);
+        return b ? worldToScreen(editorStores.session.getState().viewport, { x: (b.minX + b.maxX) / 2, y: (b.minY + b.maxY) / 2 }) : null;
+      },
     };
   }, []);
 
@@ -272,6 +294,9 @@ export default function EditorApp({ projectId, start }: EditorAppProps) {
         onExportPresentation={() => void exportPresentationPng()}
         onExport3dPng={() => void export3dPng()}
         onExport3dModel={() => void export3dModel()}
+        onExportPdf={() => void exportPdf()}
+        onExportDxf={exportDxf}
+        onExportIfc={exportIfc}
       />
       <input
         ref={fileInput}
@@ -306,15 +331,19 @@ export default function EditorApp({ projectId, start }: EditorAppProps) {
         </div>
         {refining && (
           <div className="right-stack" data-chrome="right" data-chrome-min="340">
+            <FurnishRenderButton />
+            {!showing3d && <ThreeCard />}
             <AiDesignerPanel />
             <InspectorCard roomFocusKey={roomFocusKey} />
           </div>
         )}
+        <RenderPanel />
         <MapWorkspace />
         <BriefPanel />
         <ReviewPanel />
         {(refining || workspace === "site" || workspace === "review") && (
           <div className="bottom-centre" data-chrome="bottom">
+            <EraseBar />
             <StatusHint />
             <CanvasDock />
           </div>

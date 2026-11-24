@@ -345,6 +345,15 @@
 }
 
 /* Absolutely placed so the drawing's own aspect never stretches its box. */
+.card-cover {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
 .card-plan {
   position: absolute;
   inset: 0;
@@ -1474,4 +1483,128 @@
     font-size: 0;
     gap: 0;
   }
+}
+
+/* ── House plans ───────────────────────────────────────────────────────── */
+.catalogue-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.catalogue-search {
+  flex: 1 1 220px;
+  max-width: 320px;
+  height: 40px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+}
+
+.catalogue-count {
+  margin: 0 0 var(--space-4);
+  color: var(--ink-2);
+  font-size: var(--fs-small);
+}
+
+.catalogue-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: var(--space-5);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.catalogue-card {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.catalogue-media {
+  position: relative;
+  display: grid;
+  place-items: center;
+  height: 220px;
+  padding: var(--space-4);
+  border-bottom: 1px solid var(--line);
+}
+
+.catalogue-plan {
+  width: 100%;
+  height: 100%;
+}
+
+.catalogue-floors {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-2);
+  width: 100%;
+  height: 100%;
+}
+
+.catalogue-placeholder {
+  color: var(--ink-3);
+  font-size: var(--fs-small);
+}
+
+.catalogue-tag {
+  position: absolute;
+  top: var(--space-3);
+  left: var(--space-3);
+  padding: 2px var(--space-2);
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  box-shadow: var(--shadow-1);
+  color: var(--ink-2);
+  font-size: var(--fs-caption);
+  font-weight: 600;
+}
+
+.catalogue-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-4);
+}
+
+.catalogue-body h2 {
+  margin: 0;
+  font-family: var(--font-serif-text);
+  font-size: var(--fs-title);
+  font-weight: 400;
+}
+
+.catalogue-facts {
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--fs-small);
+}
+
+.catalogue-desc {
+  flex: 1;
+  margin: 0;
+  color: var(--ink-2);
+  font-size: var(--fs-small);
+  line-height: 1.45;
+}
+
+.catalogue-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.catalogue-size {
+  color: var(--ink-3);
+  font-size: var(--fs-caption);
 }

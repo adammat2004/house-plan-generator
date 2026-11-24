@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { houseBriefSchema } from "../brief/schema";
 import { projectFromRooms } from "./fromRooms";
-import { loadProjectDocument, planOriginSchema, projectFromPlan, sizingSchema, type PlanVariant, type ProjectDocument } from "./schema";
+import { appearanceSchema, loadProjectDocument, planOriginSchema, projectFromPlan, sizingSchema, type PlanVariant, type ProjectDocument } from "./schema";
 import { siteSchema } from "./site";
 
 /**
@@ -30,6 +30,8 @@ const snapshotSchema = z.object({
   brief: houseBriefSchema,
   sizing: sizingSchema.optional(),
   site: siteSchema.optional(),
+  /** Optional: links made before it was sent take the computer's look for a new project. */
+  appearance: appearanceSchema.optional(),
   plan: z.object({ label: z.string().trim().min(1).max(60), origin: planOriginSchema, document: z.unknown() }),
 });
 
@@ -45,6 +47,7 @@ export function snapshotOf(project: ProjectDocument, planId: string): StartSnaps
     brief: project.brief,
     ...(project.sizing ? { sizing: project.sizing } : {}),
     ...(project.site ? { site: project.site } : {}),
+    ...(project.appearance ? { appearance: project.appearance } : {}),
     plan: { label: plan.label, origin: plan.origin, document: plan.document },
   };
 }
@@ -129,6 +132,7 @@ export function projectFromSnapshot(snapshot: StartSnapshot, options: { id: stri
     const base = projectFromPlan(sent as PlanVariant["document"], { now: options.now, brief: snapshot.brief, label: snapshot.plan.label });
     project = { ...base, id: options.id, name: snapshot.name, ...(snapshot.sizing ? { sizing: snapshot.sizing } : {}), ...(snapshot.site ? { site: snapshot.site } : {}), plans: base.plans.map((p) => ({ ...p, origin: snapshot.plan.origin })) };
   }
+  if (snapshot.appearance) project = { ...project, appearance: snapshot.appearance };
   const loaded = loadProjectDocument(project, options.now);
   return loaded.ok ? loaded.project : null;
 }

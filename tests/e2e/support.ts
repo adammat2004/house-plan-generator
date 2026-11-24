@@ -140,3 +140,11 @@ export async function selectRoomFromList(page: Page, name: string) {
   await page.getByTestId("tool-more").click();
   await page.getByTestId("toggle-layers").click();
 }
+
+/** In the Studio, opens the full list of rooms with counters ("Add rooms"), as the tiles show by default. */
+export async function openRoomPicker(page: Page) {
+  await expect(page.getByTestId("studio-tiles").or(page.getByTestId("room-picker")).or(page.getByTestId("studio-no-rooms"))).toBeVisible();
+  if (!(await page.getByTestId("room-picker").isVisible())) await page.getByTestId("add-rooms").click();
+  await expect(page.getByTestId("room-picker")).toBeVisible();
+}
+

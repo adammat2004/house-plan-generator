@@ -9,7 +9,7 @@ test("sums up the chosen design, its rooms and finishes, and downloads a present
   await freshHome(page);
   await page.getByTestId("start-rooms").click();
   await page.getByTestId("generate-layouts").click();
-  await expect(page.getByTestId("concept-board").locator(".layout-card:not(.is-loading)")).toHaveCount(3);
+  await expect(page.getByTestId("concept-board").locator(".layout-card:not(.is-loading)")).toHaveCount(5);
   await page.getByTestId(/^open-concept-/).first().click();
   await page.getByTestId("step-review").click();
 

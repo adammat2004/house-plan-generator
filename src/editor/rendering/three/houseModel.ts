@@ -8,6 +8,8 @@ import type { FloorMaterial, Furniture, Id, Level, Point2, RoomType } from "@/do
 import type { Site } from "@/domain/project/site";
 import { buildGarden, type Garden } from "../scene/garden";
 import { furnitureBoxes, type FurnitureTone } from "./furnitureModel";
+import { pitchedRoof, roofTop, type RoofForm, type RoofPiece } from "./roofModel";
+import { areaLabel, lengthText } from "@/components/units";
 
 /**
  * The house as plain 3D data, derived from a plan level: wall pieces around
@@ -75,6 +77,10 @@ export interface HouseModel {
   ceilings?: Array<{ rect: Rect; z: number }>;
   /** Each piece of furniture, for drawing from its 3D model where there is one; its boxes above are the fallback. */
   furniture?: FurniturePlacement[];
+  /** A pitched roof, in pieces (a flat roof is boxes). */
+  roofs?: RoofPiece[];
+  /** The highest point of the house, roof included. */
+  top?: number;
 }
 
 export interface FurniturePlacement {
@@ -96,6 +102,8 @@ export interface HouseModelOptions {
   roomLabels?: boolean;
   /** The plot the garden fills, when the project has one. */
   site?: Site;
+  /** Flat (with a parapet) when absent. */
+  roofForm?: RoofForm;
 }
 
 export const CUTAWAY_HEIGHT = 1.2;
@@ -165,10 +173,13 @@ function build(level: Level, options: HouseModelOptions): HouseModel {
     }
   }
 
-  // A flat roof with a parapet, sitting on the walls.
+  // A pitched roof, or a flat one with a parapet, sitting on the walls.
   const outline = env.ok ? env.info.outsideRing : null;
   const slabs = outline ? slabPartition(outline) : [];
-  if (options.roof && outside && outline && !options.cutaway) {
+  let roofs: RoofPiece[] | undefined;
+  if (options.roof && outside && outline && !options.cutaway && (options.roofForm === "hipped" || options.roofForm === "gabled")) {
+    roofs = pitchedRoof(options.roofForm, outline, wallHeight);
+  } else if (options.roof && outside && outline && !options.cutaway) {
     if (env.ok && env.info.isRectangle) {
       const cx = (outside.minX + outside.maxX) / 2;
       const cy = (outside.minY + outside.maxY) / 2;
@@ -203,8 +214,8 @@ function build(level: Level, options: HouseModelOptions): HouseModel {
   if (options.dimensions && env.ok && outside) {
     const z = (options.cutaway ? CUTAWAY_HEIGHT : wallHeight) + 0.4;
     labels.push(
-      { text: `${env.info.width.toFixed(3)} m`, at: { x: (outside.minX + outside.maxX) / 2, y: outside.maxY + 0.6 }, z },
-      { text: `${env.info.depth.toFixed(3)} m`, at: { x: outside.minX - 0.6, y: (outside.minY + outside.maxY) / 2 }, z },
+      { text: lengthText(env.info.width, 3), at: { x: (outside.minX + outside.maxX) / 2, y: outside.maxY + 0.6 }, z },
+      { text: lengthText(env.info.depth, 3), at: { x: outside.minX - 0.6, y: (outside.minY + outside.maxY) / 2 }, z },
     );
   }
 
@@ -212,11 +223,12 @@ function build(level: Level, options: HouseModelOptions): HouseModel {
     const z = (options.cutaway ? CUTAWAY_HEIGHT : wallHeight) + 0.15;
     for (const floor of floors) {
       if (floor.type === "hall" || floor.area < 2.5) continue;
-      labels.push({ kind: "room", text: floor.name, detail: `${floor.area.toFixed(1)} m²`, at: floor.label, z });
+      labels.push({ kind: "room", text: floor.name, detail: areaLabel(floor.area, 1), at: floor.label, z });
     }
   }
 
-  return { boxes, floors, outside, outline, slabs, wallHeight, labels, site: options.landscape && outside ? buildGarden(level, options.site) : null, furniture };
+  const top = roofs ? roofTop(roofs) : wallHeight + (options.roof && !options.cutaway ? ROOF_SLAB + PARAPET : 0);
+  return { boxes, floors, outside, outline, slabs, wallHeight, labels, site: options.landscape && outside ? buildGarden(level, options.site) : null, furniture, ...(roofs ? { roofs } : {}), top };
 }
 
 /**

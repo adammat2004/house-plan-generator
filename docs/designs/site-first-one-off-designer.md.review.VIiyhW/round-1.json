@@ -1,0 +1,200 @@
+{
+  "version": 2,
+  "round": 1,
+  "document": "/Users/adammatthews/Documents/Floor-plan-generator/docs/designs/site-first-one-off-designer.md",
+  "quality_score": 6,
+  "dimensions": {
+    "completeness": "ISSUES",
+    "consistency": "ISSUES",
+    "clarity": "ISSUES",
+    "scope": "ISSUES",
+    "feasibility": "ISSUES"
+  },
+  "findings": [
+    {
+      "id": "R1-1",
+      "dimension": "consistency",
+      "severity": "blocking",
+      "changed_text": null,
+      "problem": "The narrowest wedge is defined as 'one county, end to end: site, massing check, pack', and the Recommended Approach says 'Phases 0-2 together are the one-county wedge', but the pack (PDF/DXF) is only built in Phase 4. Phases 0-2 therefore contain no pack, so the wedge as phased is not end to end, and the 48-hour prototype (which includes a scaled PDF and DXF) does not match either.",
+      "remedy": "Either move a minimal pack (e.g. 1:500 site PDF plus a plan DXF) into the wedge phases, or redefine the wedge as site plus massing check only and state that the hand off is tested by the Assignment rather than by the wedge."
+    },
+    {
+      "id": "R1-2",
+      "dimension": "consistency",
+      "severity": "blocking",
+      "changed_text": null,
+      "problem": "The flow order is contradictory. The sketch's Site screen (step 1, before Rooms and Layouts) shows a house massing being placed, rotated and checked against siting rules, yet no house exists until rooms are chosen and layouts generated. Phase 1 says the user places and rotates 'the house', and Phase 3 says the generator ranks layouts by the rule pack, but nothing says whether the generator places and orients each concept on the site, keeps the user's position, or re-checks siting when a different-sized concept is picked.",
+      "remedy": "Specify the sequence: what is placed at the Site step (a footprint envelope, a default massing, or nothing), how each generated concept is positioned and oriented on the site, and when siting rules are re-evaluated after layout or exterior changes."
+    },
+    {
+      "id": "R1-3",
+      "dimension": "feasibility",
+      "severity": "blocking",
+      "changed_text": null,
+      "problem": "Phase 1 says PlotLimits 'becomes the house must fit inside the boundary less its setbacks', but PlotLimits today is a maxWidth/maxDepth pair used to size generated layouts (buildableLimits in site.ts), and site.ts assumes 'the plot never turns the plan'. An arbitrary polygon with per-edge setbacks and a user-rotated house cannot be expressed as two numbers, and the doc does not say how the generator gets sizing limits from a polygon, which edge counts as front/side/rear, or where setback values come from (user, guide, or default).",
+      "remedy": "Define the polygon-to-generator contract (e.g. largest inscribed rectangle at the chosen orientation, or a polygon containment check after generation), how front/side/rear are assigned on an irregular boundary relative to the road edge, and the source of setback values."
+    },
+    {
+      "id": "R1-4",
+      "dimension": "completeness",
+      "severity": "blocking",
+      "changed_text": null,
+      "problem": "There is no geo-referencing model. The site is drawn in longitude/latitude on MapLibre, while plans are in local metres, the house is placed and rotated on the map, and Phase 4 promises a scaled 1:500 site PDF and a DXF. The doc does not choose a projection (e.g. Irish Transverse Mercator, EPSG:2157, or a local tangent plane), how plan coordinates map to site coordinates, or what coordinate system and units the DXF uses so a technician can overlay it on their survey.",
+      "remedy": "Commit to a projected coordinate system for the site and pack, store the house's placement as a transform from plan metres to that system, and state the DXF's units and origin."
+    },
+    {
+      "id": "R1-5",
+      "dimension": "completeness",
+      "severity": "blocking",
+      "changed_text": null,
+      "problem": "Siting rules that the design and sketch rely on need terrain, but the Phase 1 site model has none. The sketch shows 'Ridge runs with the contours' as OK and 'House sits on the skyline from the road' as CHECK, and the cross-model section names ridge height against the landscape, yet the site gains only a boundary, road edge, entrance, north and treatment area. Satellite tiles carry no elevation, so these checks cannot be computed.",
+      "remedy": "Either add an elevation source (e.g. a national DEM or LiDAR, with its licence, or user-entered levels and contours) to Phase 1, or explicitly classify contour and skyline rules as 'Measure on site' and correct the sketch."
+    },
+    {
+      "id": "R1-6",
+      "dimension": "feasibility",
+      "severity": "blocking",
+      "changed_text": null,
+      "problem": "The constraints say the app allows at most two WebGL contexts (viewer plus shared stills renderer), and Phase 1 adds MapLibre GL, which needs its own WebGL context. The doc lists the limit but does not say how the map fits within it.",
+      "remedy": "Decide how the map coexists with the limit, e.g. unmount the 3D viewer on the Site step, draw the house as a MapLibre layer instead of a separate viewer, or render the map without WebGL, and record the decision."
+    },
+    {
+      "id": "R1-7",
+      "dimension": "feasibility",
+      "severity": "blocking",
+      "changed_text": null,
+      "problem": "A boundary traced on satellite tiles is not accurate enough for the committed outputs. Imagery offsets and resolution can be off by metres, yet Phase 2 reports road setbacks as OK/Fail and Phase 4 exports a 1:500 scaled site plan. The doc neither states the boundary's accuracy nor offers a more accurate input (e.g. a Tailte Éireann folio map, a survey DXF, or typed dimensions).",
+      "remedy": "State that a traced boundary is indicative, mark distance checks near thresholds as 'Check' rather than OK/Fail, label the site PDF as not for dimensioning, and decide whether surveyed boundaries can be imported."
+    },
+    {
+      "id": "R1-8",
+      "dimension": "feasibility",
+      "severity": "blocking",
+      "changed_text": null,
+      "problem": "The constraints and market context say every one-off house needs 'BCAR sign-off by an assigned certifier' and that 'planning drawings and BCAR need a professional'. As I understand Irish rules, these claims are unsupported and probably wrong: since S.I. 365/2015 a person building a single house for their own use can opt out of statutory certification, and Irish law does not require a registered professional to prepare planning drawings. Premises 2 and 4 and the hand-off positioning depend on professionals being mandatory.",
+      "remedy": "Check the BCAR opt-out and the planning-drawing requirements and cite the regulation. If professionals are optional, say what that means for the product, e.g. self-builders submitting the pack themselves, and the extra liability and disclaimer needs that follow."
+    },
+    {
+      "id": "R1-9",
+      "dimension": "clarity",
+      "severity": "blocking",
+      "changed_text": null,
+      "problem": "Rule results are committed as 'OK / Check / Fail in the guide's own wording', and the success criteria put the tool in front of 10 real self-builders after Phase 2. But what 'OK' asserts, and the disclaimer shown with it, is left as an open question. A self-builder could read OK as 'this siting will get permission' and make decisions about buying a site or committing to a design on that basis.",
+      "remedy": "Before Phase 2 reaches real users, define what OK means (e.g. 'meets the measurable test on page N; the planner's judgement still applies'), where the not-a-planning-decision wording appears (every result, the summary and the pack), and whether an overall 'compliant' verdict is never shown."
+    },
+    {
+      "id": "R1-10",
+      "dimension": "consistency",
+      "severity": "blocking",
+      "changed_text": null,
+      "problem": "The constraint 'Every threshold is copied from a county guide' contradicts committed checks whose thresholds come from national sources. Wastewater treatment area separation distances come from the EPA Code of Practice, not the county rural design guide, and entrance sightline standards usually come from road-design standards. The sketch shows a wastewater separation check as OK.",
+      "remedy": "Widen the constraint and rule schema to allow cited national sources, with document, version and page, alongside the county guide, or drop the checks that have no county-guide basis."
+    },
+    {
+      "id": "R1-11",
+      "dimension": "clarity",
+      "severity": "blocking",
+      "changed_text": null,
+      "problem": "The design commits to site-first before its own test runs, and states no decision rule for the outcome. Premise 3 was revised on the condition 'if most refusals cite siting... the product must start from the site', but Phase 0's tally of that is only an Open Question. Premise 4 says the hand off is checked with professionals before the export is built, but the doc does not say what happens if fewer than 3 of 5 would start from the pack. A failed test changes no decision.",
+      "remedy": "State the threshold and consequence for each gate. For example: if fewer than half of the refusals cite siting, reorder the phases to put Exterior first; if fewer than 3 of 5 professionals would use the DXF, drop the DXF and the hand off before Phase 4 or re-scope them."
+    },
+    {
+      "id": "R1-12",
+      "dimension": "completeness",
+      "severity": "blocking",
+      "changed_text": null,
+      "problem": "Phase 4's share links store server-side designs that contain a site location, which is effectively a home address, and a family's brief. That is personal data under GDPR. The app today has no accounts and keeps projects in browser IndexedDB, and the doc only notes that share links are 'a new dependency'. It does not cover who can open a link, how long it lasts, retention, deletion, or the lawful basis for storing the data.",
+      "remedy": "Before Phase 4, specify the share model (signed expiring links or accounts), access control, retention and deletion, and the privacy notice for stored site locations."
+    },
+    {
+      "id": "R1-13",
+      "dimension": "feasibility",
+      "severity": "blocking",
+      "changed_text": null,
+      "problem": "Phase 4 commits to dimensioned 1:100 plans, four elevations and a section as scaled PDFs, but the Dependencies list only 'a PDF library'. The app renders 2D Konva plans and 3D scenes, but has no orthographic elevation or section drafting engine (roof profiles, openings, ground line, hidden or overlapping wings) and no dimension-chain generator. That is substantial hidden work.",
+      "remedy": "List elevation and section generation and automatic dimensioning as explicit work items with their own scope, or cut the pack to what exists (for example, plans plus 3D views) for the first version."
+    },
+    {
+      "id": "R1-14",
+      "dimension": "clarity",
+      "severity": "blocking",
+      "changed_text": null,
+      "problem": "Phase 3 says the generator ranks layouts by the rule pack as 'an explicit tier inside pickVaried', but does not say where that tier sits relative to plan sense and brief fit, whether a Fail removes the candidate or only demotes it, or how rules that depend on later choices (pitch, roof form, finishes) are scored when layouts are generated before Exterior. Also, the Phase 2 checks on ridge height, pitch and roof form run while roofs are still fixed at 35°, which produces results that will change once Phase 3 lands.",
+      "remedy": "Define the ranking order and the effect of a Fail, and say which rules are evaluated at layout time versus at the Exterior step. For Phase 2, state how roof-dependent rules behave before Phase 3 lands, for example shown as 'pending exterior'."
+    },
+    {
+      "id": "R1-15",
+      "dimension": "clarity",
+      "severity": "minor",
+      "changed_text": null,
+      "problem": "'Dream' mode keeps the rectangle site model, but the doc does not say whether rule packs run in dream mode, how a dream project converts to a real site later, or whether the hand-off pack is offered without a real site.",
+      "remedy": "State what dream mode includes (rules, exterior, pack) and how it upgrades to a drawn site."
+    },
+    {
+      "id": "R1-16",
+      "dimension": "feasibility",
+      "severity": "minor",
+      "changed_text": null,
+      "problem": "Adding gables to roofModel.ts is listed as a single dependency, but the model covers an outline with overlapping maximal rectangles, gives each a hipped piece, and takes the highest at each point. Gable pieces on overlapping rectangles, such as an L or a main block with a linked wing at a lower ridge, need gable walls and valley handling that the 'highest wins' approach does not provide.",
+      "remedy": "Note gable-on-shaped-outline geometry (gable walls, wing-to-main junctions, lower-ridge wings) as a known risk in Phase 3 and consider an ADR."
+    },
+    {
+      "id": "R1-17",
+      "dimension": "consistency",
+      "severity": "minor",
+      "changed_text": null,
+      "problem": "Constraints say roofs are 'hipped only, at a fixed 35°', but roofModel.ts also has a flat RoofForm and 20° lean-tos against upper floors.",
+      "remedy": "Reword to 'pitched roofs are hipped at a fixed 35° (plus flat and lean-to cases)'."
+    },
+    {
+      "id": "R1-18",
+      "dimension": "consistency",
+      "severity": "minor",
+      "changed_text": null,
+      "problem": "The size of the refusal sample is inconsistent: the cross-model test proposes 50 refused applications, and Phase 0 says 20+.",
+      "remedy": "Pick one number and say why it is enough."
+    },
+    {
+      "id": "R1-19",
+      "dimension": "clarity",
+      "severity": "minor",
+      "changed_text": null,
+      "problem": "Galway is the default county 'because its guide states objective criteria', but the doc names no guide document, edition or URL to support that claim.",
+      "remedy": "Cite the Galway guide (title, year, URL) and give one or two example objective criteria from it."
+    },
+    {
+      "id": "R1-20",
+      "dimension": "completeness",
+      "severity": "minor",
+      "changed_text": null,
+      "problem": "Rule packs record a source URL and page but no version or date. County guides and development plans are revised, so citations and thresholds go stale silently.",
+      "remedy": "Add the guide's edition or effective date to the rule schema and show it in results and in the pack."
+    },
+    {
+      "id": "R1-21",
+      "dimension": "clarity",
+      "severity": "minor",
+      "changed_text": null,
+      "problem": "The Assignment shows professionals only the Hand off screen of the sketch, which is a bullet list of files. Question 1 ('What would you redraw?') and question 2 ('Which file would you start from?') are hard to answer reliably without seeing drawings, which weakens the evidence premise 4 depends on.",
+      "remedy": "Show a mock pack made from an existing generated plan (a plan PDF and a sample DXF, even if hand-assembled) alongside the sketch."
+    },
+    {
+      "id": "R1-22",
+      "dimension": "completeness",
+      "severity": "minor",
+      "changed_text": null,
+      "problem": "MapLibre tile keys are used in the browser, unlike AI keys, which the constraints keep on the server. A public deployment with no accounts lets anyone use up the tile quota, and the Distribution Plan only mentions 'keys and quotas'.",
+      "remedy": "State the protection: domain-restricted keys, a server tile proxy with caps, or a provider spend limit, matching the existing README deploy guidance."
+    },
+    {
+      "id": "R1-23",
+      "dimension": "scope",
+      "severity": "minor",
+      "changed_text": null,
+      "problem": "The sketch's Exterior screen offers Courtyard form, Lean-to roof and 'Wide (gable only)' windows, but Phase 3 commits only to gables, a pitch choice and main-plus-linked-wing forms. The sketch suggests more scope than the plan commits to.",
+      "remedy": "Mark the extra sketch options as out of scope for Phase 3, or add them to the phase explicitly."
+    }
+  ],
+  "prior": []
+}

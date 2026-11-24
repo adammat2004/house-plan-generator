@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useId, useRef, useState, type ButtonHTMLAttributes, type ReactNode } from "react";
+import { feetInches, parseLength } from "@/domain/geometry/units";
+import { useImperial } from "../units";
 import { MinusIcon, PlusIcon } from "./icons";
 
 export type ButtonVariant = "primary" | "secondary" | "ghost" | "danger" | "danger-ghost";
@@ -81,7 +83,9 @@ interface NumberFieldProps {
  */
 export function NumberField({ label, value, onCommit, unit = "m", decimals = 3, scale = 1, disabled, hint, testId, compact }: NumberFieldProps) {
   const id = useId();
-  const format = (v: number) => (Number.isFinite(v) ? (v * scale).toFixed(decimals) : "");
+  // Lengths show and are typed in feet and inches when the reader chose imperial.
+  const imperial = useImperial() && (unit === "m" || unit === "mm");
+  const format = (v: number) => (!Number.isFinite(v) ? "" : imperial ? feetInches(v) : (v * scale).toFixed(decimals));
   const [text, setText] = useState(format(value));
   const [error, setError] = useState<string | null>(null);
   const editing = useRef(false);
@@ -92,17 +96,17 @@ export function NumberField({ label, value, onCommit, unit = "m", decimals = 3, 
       setError(null);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [value, decimals, scale]);
+  }, [value, decimals, scale, imperial]);
 
   const commit = () => {
     editing.current = false;
-    const parsed = Number(text.replace(",", ".").trim()) / scale;
+    const parsed = imperial ? (parseLength(text, { imperial: true }) ?? NaN) : Number(text.replace(",", ".").trim()) / scale;
     if (text.trim() === "" || !Number.isFinite(parsed)) {
-      setError("Enter a number");
+      setError(imperial ? "Enter a length, like 12' 6\"" : "Enter a number");
       setText(format(value));
       return;
     }
-    if (Math.abs(parsed - value) < 5e-7 || (scale !== 1 && (parsed * scale).toFixed(decimals) === format(value))) {
+    if (Math.abs(parsed - value) < 5e-7 || (!imperial && scale !== 1 && (parsed * scale).toFixed(decimals) === format(value)) || (imperial && format(parsed) === format(value))) {
       setText(format(value));
       setError(null);
       return;
@@ -121,7 +125,7 @@ export function NumberField({ label, value, onCommit, unit = "m", decimals = 3, 
       <div className={`input-with-unit${error ? " has-error" : ""}`}>
         <input
           id={id}
-          inputMode="decimal"
+          inputMode={imperial ? "text" : "decimal"}
           value={text}
           disabled={disabled}
           data-testid={testId}
@@ -146,7 +150,7 @@ export function NumberField({ label, value, onCommit, unit = "m", decimals = 3, 
             }
           }}
         />
-        {unit && <span className="unit">{unit}</span>}
+        {unit && !imperial && <span className="unit">{unit}</span>}
       </div>
       {(error || hint) && (
         <p id={`${id}-hint`} className={error ? "field-error" : "field-hint"}>

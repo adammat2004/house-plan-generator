@@ -20,19 +20,23 @@ export interface PlanImageOptions {
   presentation?: boolean;
 }
 
+/** The size of the plan on screen, px, for drawing an export at the same framing. */
+export function planStageSize(): { width: number; height: number } | null {
+  return current ? { width: current.width(), height: current.height() } : null;
+}
+
 /**
- * Renders the plan to a PNG data URL, as framed on screen unless cropped.
- * Transient overlays (selection, handles, snaps, drafts) are hidden for the
- * capture, and the garden too unless it's a presentation.
+ * A stage as a PNG data URL, as framed on screen unless cropped. Transient
+ * overlays (selection, handles, snaps, drafts) are hidden for the capture,
+ * and the garden too unless it's a presentation.
  */
-export function exportPlanImage({ pixelRatio = 2, crop, presentation = false }: PlanImageOptions = {}): string | null {
-  if (!current) return null;
-  const hidden = (presentation ? [".transient", ".grid", ".paper"] : [".transient", ".garden"]).flatMap((name) => current!.find(name));
+export function captureStage(stage: Stage, { pixelRatio = 2, crop, presentation = false }: PlanImageOptions = {}): string {
+  const hidden = (presentation ? [".transient", ".grid", ".paper"] : [".transient", ".garden"]).flatMap((name) => stage.find(name));
   hidden.forEach((node) => node.hide());
   try {
-    return current.toDataURL({ pixelRatio, mimeType: "image/png", ...(crop ?? {}) });
+    return stage.toDataURL({ pixelRatio, mimeType: "image/png", ...(crop ?? {}) });
   } finally {
     hidden.forEach((node) => node.show());
-    current.batchDraw();
+    stage.batchDraw();
   }
 }

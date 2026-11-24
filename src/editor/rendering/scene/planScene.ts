@@ -1,6 +1,7 @@
 import { deriveLevelGeometry, deriveRoomRegions, deriveWallMassCut, openingHostInterval, roomFaceIndices } from "@/domain/geometry/derive";
 import { analyzeEnvelope } from "@/domain/geometry/envelope";
-import { formatArea } from "@/domain/geometry/numeric";
+import { areaText, feetInches } from "@/domain/geometry/units";
+import { isImperial } from "@/components/units";
 import { intersection, type MultiPolygon, type Ring } from "@/domain/geometry/polygons";
 import type { Rect } from "@/domain/geometry/vector";
 import { pointAtParam, type WallAxis } from "@/domain/geometry/walls";
@@ -115,7 +116,7 @@ export function buildPlanScene(level: Level): PlanScene {
       targetArea: room.targetArea ?? null,
       clear: region.clear,
       clearArea: region.clearArea,
-      areaLabel: formatArea(region.clearArea),
+      areaLabel: isImperial() ? areaText(region.clearArea, { imperial: true }) : `${(Math.round(region.clearArea * 100) / 100).toFixed(2)} m²`,
       label: region.labelPoint,
       bounds,
       pinned: room.locked === true,
@@ -269,7 +270,10 @@ export function openingPrimitive(
   };
 }
 
-export const formatMm = (metres: number) => `${Math.round(metres * 1000)} mm`;
+export const formatMm = (metres: number) => (isImperial() ? feetInches(metres) : `${Math.round(metres * 1000)} mm`);
+
+/** A dimension's text: metres to `digits` places, or feet and inches. */
+const formatM = (metres: number, digits: number) => (isImperial() ? feetInches(metres) : `${metres.toFixed(digits)} m`);
 
 /** Dimension line in world coordinates with a screen-space offset. */
 export interface DimensionPrimitive {
@@ -280,6 +284,26 @@ export interface DimensionPrimitive {
   offsetPx: number;
   text: string;
   tone: "overall" | "selection";
+}
+
+/** One outside face of the house, measured on a pill just outside it. */
+export interface FacePill {
+  key: string;
+  /** The face, running counterclockwise round the house, so outside is to its right. */
+  a: Point2;
+  b: Point2;
+  text: string;
+}
+
+/**
+ * A size on every outside face, as the plan shows them on screen: "8.50 m"
+ * on a pill beside each face. Exports keep the architect's overall lines
+ * (buildDimensions) instead.
+ */
+export function buildFacePills(level: Level): FacePill[] {
+  const env = analyzeEnvelope(level);
+  if (!env.ok) return [];
+  return env.info.edges.map((edge) => ({ key: `face-${edge.wallId}`, a: edge.outside.start, b: edge.outside.end, text: formatM(edge.outside.length, 2) }));
 }
 
 export function buildDimensions(level: Level, selection: { kind: string; id: Id } | null): DimensionPrimitive[] {
@@ -293,7 +317,7 @@ export function buildDimensions(level: Level, selection: { kind: string; id: Id 
       a: { x: r.minX, y: r.maxY },
       b: { x: r.maxX, y: r.maxY },
       offsetPx: 44,
-      text: `${env.info.width.toFixed(3)} m`,
+      text: formatM(env.info.width, 3),
       tone: "overall",
     });
     // a → b runs south along the west face; its right side (negative offset) is outside.
@@ -302,7 +326,7 @@ export function buildDimensions(level: Level, selection: { kind: string; id: Id 
       a: { x: r.minX, y: r.maxY },
       b: { x: r.minX, y: r.minY },
       offsetPx: -44,
-      text: `${env.info.depth.toFixed(3)} m`,
+      text: formatM(env.info.depth, 3),
       tone: "overall",
     });
     if (!env.info.isRectangle) {
@@ -313,7 +337,7 @@ export function buildDimensions(level: Level, selection: { kind: string; id: Id 
         const onWidth = edge.facing === "north" && Math.abs(a.y - r.maxY) < 1e-6 && Math.abs(length - env.info.width) < 1e-6;
         const onDepth = edge.facing === "west" && Math.abs(a.x - r.minX) < 1e-6 && Math.abs(length - env.info.depth) < 1e-6;
         if (onWidth || onDepth) continue;
-        dims.push({ key: `outline-${edge.wallId}`, a, b, offsetPx: -20, text: `${length.toFixed(3)} m`, tone: "overall" });
+        dims.push({ key: `outline-${edge.wallId}`, a, b, offsetPx: -20, text: formatM(length, 3), tone: "overall" });
       }
     }
   }
@@ -323,8 +347,8 @@ export function buildDimensions(level: Level, selection: { kind: string; id: Id 
     // Clear width along the north face and clear depth down the east face, just inside the room.
     const b = roomBounds(level, selection.id);
     if (b) {
-      dims.push({ key: "room-width", a: { x: b.minX, y: b.maxY }, b: { x: b.maxX, y: b.maxY }, offsetPx: -16, text: `${(b.maxX - b.minX).toFixed(3)} m`, tone: "selection" });
-      dims.push({ key: "room-depth", a: { x: b.maxX, y: b.maxY }, b: { x: b.maxX, y: b.minY }, offsetPx: -16, text: `${(b.maxY - b.minY).toFixed(3)} m`, tone: "selection" });
+      dims.push({ key: "room-width", a: { x: b.minX, y: b.maxY }, b: { x: b.maxX, y: b.maxY }, offsetPx: -16, text: formatM(b.maxX - b.minX, 3), tone: "selection" });
+      dims.push({ key: "room-depth", a: { x: b.maxX, y: b.maxY }, b: { x: b.maxX, y: b.minY }, offsetPx: -16, text: formatM(b.maxY - b.minY, 3), tone: "selection" });
     }
   } else if (selection.kind === "wall") {
     const axis = geometry.axes.get(selection.id);
@@ -334,7 +358,7 @@ export function buildDimensions(level: Level, selection: { kind: string; id: Id 
         a: axis.start,
         b: axis.end,
         offsetPx: 20,
-        text: `${axis.length.toFixed(3)} m`,
+        text: formatM(axis.length, 3),
         tone: "selection",
       });
     }

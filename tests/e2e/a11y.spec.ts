@@ -1,6 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Locator, type Page } from "@playwright/test";
-import { freshHome } from "./support";
+import { freshHome, openRoomPicker } from "./support";
 
 /**
  * WCAG 2.2 AA checks with axe on the main flow, and the same flow by
@@ -28,12 +28,12 @@ test("Home, Rooms, Layouts and Refine have no serious accessibility problems", a
   expect(await problems(page)).toEqual([]);
 
   await page.getByTestId("start-rooms").click();
-  await expect(page.getByTestId("room-picker")).toBeVisible();
+  await openRoomPicker(page);
   await page.waitForTimeout(300);
   expect(await problems(page)).toEqual([]);
 
   await page.getByTestId("generate-layouts").click();
-  await expect(page.getByTestId("concept-board").locator(".layout-card")).toHaveCount(3);
+  await expect(page.getByTestId("concept-board").locator(".layout-card")).toHaveCount(5);
   await page.waitForTimeout(700);
   expect(await problems(page)).toEqual([]);
 
@@ -52,7 +52,7 @@ test("goes from Home to Refine with the keyboard alone", async ({ page }) => {
 
   await tabTo(page, page.getByTestId("start-rooms"));
   await page.keyboard.press("Enter");
-  await expect(page.getByTestId("room-picker")).toBeVisible();
+  await openRoomPicker(page);
 
   // Counters are buttons named for the room, and say the new count.
   const add = page.getByRole("button", { name: "Add a single bedroom" });
@@ -64,7 +64,7 @@ test("goes from Home to Refine with the keyboard alone", async ({ page }) => {
 
   // Layouts are a radio group: arrows choose, Enter opens Refine.
   const board = page.getByTestId("concept-board");
-  await expect(board.locator(".layout-card")).toHaveCount(3);
+  await expect(board.locator(".layout-card")).toHaveCount(5);
   // Tab lands on the chosen layout's radio.
   await tabTo(page, board.locator("input[type=radio]:checked"));
   const before = await board.locator("input[type=radio]:checked").getAttribute("aria-label");

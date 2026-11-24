@@ -1,0 +1,224 @@
+{
+  "version": 2,
+  "round": 2,
+  "document": "/Users/adammatthews/Documents/Floor-plan-generator/docs/designs/site-first-one-off-designer.md",
+  "quality_score": 7,
+  "dimensions": {
+    "completeness": "ISSUES",
+    "consistency": "ISSUES",
+    "clarity": "ISSUES",
+    "scope": "ISSUES",
+    "feasibility": "ISSUES"
+  },
+  "findings": [
+    {
+      "id": "R2-1",
+      "dimension": "feasibility",
+      "severity": "blocking",
+      "changed_text": "Each concept is placed centred in the buildable area at the chosen orientation.",
+      "problem": "The generator contract sizes concepts to the largest rectangle inside the buildable area, but then places each concept centred in the buildable area and drops any concept whose footprint is not contained. On an irregular or non-convex boundary the largest rectangle is usually not at the centre (the centroid can even fall outside the polygon), so concepts that fit the rectangle can fail containment at the centred position and be dropped needlessly. The doc also does not say what the user sees if every concept is dropped.",
+      "remedy": "Place each concept within the largest-rectangle position (e.g. centred on that rectangle) and run the containment check there, or search for a containing position before dropping a concept. Define the no-fit outcome: a message naming the constraint (setbacks, brief size, orientation) and what the user can change."
+    },
+    {
+      "id": "R2-2",
+      "dimension": "consistency",
+      "severity": "blocking",
+      "changed_text": "Then Phase 3 (Exterior) moves ahead of Phase 1 (Site)",
+      "problem": "The refusal-tally gate's alternative branch is not coherent with the phase dependencies. Phase 3's ranking uses the Phase 2 rule pack's layout-stage rules and says 'Containment failures were already dropped in Phase 1', and Phase 2 rules are 'evaluated over the site plus the house geometry'. If Phase 3 moves ahead of Phase 1, it is unclear whether Phase 2 also moves, what the rule pack evaluates against with only the light rectangle, what the ranking tier does without containment, and what the one-county wedge (defined as Phases 0-2) becomes.",
+      "remedy": "Write out the reordered sequence for the 'form matters more' outcome: which phases run in what order, which rules (form, pitch, plan depth) work on the rectangle site, how the Phase 3 ranking works without Phase 1, and what the wedge and its success criteria become."
+    },
+    {
+      "id": "R2-3",
+      "dimension": "clarity",
+      "severity": "blocking",
+      "changed_text": "Tally the refusal reasons on refused one-off applications from that county's planning portal.",
+      "problem": "The refusal sample size is now undefined. Phase 0 dropped '20+', the Cross-Model section still proposes 50, and the new decision gate ('fewer than half the refusals') reorders the whole roadmap on a proportion whose sample has no minimum, so a handful of refusals could decide it. This persists R1-18 and now affects a decision.",
+      "remedy": "Set the minimum number of refused applications (and the date range) the gate is computed on, say why that number is enough, and reconcile it with the Cross-Model section."
+    },
+    {
+      "id": "R2-4",
+      "dimension": "clarity",
+      "severity": "blocking",
+      "changed_text": "If fewer than half the refusals cite siting, visual impact, access or wastewater",
+      "problem": "The gate cannot separate site from form as written. 'Visual impact' is cited in refusals for both siting and the house's design (scale, form, ridge height, materials), so counting it on the site side makes the gate close to always pass. The doc also does not say how a refusal that cites both a siting reason and a design reason is counted.",
+      "remedy": "Define the tally's categories with a coding rule: which refusal reasons count as site (location, setback, access, wastewater, siting-related visual impact) and which as form (design, scale, roof, materials), how visual impact is split, and how multi-reason refusals count."
+    },
+    {
+      "id": "R2-5",
+      "dimension": "consistency",
+      "severity": "blocking",
+      "changed_text": "If fewer than 3 of 5 professionals would start from the pack, Phase 4 shrinks",
+      "problem": "The Assignment gate counts professionals who 'would start from the pack' and cuts the DXF on failure, but the Assignment itself says to 'count how many would start from the DXF', and the Success Criteria say 'the pack or DXF'. If 3 of 5 would start from the PDF but none from the DXF, the gate says Phase 4, DXF included, goes ahead as written; the measure and the consequence do not match.",
+      "remedy": "Record the answers per file (PDF, DXF, owner brief) and tie each cut to its own count, e.g. keep the DXF only if 3 of 5 would start from the DXF. Use the same measure in the Assignment, the gate and the Success Criteria."
+    },
+    {
+      "id": "R2-6",
+      "dimension": "completeness",
+      "severity": "blocking",
+      "changed_text": "entrance sightlines on the road design standards the county guide refers to",
+      "problem": "The revision removed the Phase 2 line that classed sightlines as 'Measure on site' and now names road design standards as the source for entrance sightline thresholds, which implies the app computes sightline checks. Computing them needs road alignment, vertical geometry, speed limit and roadside obstructions (hedges, walls), none of which the Phase 1 site model has. Whether sightlines show a computed result or 'Measure on site' is now unspecified.",
+      "remedy": "State that entrance sightlines show 'Measure on site' (with the cited required distances shown for reference) until the inputs exist, or add the inputs (speed limit, visibility splay drawn by the user) to Phase 1 and say how the result is classed given the 2 m Check band."
+    },
+    {
+      "id": "R2-7",
+      "dimension": "feasibility",
+      "severity": "minor",
+      "changed_text": "The user can type edge lengths instead.",
+      "problem": "Edge lengths alone do not define a polygon with four or more sides; the shape also needs angles or diagonals. The doc does not say how typed lengths combine with the traced boundary, or whether a typed boundary is still treated as indicative for the 2 m Check band.",
+      "remedy": "Say that typed lengths adjust the traced edges while keeping their traced bearings (or require lengths plus a diagonal), and state that position on the map is still indicative."
+    },
+    {
+      "id": "R2-8",
+      "dimension": "feasibility",
+      "severity": "minor",
+      "changed_text": "Any distance check within 2 m of its threshold shows Check, never OK or Fail.",
+      "problem": "The same section says a traced boundary 'can be metres out', but the 2 m band is not tied to any measured accuracy of the chosen imagery. If the imagery is offset by more than 2 m, an OK can be wrong.",
+      "remedy": "Base the band on the chosen tile provider's stated or measured positional accuracy in Ireland, or make it a per-source setting reviewed when the provider is chosen."
+    },
+    {
+      "id": "R2-9",
+      "dimension": "clarity",
+      "severity": "minor",
+      "changed_text": "Siting rules re-evaluate on every move, every layout pick and every exterior change.",
+      "problem": "The doc does not say whether picking a different layout after the user has moved or rotated the house keeps the user's position and orientation or re-centres the new concept, or what happens when the user drags the house outside the buildable area (blocked, or allowed with a Fail).",
+      "remedy": "State the placement behaviour on layout pick and the behaviour when a move leaves the buildable area."
+    },
+    {
+      "id": "R2-10",
+      "dimension": "clarity",
+      "severity": "minor",
+      "changed_text": "The edge or edges touching the road edge are the front.",
+      "problem": "On irregular boundaries 'the edge most opposite' is ambiguous (several edges can face away from the road), and corner sites with two road frontages, or sites reached by a lane with no road edge, are not covered.",
+      "remedy": "Define 'most opposite' (e.g. the edge whose outward normal is closest to the reverse of the front's), and say how corner sites and lane-access sites assign front, rear and sides, with a user override."
+    },
+    {
+      "id": "R2-11",
+      "dimension": "feasibility",
+      "severity": "minor",
+      "changed_text": "the viewer unmounts on Site and remounts when you leave it;",
+      "problem": "The doc says the viewer remounts when the user leaves Site but not that the map's WebGL context is destroyed first. The app keeps hidden routes mounted (Activity), so a hidden map plus the remounted viewer plus the stills renderer would be three contexts.",
+      "remedy": "State that the map is removed (map.remove(), context released) before the viewer remounts, and record it in the same ADR."
+    },
+    {
+      "id": "R2-12",
+      "dimension": "feasibility",
+      "severity": "minor",
+      "changed_text": "walls, doors and windows as DXF in ITM metres",
+      "problem": "Putting floor-plan walls in absolute ITM coordinates places them at six-digit coordinates and rotated to the house's orientation, which is awkward for a technician who draws plans orthogonally and may end up redrawing them, the outcome the hand off is meant to avoid.",
+      "remedy": "Consider a site DXF in ITM plus floor-plan DXFs in the house's local frame (with the ITM transform recorded), and check the choice in the DXF-conventions open question."
+    },
+    {
+      "id": "R2-13",
+      "dimension": "consistency",
+      "severity": "minor",
+      "changed_text": null,
+      "problem": "Success Criteria still say 'Every rule cites its guide page', while the Constraints and the Phase 2 schema now allow national documents (EPA Code of Practice, road design standards) with edition and page.",
+      "remedy": "Reword to 'Every rule cites its source document, edition and page'."
+    },
+    {
+      "id": "R2-14",
+      "dimension": "consistency",
+      "severity": "minor",
+      "changed_text": null,
+      "problem": "Approaches Considered still describes C as 'One county, end to end' and says it 'survives as Phases 0-2 of B', and the Cross-Model 48-hour prototype includes a PDF and DXF export, while the wedge is now defined as site plus rule check with no export.",
+      "remedy": "Note in Approaches Considered that the surviving wedge drops C's export, and mark the 48-hour prototype as the reviewer's suggestion rather than the plan."
+    },
+    {
+      "id": "R2-15",
+      "dimension": "completeness",
+      "severity": "minor",
+      "changed_text": "stores designs on a server for the first time",
+      "problem": "Personal data leaves the browser before Phase 4: from Phase 1 the site's location goes to the tile provider (and any geocoding or address search). The privacy notice is only planned for Phase 4 share links.",
+      "remedy": "Cover the Phase 1 map and search providers in a privacy notice before real self-builders use Phase 1-2, and pick providers with acceptable terms for location data."
+    },
+    {
+      "id": "R2-16",
+      "dimension": "completeness",
+      "severity": "minor",
+      "changed_text": "anyone with the link can view and comment",
+      "problem": "Comments with no accounts leave open who a comment is attributed to, whether a forwarded link lets anyone comment, how abuse is handled, and whether commenters' data is covered by the owner's consent. A 30-day automatic deletion may also remove a design while the professional is still working on it.",
+      "remedy": "Decide whether commenters give a name, whether the owner can make a link view-only, and whether the owner can extend a link before expiry."
+    },
+    {
+      "id": "R2-17",
+      "dimension": "clarity",
+      "severity": "minor",
+      "changed_text": null,
+      "problem": "Dream mode still keeps the rectangle site model without saying whether rule packs, the Exterior step or the hand-off pack run in dream mode, or how a dream project converts to a real site. (Persists R1-15.)",
+      "remedy": "State what dream mode includes (rules, exterior, pack) and how it upgrades to a drawn site."
+    },
+    {
+      "id": "R2-18",
+      "dimension": "feasibility",
+      "severity": "minor",
+      "changed_text": null,
+      "problem": "Gable roofs on shaped outlines are still a single dependency. roofModel.ts's 'highest piece wins' over overlapping maximal rectangles does not give gable walls, wing-to-main junctions or lower-ridge wings. (Persists R1-16.)",
+      "remedy": "Note gable-on-shaped-outline geometry as a known Phase 3 risk and consider an ADR."
+    },
+    {
+      "id": "R2-19",
+      "dimension": "consistency",
+      "severity": "minor",
+      "changed_text": "Roofs are fixed hips at 35° until Phase 3.",
+      "problem": "Constraints still say roofs are 'hipped only, at a fixed 35°', and the new Phase 2 line repeats it, but roofModel.ts also has a flat RoofForm and 20° lean-tos against upper floors. (Persists R1-17.)",
+      "remedy": "Reword to 'pitched roofs are hipped at a fixed 35° (plus flat and lean-to cases)'."
+    },
+    {
+      "id": "R2-20",
+      "dimension": "clarity",
+      "severity": "minor",
+      "changed_text": null,
+      "problem": "Galway is still the default 'because its guide states objective criteria' with no guide title, edition or URL given. (Persists R1-19.)",
+      "remedy": "Cite the Galway guide (title, year, URL) and give one or two example objective criteria from it."
+    },
+    {
+      "id": "R2-21",
+      "dimension": "clarity",
+      "severity": "minor",
+      "changed_text": null,
+      "problem": "The Assignment still shows professionals only the Hand off screen, a list of files, which makes 'What would you redraw?' and 'Which file would you start from?' hard to answer. This evidence now drives the Phase 4 gate. (Persists R1-21.)",
+      "remedy": "Show a mock pack made from an existing generated plan (a plan PDF and a sample DXF, even if hand-assembled) alongside the sketch."
+    },
+    {
+      "id": "R2-22",
+      "dimension": "completeness",
+      "severity": "minor",
+      "changed_text": null,
+      "problem": "Map tile keys are used in the browser, and a public deployment with no accounts lets anyone use up the tile quota; the Distribution Plan still mentions only 'keys and quotas'. (Persists R1-22.)",
+      "remedy": "State the protection: domain-restricted keys, a server tile proxy with caps, or a provider spend limit, matching the existing README deploy guidance."
+    },
+    {
+      "id": "R2-23",
+      "dimension": "scope",
+      "severity": "minor",
+      "changed_text": null,
+      "problem": "The new sketch notes cover only the Site screen. The Exterior screen still offers Courtyard form, Lean-to roof and 'Wide (gable only)' windows beyond Phase 3's gables, pitch choice and main-plus-linked-wing forms. (Persists R1-23.)",
+      "remedy": "Add a note marking the extra Exterior options as out of scope for Phase 3, or add them to the phase."
+    }
+  ],
+  "prior": [
+    {"id": "R1-1", "status": "resolved", "evidence": "Target User now defines the wedge as 'one county, site plus rule check (Phases 0-2)', says 'The wedge has no export', and that the hand off is tested by the Assignment before Phase 4. Residual wording in Approaches C is minor R2-14.", "current_id": null},
+    {"id": "R1-2", "status": "resolved", "evidence": "Recommended Approach notes the sketch's Site screen shows the return visit and the first visit shows only the buildable area; Phase 1 places each concept centred at the chosen orientation and re-evaluates siting on every move, layout pick and exterior change. Residual placement details are R2-1 and minor R2-9.", "current_id": null},
+    {"id": "R1-3", "status": "resolved", "evidence": "Phase 1 'The contract with the generator' keeps PlotLimits as the largest rectangle at the chosen orientation plus a post-generation containment check; 'Buildable area and orientation' assigns front/rear/sides from the road edge and sources setbacks from the rule pack or editable DEFAULT_SETBACKS. The centring defect in the new contract is R2-1.", "current_id": null},
+    {"id": "R1-4", "status": "resolved", "evidence": "Phase 1 'Coordinates' stores site geometry in ITM (EPSG:2157, metres) via proj4, stores placement as an origin plus rotation from plan metres, and the site plan and DXF use ITM metres.", "current_id": null},
+    {"id": "R1-5", "status": "resolved", "evidence": "Phase 1 'Terrain' classes contour, skyline and ridge-against-land rules as 'Measure on site' until an elevation source is chosen, the sketch note says its contour and skyline results are illustrative, and the elevation source is an Open Question.", "current_id": null},
+    {"id": "R1-6", "status": "resolved", "evidence": "Phase 1 'WebGL' unmounts the HouseViewer on the Site step, draws the house as a MapLibre layer, caps contexts at map plus stills renderer, and records it in an ADR. Map teardown on exit is minor R2-11.", "current_id": null},
+    {"id": "R1-7", "status": "resolved", "evidence": "Phase 1 'Accuracy' states traced boundaries are indicative, shows Check within 2 m of thresholds, labels the site plan 'indicative, not for dimensioning', allows typed edge lengths and puts surveyed DXF import in Phase 5. Refinements are minor R2-7 and R2-8.", "current_id": null},
+    {"id": "R1-8", "status": "resolved", "evidence": "Constraints now cite S.I. 365/2015's opt-out, state professionals are not legally required for planning drawings, recast the hand off as positioning, and require every pack page to say it is not planning drawings and not checked for building regulations; the BCAR claim in Demand Evidence was corrected and Premise 2 annotated.", "current_id": null},
+    {"id": "R1-9", "status": "resolved", "evidence": "Phase 2 'What the results mean' defines OK as meeting the measurable test on page N of a cited source, attaches 'Planners also judge things this app can't measure' to each OK, bans any overall compliant verdict in summary and pack, and fixes the wording before real self-builders see Phase 2.", "current_id": null},
+    {"id": "R1-10", "status": "resolved", "evidence": "Constraints now say 'Rule values come from cited sources' including the EPA Code of Practice and road design standards, and the Phase 2 schema records document, edition, URL and page for county or national sources. Residual Success Criteria wording is minor R2-13; sightline computability is R2-6.", "current_id": null},
+    {"id": "R1-11", "status": "resolved", "evidence": "New 'Decision gates' section sets thresholds and consequences for the refusal tally (reorder Exterior ahead of Site) and the Assignment (shrink Phase 4, cut the DXF), settled before Phase 1 code. Defects in the new gates are R2-2, R2-3, R2-4 and R2-5.", "current_id": null},
+    {"id": "R1-12", "status": "resolved", "evidence": "Phase 4 fixes signed expiring links (30 days), no accounts, revoke and delete, automatic deletion on expiry, consent as lawful basis and a privacy notice before building share links. Comment model details are minor R2-16.", "current_id": null},
+    {"id": "R1-13", "status": "resolved", "evidence": "Phase 4 lists dimension chains, orthographic elevations and one section as separately scoped new work with a fallback first pack, and Dependencies adds 'New drafting work for Phase 4'.", "current_id": null},
+    {"id": "R1-14", "status": "resolved", "evidence": "Phase 3 'Ranking' orders brief fit, then layout-stage rules (Fail ranks below all without one, Checks below clean), then plan sense; the Phase 2 schema adds a layout/exterior stage, exterior rules are evaluated at the Exterior step, and before Phase 3 they show 'Pending exterior'.", "current_id": null},
+    {"id": "R1-15", "status": "persisting", "evidence": "Phase 1 still only says 'The rectangle model remains for people with no site yet (\"dream\" mode)' with no statement of rules, exterior, pack or upgrade path.", "current_id": "R2-17"},
+    {"id": "R1-16", "status": "persisting", "evidence": "Phase 3 and Dependencies still list gable support in roofModel.ts without the shaped-outline geometry risk.", "current_id": "R2-18"},
+    {"id": "R1-17", "status": "persisting", "evidence": "Constraints still say 'Roofs are hipped only, at a fixed 35°', and the new Phase 2 line repeats it.", "current_id": "R2-19"},
+    {"id": "R1-18", "status": "persisting", "evidence": "Phase 0 removed '20+' without giving a number while the Cross-Model section still says 50; the new gate now depends on this sample, so it is carried as blocking.", "current_id": "R2-3"},
+    {"id": "R1-19", "status": "persisting", "evidence": "Phase 0 still says 'Galway is the default because its guide states objective criteria' with no guide citation.", "current_id": "R2-20"},
+    {"id": "R1-20", "status": "resolved", "evidence": "Phase 2 schema records 'document, edition or effective date, URL and page', and OK results cite 'page N of [source, edition]'.", "current_id": null},
+    {"id": "R1-21", "status": "persisting", "evidence": "The Assignment still shows only the Hand off screen of sketch.png with no mock pack.", "current_id": "R2-21"},
+    {"id": "R1-22", "status": "persisting", "evidence": "Distribution Plan still mentions only 'map tile keys and quotas from Phase 1' with no key protection.", "current_id": "R2-22"},
+    {"id": "R1-23", "status": "persisting", "evidence": "The new sketch notes address only the Site screen; Exterior screen options beyond Phase 3 are not marked out of scope.", "current_id": "R2-23"}
+  ]
+}

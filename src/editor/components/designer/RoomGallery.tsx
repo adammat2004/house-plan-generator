@@ -6,7 +6,7 @@ import { DEFAULT_INTERIOR_STYLE, photoTargets, renderKey, targetKey, type StillT
 import { roomRegion } from "@/domain/design/analysis";
 import { formatArea } from "@/domain/geometry/numeric";
 import type { Level, PlanDocument } from "@/domain/plan/types";
-import { DEFAULT_APPEARANCE, INTERIOR_STYLE_LABEL, INTERIOR_STYLES, type Appearance, type InteriorStyle } from "@/domain/project/schema";
+import { DEFAULT_APPEARANCE, EXTERIOR_STYLE_LABEL, EXTERIOR_STYLES, INTERIOR_STYLE_LABEL, INTERIOR_STYLES, type Appearance, type ExteriorStyle, type InteriorStyle } from "@/domain/project/schema";
 import { IconButton } from "@/components/ui/controls";
 import { ChevronLeftIcon, ChevronRightIcon, CloseIcon, DownloadIcon, ImageIcon, SparkleIcon } from "@/components/ui/icons";
 import { editor, renders, useProjectState, useRenders } from "../../state/editor";
@@ -52,6 +52,21 @@ export function RoomGallery({ planId, level }: { planId: string; level: Level | 
   return (
     <div className="room-gallery" data-testid="room-gallery">
       <div className="gallery-controls">
+        <label className="gallery-style">
+          <span>House style</span>
+          <select
+            value={appearance.exteriorStyle ?? ""}
+            onChange={(e) => editor.setAppearance({ exteriorStyle: (e.currentTarget.value || undefined) as ExteriorStyle | undefined })}
+            data-testid="exterior-style"
+          >
+            <option value="">As it is</option>
+            {EXTERIOR_STYLES.map((s) => (
+              <option key={s} value={s}>
+                {EXTERIOR_STYLE_LABEL[s]}
+              </option>
+            ))}
+          </select>
+        </label>
         <label className="gallery-style">
           <span>Interior style</span>
           <select value={style} onChange={(e) => editor.setAppearance({ interiorStyle: e.currentTarget.value as InteriorStyle })} data-testid="interior-style">

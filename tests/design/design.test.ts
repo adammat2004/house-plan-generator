@@ -20,9 +20,9 @@ describe("AI designer workflow", () => {
     const sourceId = stores.project.getState().activePlanId;
     const source = actions.current();
     const ids = await design.generateLayouts();
-    expect(ids).toHaveLength(3);
+    expect(ids).toHaveLength(5);
     const project = stores.project.getState();
-    expect(project.plans.map((p) => p.label)).toEqual(["My plan", "Plan A", "Plan B", "Plan C"]);
+    expect(project.plans.map((p) => p.label)).toEqual(["My plan", "Plan A", "Plan B", "Plan C", "Plan D", "Plan E"]);
     expect(project.activePlanId).toBe(ids[0]);
     for (const plan of project.plans.slice(1)) {
       expect(plan.parentId).toBe(sourceId);
@@ -52,7 +52,7 @@ describe("AI designer workflow", () => {
     const plans = stores.project.getState().plans;
     expect(plans.find((p) => p.id === first[0].id)).toBeDefined();
     expect(plans.filter((p) => p.id !== first[0].id && first.some((f) => f.id === p.id))).toEqual([]);
-    expect(plans.filter((p) => p.origin.kind === "generated")).toHaveLength(4);
+    expect(plans.filter((p) => p.origin.kind === "generated")).toHaveLength(6);
     // New layouts always hang off the user's own plan.
     expect(plans.filter((p) => p.origin.kind === "generated").every((p) => p.parentId === plans[0].id)).toBe(true);
   });
@@ -106,10 +106,10 @@ describe("AI designer workflow", () => {
     const stop = stores.session.subscribe((s) => s.designer.generation && phases.push(s.designer.generation.phase));
     const [first, second] = await Promise.all([design.generateLayouts(), design.generateLayouts()]);
     stop();
-    expect(first).toHaveLength(3);
+    expect(first).toHaveLength(5);
     expect(phases).not.toContain("failed");
     expect(second).toEqual([]);
-    expect(stores.project.getState().plans.filter((p) => p.origin.kind === "generated")).toHaveLength(3);
+    expect(stores.project.getState().plans.filter((p) => p.origin.kind === "generated")).toHaveLength(5);
   });
 
   it("offers room changes as proposals, applied as one undoable edit", async () => {

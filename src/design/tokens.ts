@@ -12,14 +12,14 @@ export const COLOR = {
   "surface-3": "#ecebe5",
   line: "#e6e3db",
   "line-strong": "#d4d0c6",
-  ink: "#1e2420",
-  "ink-2": "#525852",
-  "ink-3": "#646962",
-  "ink-disabled": "#a4a8a1",
+  ink: "#1c1a17",
+  "ink-2": "#57524a",
+  "ink-3": "#6b665e",
+  "ink-disabled": "#a8a39a",
   "on-brand": "#ffffff",
-  brand: "#1f3a32",
-  "brand-hover": "#2a4a40",
-  "brand-soft": "#edf2ef",
+  brand: "#1c1a17",
+  "brand-hover": "#3a3733",
+  "brand-soft": "#efece6",
   accent: "#2f6f5e",
   "accent-ink": "#245848",
   "accent-soft": "#e5efeb",
@@ -34,14 +34,26 @@ export const COLOR = {
   "warning-ink": "#6b4a12",
   media: "#e7e0d2",
   sky: "#e9eef1",
-  "room-day": "#f3e7cf",
-  "room-night": "#dfe7ef",
-  "room-wet": "#d9ebe6",
-  "room-service": "#ece8e0",
-  "room-hall": "#f1eee8",
+  "grid-dot": "#d6dbcc",
+  "room-paper": "#f7f4ec",
+  "room-living": "#f0dfc4",
+  "room-kitchen": "#f4dd97",
+  "room-bedroom": "#f2cbbe",
+  "room-primary-bedroom": "#ecbbaa",
+  "room-office": "#dad0c5",
+  "room-bathroom": "#c7dcee",
+  "room-wc": "#d5e4f0",
+  "room-utility": "#d1cfd2",
+  "room-storage": "#e6e0e6",
+  "room-garage": "#d8d6dc",
+  "room-hall": "#eae4d8",
+  "room-other": "#e8e5dd",
 } as const;
 
 export type ColorToken = keyof typeof COLOR;
 
 /** The UI typeface stack before next/font's family name is known (server, tests). */
 export const FALLBACK_SANS = "Inter, ui-sans-serif, system-ui, sans-serif";
+
+/** The small-size serif (plan labels) before next/font's family name is known. */
+export const FALLBACK_SERIF_TEXT = "\"DM Serif Text\", Georgia, serif";

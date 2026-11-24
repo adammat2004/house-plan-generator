@@ -2,6 +2,49 @@ import { z } from "zod";
 import type { PlotLimits } from "../design/footprint";
 import type { EnvelopeSide } from "../geometry/envelope";
 import type { Rect } from "../geometry/vector";
+import { tracedSite } from "../site/fit";
+
+/** A point as the map gives it: WGS84 longitude and latitude, degrees. */
+export const lonLatSchema = z.tuple([z.number().min(-180).max(180), z.number().min(-90).max(90)]);
+export type LonLat = z.infer<typeof lonLatSchema>;
+
+/** What a side of the site is, for its gap: the road side, the back, or a side. */
+export const EDGE_ROLES = ["front", "side", "rear"] as const;
+export type EdgeRole = (typeof EDGE_ROLES)[number];
+
+/**
+ * One edge of a traced boundary, from corner i to corner i + 1. Only what the
+ * user said is kept: whether it meets the road (or the lane the site is
+ * reached by), a role they chose over the one worked out, and a gap they typed.
+ */
+export const siteEdgeSchema = z.object({
+  road: z.boolean().optional(),
+  role: z.enum(EDGE_ROLES).optional(),
+  setback: z.number().min(0).max(100).optional(),
+});
+export type SiteEdge = z.infer<typeof siteEdgeSchema>;
+
+/** The grids a site's drawings can be exported in. */
+export const EXPORT_GRIDS = ["EPSG:2157"] as const;
+export type ExportGrid = (typeof EXPORT_GRIDS)[number];
+
+/**
+ * A site traced on the map. Corners are kept exactly as traced (WGS84), and
+ * metres are worked out from them in the export grid, so a site in another
+ * country only needs another grid. The house sits on it at `placement`:
+ * metres and degrees in the site's own frame, where the road is to the south.
+ */
+export const tracedSiteSchema = z.object({
+  boundary: z.array(lonLatSchema).min(3).max(200),
+  exportGrid: z.enum(EXPORT_GRIDS),
+  /** The imagery the boundary was traced on, which sets how near a limit counts as close. */
+  imagery: z.string().min(1).max(60).optional(),
+  edges: z.array(siteEdgeSchema).max(200).optional(),
+  entrance: lonLatSchema.optional(),
+  wastewater: z.array(lonLatSchema).min(3).max(200).optional(),
+  placement: z.object({ x: z.number(), y: z.number(), rotation: z.number().gt(-360).lt(360) }).optional(),
+});
+export type TracedSite = z.infer<typeof tracedSiteSchema>;
 
 /**
  * The house's site, kept light: the plot's width (along the street) and
@@ -10,13 +53,17 @@ import type { Rect } from "../geometry/vector";
  * gaps: a plot can be measured one way only, and north set later.
  *
  * The plot never turns the plan: its street edge is opposite the garden side
- * (the floor's rear wall), wherever that is.
+ * (the floor's rear wall), wherever that is. A traced site is turned once so
+ * its road is to the south (`site/buildable.ts`); the plan never turns while
+ * you work.
  */
 export const siteSchema = z.object({
   plot: z.object({ width: z.number().min(4).max(400).optional(), depth: z.number().min(4).max(400).optional() }).optional(),
   setbacks: z.object({ front: z.number().min(0).max(100), side: z.number().min(0).max(50), rear: z.number().min(0).max(100) }),
   /** Degrees clockwise from straight up the plan to north. */
   north: z.number().min(0).lt(360).optional(),
+  /** The real site, once traced. Without it the site is the plot above (no site yet). */
+  traced: tracedSiteSchema.optional(),
 });
 
 export type Site = z.infer<typeof siteSchema>;
@@ -50,8 +97,18 @@ export function buildableLimits(site: Site | undefined): PlotLimits | undefined 
   };
 }
 
-/** Where generated layouts get their size limit: the site, if one has been set, else the old house limits. */
+/**
+ * Where generated layouts get their size limit: a traced site's largest
+ * rectangle less its check band, else the plot, else the old house limits.
+ * A traced site with no room left still limits, to the least planners take,
+ * so no layout is planned on it and the user is told why.
+ */
 export function generationPlot(project: { site?: Site; sizing?: { plot?: PlotLimits } }): PlotLimits | undefined {
+  if (project.site?.traced) {
+    const limits = tracedSite(project.site)?.limits;
+    const clamp = (v: number | undefined) => Math.min(LIMIT.max, Math.max(LIMIT.min, round(v ?? 0)));
+    return { maxWidth: clamp(limits?.maxWidth), maxDepth: clamp(limits?.maxDepth) };
+  }
   return project.site ? buildableLimits(project.site) : project.sizing?.plot;
 }
 

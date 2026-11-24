@@ -164,3 +164,10 @@ export function aerialCameraPose(level: Level, aspect: number): CameraPose {
     vfov: (2 * Math.atan(Math.tan((hfov * Math.PI) / 360) / Math.min(aspect, 1.6)) * 180) / Math.PI,
   };
 }
+
+/** A camera stood where someone put it on the plan, at eye height, looking at the point they picked. */
+export function spotCameraPose(spot: { eye: Point2; look: Point2 }, aspect: number, hfov = 75): CameraPose {
+  const vfov = (2 * Math.atan(Math.tan((hfov * Math.PI) / 360) / aspect) * 180) / Math.PI;
+  return { eye: { ...spot.eye, z: EYE_HEIGHT }, target: { ...spot.look, z: TARGET_HEIGHT }, vfov };
+}
+

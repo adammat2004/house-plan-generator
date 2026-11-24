@@ -137,8 +137,8 @@ describe("two-storey layouts", () => {
         const label = `${name} ${bn}`;
         const result = generate(shaped(outline), brief);
         expect(result.issues, label).toEqual([]);
-        // The Z has fewer ways to stack it: one block or the other.
-        expect(result.candidates.length, label).toBeGreaterThanOrEqual(name === "Z" ? 2 : 3);
+        // The Z has fewer ways to stack it, and its other ways are mirror images, which aren't shown twice.
+        expect(result.candidates.length, label).toBeGreaterThanOrEqual(name === "Z" ? 1 : 3);
         for (const c of result.candidates) {
           const stack = stackOf(c.arrangement!);
           expect(stack, `${label} ${c.arrangement}`).not.toBeNull();
@@ -193,7 +193,8 @@ describe("two-storey layouts", () => {
       const brief = preset("family-3");
       const result = generate(shaped(outline), brief);
       expect(result.issues, name).toEqual([]);
-      expect(result.candidates.length, name).toBe(3);
+      // Two at least: a third is often the mirror image of one of them, which isn't shown twice.
+      expect(result.candidates.length, name).toBeGreaterThanOrEqual(2);
       for (const c of result.candidates) {
         expect(c.arrangement, name).toMatch(/\.x0[fr]\./);
         checkHouse(c.document, brief, `${name} ${c.arrangement}`, stackOf(c.arrangement!) === "setback");

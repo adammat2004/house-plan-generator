@@ -19,6 +19,28 @@ Deferred from the Drafted-parity engineering review (2026-10-09). The work in sc
 **Priority:** P1
 **Depends on:** room pins (`Room.locked`), band-mode `planRegion`, the access-graph zone planner.
 
+**Status (2026-10-19):** soft hints are built (ADR 0016).
+- Drag a picked room onto the Requirements preview, or use its Place… grid.
+- Layouts that honour every placement come first, never at the cost of a worse plan.
+- Cards say when a layout misses one.
+
+Hard placements are the item below; a bubble diagram is still open.
+
+### Placed rooms as fixed placements
+
+**What:** Let someone mark a room they placed as "keep it here", so layouts that miss it are dropped rather than just ranked lower.
+
+**Why:** Soft hints (V10) rank layouts and explain misses. But someone with a firm requirement, such as the bedroom on the quiet side, still sees layouts that ignore it.
+
+**Context:**
+- Builds on V10's ranking tier in `merge()`/`pickVaried` and its card miss notes.
+- In the editor, room pins (`Room.locked`) are the equivalent.
+- Some briefs will then return no layouts. That needs an "it doesn't fit" state, and a planner search beyond today's small candidate pool.
+
+**Effort:** M
+**Priority:** P2
+**Depends on:** V10 shipped.
+
 ### Zone layouts for U and T houses
 
 **What:** Lay U and T outlines out as day and night zones, as rectangles and Ls already are.
@@ -30,9 +52,13 @@ Deferred from the Drafted-parity engineering review (2026-10-09). The work in sc
 - A U is three columns. The middle one is shallower and is the natural home for the day zone, with a bedroom wing on each side. Each wing would need its own hall, joined across the front.
 - `zoneFootprints` would propose U shapes the same way it proposes Ls.
 
-**Effort:** L
-**Priority:** P1
-**Depends on:** None.
+**Status (2026-10-19):** split-bedroom layouts are built (ADR 0015): a bedroom wing either side of the living spaces, for Us and for Ts with their bar on the street, drawn or sized from the rooms. The auto T now leads at 85 and the drawn U at 75. Still open:
+- Ts with their stem on the street, as a front/back split (bedrooms across the bar).
+- Us whose living spaces need the full depth (they stay on the wing planner, about 50).
+
+**Effort:** M (what's left)
+**Priority:** P2
+**Depends on:** the concept layer (M3) for the front/back split.
 
 ### Regenerate a selection that includes the hall (wing mode)
 
@@ -73,6 +99,29 @@ Deferred from the Drafted-parity engineering review (2026-10-09). The work in sc
 **Priority:** P3
 **Depends on:** Zone layouts for small houses (for example, a day zone across the front with the bedrooms behind).
 
+## Drafted clone (2026-10-25)
+
+### Agent chat
+
+**What:** An AI Designer that works as an agent: it can generate layouts, change rooms, read the plan and ask a question back, over several turns, instead of reading one request into one set of changes.
+
+**Why:** Drafted is trialling one ("Drafted Chat"). Ours reads each request once (ADR 0004).
+
+**Context:** The plan lives in the browser, so the tools that change it must run there: the server would return tool calls and the editor would answer them. Keep AI → DesignIntent → planners; the agent never sends coordinates.
+
+**Effort:** L
+**Priority:** P2
+**Depends on:** None.
+
+### Erase across the hall
+
+**What:** Erase rooms on both sides of a hall and lay them out again together.
+
+**Why:** Erase uses band-mode `planRegion`, which refuses halls; brushing across a hall today lays out nothing.
+
+**Effort:** L (same as "Regenerate a selection that includes the hall")
+**Priority:** P2
+
 ## Export
 
 ### PDF export with dimensions, then DXF
@@ -87,6 +136,8 @@ Deferred from the Drafted-parity engineering review (2026-10-09). The work in sc
 **Priority:** P2
 **Depends on:** None. Most useful once the plans make sense.
 
+**Status (2026-10-25):** built (ADR 0018). Export → Drawings gives an A3 PDF (the house outside, the furnished plan, each floor in black and white at 1:50/1:100/1:200, four elevations); CAD plan gives DXF (R12, metres); BIM model gives IFC4. Still open: dimension chains on every wall, a section.
+
 ## Site
 
 ### Lot outlines, and planning with north
@@ -100,6 +151,37 @@ Deferred from the Drafted-parity engineering review (2026-10-09). The work in sc
 **Effort:** L
 **Priority:** P2
 **Depends on:** the zone planner and `sense.ts`.
+
+**Status (2026-10-20):** the "any outline" half is now Phase 1 of `docs/designs/site-first-one-off-designer.md` (traced boundary, buildable area, containment in the planners). Turning rooms to the sun is still open.
+
+### Houses side-on to the road
+
+**What:** Let the generators take the street side as a parameter, so a house can sit gable-to-road on a site.
+
+**Why:** The site-first plan (decision D21, R18) keeps every house facing the road so the generators work unchanged. Some rural sites suit a house turned side-on.
+
+**Context:**
+- Generators put the street to the south: `zoneLayouts.ts:132`, `wingPlanner.ts:192`, `storeyLayouts.ts:229`.
+- In Phase 1, a site is turned into the plan so its front edge is to the south.
+- This item would let that frame turn.
+
+**Effort:** L
+**Priority:** P3
+**Depends on:** Phase 1 of the site-first plan.
+
+### Terrain from the national elevation model
+
+**What:** Evaluate Tailte Éireann's 10 m DEM (INSPIRE view service) for licence, access and accuracy. If it holds up, compute contour, skyline and ridge-against-land rules from it.
+
+**Why:** Until there is terrain data, those rules read "Measure on site" (site-first plan, Phase 1 "Terrain").
+
+**Context:**
+- The source is the INSPIRE geoportal record "Tailte Éireann DEM 10m Ireland INSPIRE View Service".
+- Its 25 cm orthophotography is licensed, not open.
+
+**Effort:** M
+**Priority:** P3
+**Depends on:** Phase 2 rule packs.
 
 ## Accounts
 
@@ -127,8 +209,12 @@ Deferred from the Drafted-parity engineering review (2026-10-09). The work in sc
 
 **Context:** `houseModel.ts` builds the flat roof. The wing partition (`geometry/partition.ts`) already gives the per-wing rectangles a roof needs. ADR 0007 lists this as open.
 
-**Effort:** M
-**Priority:** P1
+**Status (2026-10-19):** hipped roofs are built (ADR 0014). New projects get hipped slate roofs; saved ones stay flat until switched in Look.
+
+**Status (2026-10-25):** gabled roofs are built (`gabledRoof`, gable ends in the wall finish). Still open: a pitch setting per wing.
+
+**Effort:** S (gables)
+**Priority:** P2
 **Depends on:** None.
 
 ## Touch and phones
@@ -178,6 +264,8 @@ Deferred from the Drafted-parity engineering review (2026-10-09). The work in sc
 **Why:** Drafted switches between imperial and metric. Square feet beside areas have shipped (en-GB browsers by default, a Settings toggle otherwise; `domain/geometry/units.ts`), but lengths and inputs are metric only.
 
 **Context:** Everything inside stays in metres. This is a formatting and parsing layer over the inspectors, dimension lines and the new-project form; the area preference in `components/units.ts` shows where a units setting lives.
+
+**Status (2026-10-25):** built. Settings → Units → Imperial shows lengths in feet and inches and areas in square feet; length fields take `12' 6"` and friends (`parseLength`). Still open: the new-project form, the Map step's plot fields and messages written by the planners stay metric.
 
 **Effort:** M
 **Priority:** P2

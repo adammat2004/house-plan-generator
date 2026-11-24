@@ -2330,6 +2330,18 @@ input.has-error {
   border-radius: var(--r-lg) var(--r-lg) 0 0;
 }
 
+/* With the house from the garden on top, the plan sits under it, a little shorter. */
+.layout-card > .layout-exterior {
+  margin: 0;
+  border-radius: var(--r-lg) var(--r-lg) 0 0;
+}
+
+.layout-exterior + .layout-art {
+  height: 220px;
+  border-radius: 0;
+  border-top: 1px solid var(--line);
+}
+
 .layout-preview {
   display: block;
   width: 100%;
@@ -2415,9 +2427,39 @@ input.has-error {
   gap: var(--space-2);
 }
 
+.layout-miss {
+  color: var(--ink-2);
+  font-size: var(--fs-caption);
+}
+
+.placed-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0 0 var(--space-4);
+  padding: 0;
+  list-style: none;
+  font-size: var(--fs-small);
+}
+
+.placed-list li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.placed-list .is-met svg {
+  color: var(--accent);
+}
+
+.placed-list .is-missed svg {
+  color: var(--warning);
+}
+
 .layout-title {
+  font-family: var(--font-serif-text);
   font-size: var(--fs-title);
-  font-weight: 600;
+  font-weight: 400;
 }
 
 .layout-rename {
@@ -4288,25 +4330,138 @@ button.action-row:hover:not(:disabled),
 
 .pick-card {
   display: grid;
-  grid-template-columns: 56px minmax(0, 1fr) auto;
+  grid-template-columns: 44px minmax(0, 1fr) auto 32px;
   align-items: center;
   gap: 14px;
   padding: 10px 0;
   border-bottom: 1px solid var(--line);
 }
 
-.pick-image {
-  width: 56px;
-  height: 56px;
+/* A room's colour and icon: the key from the 2D plan, wherever rooms are listed. */
+.room-tile {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
   border-radius: var(--r-md);
-  background: var(--surface-2);
-  object-fit: cover;
+  color: var(--ink);
+}
+
+.pick-tile {
   transition: opacity var(--dur-fast) var(--ease-out), filter var(--dur-fast) var(--ease-out);
 }
 
-.pick-card:not(.is-on) .pick-image {
+.pick-card:not(.is-on) .pick-tile {
   opacity: 0.45;
   filter: grayscale(0.6);
+}
+
+/* A picked room's tile is its handle: drag it onto the preview to place it. */
+.pick-handle.is-draggable {
+  cursor: grab;
+}
+
+.pick-handle.is-draggable:active {
+  cursor: grabbing;
+}
+
+.place-menu > summary {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--r-pill);
+  color: var(--ink-3);
+  cursor: pointer;
+  list-style: none;
+}
+
+.place-menu > summary::-webkit-details-marker {
+  display: none;
+}
+
+.place-menu > summary:hover {
+  background: var(--surface-2);
+  color: var(--ink);
+}
+
+.place-menu svg.is-placed {
+  color: var(--accent);
+}
+
+.place-grid-hint {
+  margin: 0 0 var(--space-2);
+  color: var(--ink-2);
+  font-size: var(--fs-caption);
+}
+
+.place-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-1);
+  min-width: 240px;
+  margin-bottom: var(--space-2);
+}
+
+.place-grid > button {
+  padding: var(--space-2) var(--space-1);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: var(--fs-caption);
+  text-align: center;
+  cursor: pointer;
+}
+
+.place-grid > button:hover {
+  border-color: var(--line-strong);
+  background: var(--surface-2);
+}
+
+/* Markers on the preview, in world metres: drawn over the plan. */
+.placement-marker {
+  cursor: grab;
+}
+
+.placement-marker rect {
+  stroke: var(--ink);
+  stroke-width: 0.05;
+}
+
+.placement-marker text {
+  fill: var(--ink);
+  font-family: var(--font-sans);
+  font-weight: 700;
+  pointer-events: none;
+}
+
+.placement-link {
+  stroke: var(--ink-2);
+  stroke-width: 0.05;
+  stroke-dasharray: 0.15 0.12;
+  pointer-events: none;
+}
+
+.placement-clear {
+  cursor: pointer;
+}
+
+.placement-clear circle {
+  fill: var(--surface);
+  stroke: var(--ink-2);
+  stroke-width: 0.04;
+}
+
+.placement-clear path {
+  stroke: var(--ink);
+  stroke-width: 0.05;
+  stroke-linecap: round;
+}
+
+.rooms-placed {
+  margin: 0 0 var(--space-2);
+  color: var(--ink-2);
+  font-size: var(--fs-caption);
 }
 
 .pick-text {
@@ -4660,6 +4815,583 @@ button.action-row:hover:not(:disabled),
   }
 }
 
+/* ── The Studio: Requirements as one canvas ──────────────────────────────── */
+/* The live plan fills the screen on a dot grid; "My rooms" floats on the left,
+   the canvas controls along the top, a 3D card on the right, Create at the bottom. */
+.rooms-step.studio {
+  display: block;
+}
+
+.studio .rooms-preview {
+  position: absolute;
+  inset: 0;
+}
+
+.studio .rooms-preview-2d {
+  grid-template: minmax(0, 1fr) / minmax(0, 1fr);
+  place-items: stretch;
+  padding: 88px 300px 128px 400px;
+  overflow: hidden;
+  background-image: radial-gradient(circle, var(--grid-dot) 1px, transparent 1.4px);
+  background-size: 22px 22px;
+}
+
+.studio-zoom {
+  display: grid;
+  grid-template: minmax(0, 1fr) / minmax(0, 1fr);
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  transform-origin: center;
+  transition: transform var(--dur-base) var(--ease-out);
+}
+
+.studio .rooms-preview-2d.is-floors {
+  display: block;
+}
+
+.studio .is-floors .studio-zoom {
+  grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
+  gap: var(--space-5);
+}
+
+.studio .rooms-preview-top {
+  left: 384px;
+  align-items: flex-start;
+}
+
+.rooms-preview-top > .floating {
+  position: relative;
+}
+
+.studio-controls {
+  margin-right: auto;
+  margin-left: auto;
+}
+
+/* The live 3D card: the whole house with its roof; click it for the big 3D view. */
+.studio-three-card {
+  position: relative;
+  width: 260px;
+  height: 180px;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--sky);
+  box-shadow: var(--shadow-2);
+  cursor: zoom-in;
+}
+
+.studio-three-card .three-host {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.studio-three-chip {
+  position: absolute;
+  bottom: var(--space-2);
+  left: var(--space-2);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 2px var(--space-2);
+  border-radius: var(--r-pill);
+  background: var(--glass);
+  color: var(--ink);
+  font-size: var(--fs-caption);
+  font-weight: 600;
+}
+
+/* My rooms: a floating card. */
+.studio .rooms-panel {
+  position: absolute;
+  top: var(--space-4);
+  bottom: var(--space-4);
+  left: var(--space-4);
+  z-index: var(--z-panel);
+  width: 352px;
+  max-height: calc(100% - var(--space-4) * 2);
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-2);
+}
+
+.studio-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-5) var(--space-5) var(--space-3);
+  border-bottom: 1px solid var(--line);
+}
+
+.studio .rooms-title {
+  margin: 0;
+  font-size: var(--fs-display-s);
+}
+
+.studio .rooms-panel-scroll {
+  padding: var(--space-4) var(--space-5) var(--space-5);
+}
+
+.studio .rooms-footer {
+  padding: var(--space-3) var(--space-5);
+}
+
+.studio .rooms-footer:empty {
+  display: none;
+}
+
+.mix-bar {
+  margin-bottom: var(--space-4);
+}
+
+.mix-bar-track {
+  display: flex;
+  height: 8px;
+  overflow: hidden;
+  border-radius: var(--r-pill);
+  background: var(--surface-3);
+}
+
+.mix-bar-ai {
+  background: linear-gradient(90deg, var(--room-bathroom), var(--room-kitchen));
+  transition: width var(--dur-base) var(--ease-out);
+}
+
+.mix-bar-you {
+  background: var(--accent);
+  transition: width var(--dur-base) var(--ease-out);
+}
+
+.mix-bar-labels {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-top: 6px;
+  color: var(--ink-2);
+  font-size: var(--fs-caption);
+  font-weight: 600;
+}
+
+.mix-bar-labels span {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.studio-tiles {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.studio-tile {
+  position: relative;
+  min-width: 0;
+  border: 1px solid color-mix(in srgb, var(--tile) 70%, var(--ink) 8%);
+  border-radius: var(--r-md);
+  background: color-mix(in srgb, var(--tile) 55%, var(--surface));
+  cursor: grab;
+  transition:
+    box-shadow var(--dur-fast) var(--ease-out),
+    transform var(--dur-fast) var(--ease-out);
+}
+
+.studio-tile:hover {
+  box-shadow: var(--shadow-2);
+  transform: translateY(-1px);
+}
+
+.studio-tile:active {
+  cursor: grabbing;
+}
+
+.studio-tile.is-placed {
+  border-color: var(--accent);
+}
+
+.studio-tile-btn {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  column-gap: var(--space-2);
+  align-items: center;
+  width: 100%;
+  padding: var(--space-2);
+  border: 0;
+  border-radius: inherit;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: inherit;
+}
+
+.studio-tile.is-selected {
+  box-shadow: 0 0 0 2px var(--ink);
+}
+
+.studio-tile-icon {
+  grid-row: 1 / span 2;
+  border: 1px solid color-mix(in srgb, var(--ink) 10%, transparent);
+}
+
+.studio-tile-name {
+  display: -webkit-box;
+  overflow: hidden;
+  font-size: var(--fs-small);
+  font-weight: 600;
+  line-height: 1.25;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.studio-tile-size {
+  color: var(--ink-2);
+  font-size: var(--fs-caption);
+  font-variant-numeric: tabular-nums;
+}
+
+.studio-tile-size b {
+  color: var(--ink);
+}
+
+.studio-tile-pin {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--r-pill);
+  background: var(--accent);
+}
+
+.studio-tile-editor {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+}
+
+.studio-tile-editor header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.studio-tile-editor .menu-note {
+  margin: 0;
+}
+
+.studio-place [role="menuitem"] {
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+}
+
+.studio-place .place-grid-hint {
+  margin: 0 0 var(--space-1);
+}
+
+.studio-tile-actions .is-danger {
+  color: var(--danger);
+}
+
+.studio-tile-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.menu-note {
+  margin: var(--space-1) var(--space-3) var(--space-2);
+  color: var(--ink-2);
+  font-size: var(--fs-caption);
+  line-height: 1.4;
+}
+
+.studio-size-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-1);
+}
+
+.studio-size-row .chip {
+  justify-content: center;
+  font-weight: 600;
+}
+
+.studio-size-row small {
+  font-weight: 400;
+}
+
+.studio-hint,
+.studio-empty {
+  margin: var(--space-3) 0 0;
+  color: var(--ink-3);
+  font-size: var(--fs-caption);
+  line-height: 1.5;
+}
+
+.studio-empty {
+  padding: var(--space-5);
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--r-md);
+  text-align: center;
+}
+
+.studio-history {
+  justify-content: center;
+  width: 100%;
+}
+
+.studio-history-count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: var(--r-pill);
+  background: var(--surface-3);
+  font-size: var(--fs-caption);
+}
+
+.design-history {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.design-run {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+}
+
+.design-run header {
+  display: flex;
+  justify-content: space-between;
+  color: var(--ink-2);
+  font-size: var(--fs-caption);
+}
+
+.design-run header strong {
+  color: var(--ink);
+  font-size: var(--fs-small);
+}
+
+.design-run-facts {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: var(--fs-caption);
+}
+
+.design-run-plans {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: var(--space-1);
+}
+
+.design-run-plan {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: var(--space-1);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  color: var(--ink-2);
+  font: inherit;
+  font-size: var(--fs-caption);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.design-run-plan:hover {
+  border-color: var(--ink);
+}
+
+.design-run-thumb {
+  width: 100%;
+  aspect-ratio: 1;
+}
+
+.design-run .link-btn {
+  align-self: flex-start;
+}
+
+.picture-reader {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-5);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--line);
+}
+
+.picture-reader h3 {
+  margin: 0;
+  font-size: var(--fs-small);
+}
+
+.picture-reader .studio-hint {
+  margin: 0;
+}
+
+.picture-add {
+  justify-content: center;
+}
+
+.picture-result {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  font-size: var(--fs-small);
+}
+
+.picture-result img {
+  width: 72px;
+  height: 72px;
+  border-radius: var(--r-sm);
+  object-fit: cover;
+}
+
+.picture-result p {
+  margin: 0 0 var(--space-1);
+}
+
+.picture-changes {
+  margin: 0 0 var(--space-2);
+  padding-left: var(--space-4);
+  color: var(--ink-2);
+}
+
+.picture-actions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+/* Create: the house's size, storeys and shape, and the one primary action. */
+.studio-create {
+  position: absolute;
+  bottom: var(--space-5);
+  left: calc(50% + 184px);
+  z-index: var(--z-panel);
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-2) var(--space-2) var(--space-2) var(--space-5);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-3);
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+
+.studio-facts {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  color: var(--ink-2);
+  font-size: var(--fs-small);
+  font-variant-numeric: tabular-nums;
+}
+
+.studio-fact strong {
+  margin-left: var(--space-1);
+  color: var(--ink);
+}
+
+.studio-fact + .studio-fact {
+  padding-left: var(--space-4);
+  border-left: 1px solid var(--line);
+}
+
+.studio-facts .chips {
+  flex-wrap: nowrap;
+}
+
+.studio-shape > summary {
+  list-style: none;
+}
+
+.studio-shape-summary {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 6px var(--space-3);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-pill);
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.studio-shape .menu-panel {
+  bottom: calc(100% + var(--space-2));
+  top: auto;
+  width: 320px;
+  white-space: normal;
+}
+
+.studio-shape .chips {
+  flex-wrap: wrap;
+  padding: 0 var(--space-3) var(--space-2);
+}
+
+.studio-create-btn {
+  gap: var(--space-2);
+  min-width: 140px;
+}
+
+@media (max-width: 1279px) {
+  .studio .rooms-panel {
+    width: 320px;
+  }
+
+  .studio .rooms-preview-2d {
+    padding: 88px 40px 128px 360px;
+  }
+
+  .studio .rooms-preview-top {
+    left: 352px;
+  }
+
+  .studio-three-card {
+    display: none;
+  }
+
+  .studio-create {
+    left: calc(50% + 168px);
+  }
+
+  .studio-fact.is-plain {
+    display: none;
+  }
+}
+
 /* ── Phones and narrow windows (under 1024px) ──────────────────────────────
  * Width alone picks this layout; only touch-only phones are also read-only
  * (shell/phone.ts). Rooms and Layouts become one column, and panels dock
@@ -4806,6 +5538,65 @@ button.action-row:hover:not(:disabled),
 
   .rooms-footer {
     padding: var(--space-3) var(--space-4);
+  }
+
+  /* The Studio stacks on phones: plan, rooms, then Create pinned to the bottom. */
+  .rooms-step.studio {
+    display: flex;
+  }
+
+  .studio .rooms-preview {
+    position: relative;
+    inset: auto;
+  }
+
+  .studio .rooms-preview-2d {
+    padding: 56px var(--space-4) var(--space-4);
+  }
+
+  .studio .rooms-preview-top {
+    left: var(--space-3);
+  }
+
+  .studio-controls,
+  .studio-three-card {
+    display: none;
+  }
+
+  .studio .rooms-panel {
+    position: static;
+    width: auto;
+    max-height: none;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .studio-create {
+    position: static;
+    justify-content: space-between;
+    padding: var(--space-3) var(--space-4);
+    border-width: 1px 0 0;
+    border-radius: 0;
+    box-shadow: none;
+    transform: none;
+    white-space: normal;
+  }
+
+  .studio-facts {
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+
+  .studio-fact + .studio-fact {
+    padding-left: 0;
+    border-left: 0;
+  }
+
+  .studio-facts .chips,
+  .studio-shape,
+  .studio-fact.is-plain {
+    display: none;
   }
 
   /* Layouts: the cards in one column, the chosen layout's sheet docked at the bottom. */

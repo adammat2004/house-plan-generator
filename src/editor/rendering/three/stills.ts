@@ -1,9 +1,10 @@
 import * as THREE from "three";
 import { groundLevel, levelOf } from "@/domain/plan/levels";
 import type { Rect } from "@/domain/geometry/vector";
-import type { Id, Level, PlanDocument } from "@/domain/plan/types";
+import type { Level, PlanDocument } from "@/domain/plan/types";
 import type { Appearance } from "@/domain/project/schema";
-import { aerialCameraPose, exteriorCameraPose, roomCameraPose, type CameraPose } from "../scene/roomCamera";
+import { aerialCameraPose, exteriorCameraPose, roomCameraPose, spotCameraPose, type CameraPose } from "../scene/roomCamera";
+import type { StillTarget } from "@/domain/design/renderRequest";
 import { buildBuildingModel, planOf } from "./buildingModel";
 import { ensureFurnitureModels, furnitureModels, furnitureModelsGeneration } from "./furnitureAssets";
 import type { HouseModel } from "./houseModel";
@@ -16,7 +17,7 @@ import { applyLighting, buildHouse, clearGroup, TextureCache, type LightTarget }
  * a small cache of built scenes, so a board of concept cards stays cheap.
  */
 
-export type StillView = { kind: "exterior" } | { kind: "aerial" } | { kind: "room"; roomId: Id };
+export type StillView = StillTarget;
 
 export interface StillOptions {
   width: number;
@@ -43,6 +44,11 @@ let prepared: Prepared[] = [];
 function getRenderer(): THREE.WebGLRenderer | null {
   if (renderer || unavailable) return renderer;
   if (typeof document === "undefined") return null;
+  // ?webgl=off: behave as on a machine without WebGL, to check the pages still read without pictures.
+  if (new URLSearchParams(window.location.search).get("webgl") === "off") {
+    unavailable = true;
+    return null;
+  }
   try {
     const canvas = document.createElement("canvas");
     renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
@@ -82,7 +88,7 @@ function prepare(plan: PlanDocument, appearance: Appearance, mode: StillView["ki
   scene.add(hemi, sun, sun.target, group, nightLights);
   // A roof gives rooms a ceiling; dimensions and cutaways are for the interactive view.
   // From above the roof comes off, to see into the rooms.
-  const model = buildBuildingModel(plan, { cutaway: false, roof: mode !== "aerial", dimensions: false, landscape: true, furniture: true });
+  const model = buildBuildingModel(plan, { cutaway: false, roof: mode !== "aerial", dimensions: false, landscape: true, furniture: true, roofForm: appearance.roofForm });
   buildHouse(group, model, { appearance, ground: "lawn", landscape: true, labels: false }, textures, furnitureModels);
   if (interior) {
     // A plain white ceiling on every floor, as rooms have, and none over the garden.
@@ -118,13 +124,15 @@ function poseFor(plan: PlanDocument, model: HouseModel, view: StillView, aspect:
   if (view.kind === "room") {
     const level = levelOf(plan, view.roomId);
     const z = level?.elevation ?? 0;
-    return level ? raise(roomCameraPose(level, view.roomId, aspect), z, z) : null;
+    if (!level) return null;
+    return raise(view.spot ? spotCameraPose(view.spot, aspect) : roomCameraPose(level, view.roomId, aspect), z, z);
   }
   const ground = groundLevel(plan);
   const extra = Math.max(0, model.wallHeight - 3);
   if (view.kind === "aerial") return raise(aerialCameraPose(ground, aspect), extra, 0);
   const pose = raise(exteriorCameraPose(ground, aspect), extra * 0.6, extra / 2);
-  return pose && extra > 0 && model.outside ? backedOff(pose, model.outside, model.wallHeight + PARAPET_TOP) : pose;
+  // A tall house, or one under a pitched roof, is framed by its full height.
+  return pose && (extra > 0 || model.roofs) && model.outside ? backedOff(pose, model.outside, model.roofs ? (model.top ?? model.wallHeight) : model.wallHeight + PARAPET_TOP) : pose;
 }
 
 /** Roof slab and parapet above the tallest wall. */

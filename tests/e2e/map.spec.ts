@@ -6,6 +6,8 @@ test("sets the plot, what to leave free and north on Map, says what doesn't fit,
   await createHouse(page);
   await page.getByTestId("step-map").click();
   await expect(page.getByTestId("map-panel")).toBeVisible();
+  // The first visit asks whether there's a real site to trace; "No site yet" is today's plot form.
+  await page.getByTestId("site-mode-dream").click();
   // Typical gaps to start with; the plot itself is optional.
   await expect(page.getByTestId("site-front")).toHaveValue("6");
   await expect(page.getByTestId("site-side")).toHaveValue("1");
@@ -39,4 +41,23 @@ test("sets the plot, what to leave free and north on Map, says what doesn't fit,
   await page.reload();
   await expect(page.getByTestId("plan-canvas")).toBeVisible();
   await expect.poll(async () => ((await getProject(page)) as unknown as { site: unknown }).site).toEqual(site);
+});
+
+test("falls back to the plot form when the satellite map can't load, and Continue still works", async ({ page }) => {
+  // The map key is blanked for e2e (package.json test:e2e), so "I have a site" always hits this state deterministically.
+  await freshEditor(page);
+  await createHouse(page);
+  await page.getByTestId("step-map").click();
+  await page.getByTestId("site-mode-trace").click();
+  await expect(page.getByTestId("site-map-failed")).toBeVisible();
+  await expect(page.getByTestId("site-map-failed")).toContainText("The map couldn't load.");
+  // The plot form underneath still works, with a note explaining why it's there.
+  await expect(page.getByTestId("site-map-fallback-note")).toBeVisible();
+  await expect(page.getByTestId("rooms-plot-width")).toBeVisible();
+  await page.getByTestId("rooms-plot-width").fill("15");
+  await page.getByTestId("rooms-plot-depth").fill("35");
+  // Continue is primary once there's something to continue with, and still goes to Requirements.
+  await expect(page.getByTestId("map-continue")).toHaveClass(/btn-primary/);
+  await page.getByTestId("map-continue").click();
+  await expect(page.getByTestId("brief-panel")).toBeVisible();
 });

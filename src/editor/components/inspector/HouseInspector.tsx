@@ -7,7 +7,7 @@ import { DEFAULT_HOUSE, LIMITS } from "@/domain/plan/defaults";
 import { levelIndex } from "@/domain/plan/levels";
 import type { Level } from "@/domain/plan/types";
 import { Button, NumberField, ReadoutRow, TextField } from "@/components/ui/controls";
-import { useAreaText } from "@/components/units";
+import { lengthText, sizeText, useAreaText } from "@/components/units";
 import { editor, editorStores, useDocumentState, useSessionState } from "../../state/editor";
 import { InspectorFrame, MM_FIELD, mm, run, Section } from "./frame";
 
@@ -34,7 +34,7 @@ export function HouseInspector({ level }: { level: Level }) {
   const shape = info.isRectangle ? "" : `${words[0].toUpperCase()}${words.slice(1)} · `;
   const levelId = upper ? { levelId: level.id } : {};
   return (
-    <InspectorFrame title={upper ? level.name : "House"} summary={`${shape}${info.width.toFixed(3)} × ${info.depth.toFixed(3)} m outside`}>
+    <InspectorFrame title={upper ? level.name : "House"} summary={`${shape}${sizeText(info.width, info.depth, 3)} outside`}>
       <Section>
         <div className="field-row">
           <NumberField label="Width" value={info.width} testId="house-width" onCommit={(width) => run({ type: "resizeFootprint", width, ...levelId })} />
@@ -93,7 +93,7 @@ function FloorsSection({ level, index, count }: { level: Level; index: number; c
       {index > 0 && (
         <>
           <NumberField label="Floor thickness" value={level.floorThickness ?? DEFAULT_HOUSE.floorThickness} {...MM_FIELD} testId="floor-thickness" hint="From the ceiling below to this floor." onCommit={(floorThickness) => update({ floorThickness })} />
-          <ReadoutRow label="Floor level" value={`${level.elevation.toFixed(2)} m above the ground floor`} testId="floor-level" />
+          <ReadoutRow label="Floor level" value={`${lengthText(level.elevation, 2)} above the ground floor`} testId="floor-level" />
         </>
       )}
       {add}

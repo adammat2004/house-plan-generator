@@ -7,7 +7,7 @@ import {
   DEFAULT_APPEARANCE,
   EXTERIOR_FINISHES,
   FRAME_FINISHES,
-  ROOF_FINISHES,
+  ROOF_FINISHES_FOR,
   type Appearance,
   type ExteriorFinish,
   type FrameFinish,
@@ -44,8 +44,8 @@ const EXTERIOR_SWATCH: Record<ExteriorFinish, string> = {
 };
 const FRAME_LABEL: Record<FrameFinish, string> = { black: "Black", white: "White", oak: "Oak" };
 const FRAME_SWATCH: Record<FrameFinish, string> = { black: "#24282b", white: "#f4f4f1", oak: "#b4885a" };
-const ROOF_LABEL: Record<RoofFinish, string> = { membrane: "Flat membrane", zinc: "Zinc" };
-const ROOF_SWATCH: Record<RoofFinish, string> = { membrane: "#3b3f42", zinc: "#8d949a" };
+const ROOF_LABEL: Record<RoofFinish, string> = { membrane: "Flat membrane", zinc: "Zinc", slate: "Slate", tile: "Clay tile" };
+const ROOF_SWATCH: Record<RoofFinish, string> = { membrane: "#3b3f42", zinc: "#8d949a", slate: "#4b5157", tile: "#9b5a45" };
 
 /** The 3D view's one panel: where the camera is, how the house looks, and what's shown. Its button is on the 3D bar. */
 export function PresentPanel() {
@@ -143,6 +143,7 @@ function LookTab() {
   const v = useSessionState((s) => s.view3d);
   const appearance: Appearance = useProjectState((s) => s.appearance) ?? DEFAULT_APPEARANCE;
   const floors = useFloorsOfRooms();
+  const roofForm = appearance.roofForm ?? "flat";
   return (
     <>
       <h3 className="detail-heading">Time of day</h3>
@@ -169,7 +170,19 @@ function LookTab() {
 
       <Swatches label="Outside walls" options={EXTERIOR_FINISHES} value={appearance.exterior} names={EXTERIOR_LABEL} swatch={EXTERIOR_SWATCH} onPick={(exterior) => editor.setAppearance({ exterior })} testPrefix="exterior" />
       <Swatches label="Window frames" options={FRAME_FINISHES} value={appearance.frames} names={FRAME_LABEL} swatch={FRAME_SWATCH} onPick={(frames) => editor.setAppearance({ frames })} testPrefix="frames" />
-      <Swatches label="Roof" options={ROOF_FINISHES} value={appearance.roof} names={ROOF_LABEL} swatch={ROOF_SWATCH} onPick={(roof) => editor.setAppearance({ roof })} testPrefix="roof" />
+      <h3 className="detail-heading">Roof shape</h3>
+      <SegmentedControl
+        label="Roof shape"
+        value={roofForm}
+        options={[
+          { value: "hipped", label: "Hipped" },
+          { value: "gabled", label: "Gabled" },
+          { value: "flat", label: "Flat" },
+        ]}
+        onChange={(form) => editor.setAppearance({ roofForm: form, ...(ROOF_FINISHES_FOR[form].includes(appearance.roof) ? {} : { roof: ROOF_FINISHES_FOR[form][0] }) })}
+        testIdPrefix="roof-form"
+      />
+      <Swatches label="Roof" options={ROOF_FINISHES_FOR[roofForm]} value={appearance.roof} names={ROOF_LABEL} swatch={ROOF_SWATCH} onPick={(roof) => editor.setAppearance({ roof })} testPrefix="roof" />
       {!v.display.roof && <p className="field-hint">Turn on Roof under Show to see it.</p>}
 
       <h3 className="detail-heading">Floor finishes</h3>

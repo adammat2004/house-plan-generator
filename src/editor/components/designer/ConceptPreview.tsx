@@ -7,8 +7,11 @@ import type { Level, PlanDocument } from "@/domain/plan/types";
 import { SITE_THEME } from "../../rendering/konva/theme";
 import { buildGarden } from "../../rendering/scene/garden";
 import { buildPlanScene } from "../../rendering/scene/planScene";
-import { labelsOffStairs } from "../../rendering/scene/stairScene";
+import { labelsClear, type StairPrimitive } from "../../rendering/scene/stairScene";
 import { PlanDrawing, stairsOn, svgLine, type PlanPalette } from "./PlanThumbnail";
+
+/** One empty list, so label placement stays cached for plans without stairs. */
+const NO_STAIRS: StairPrimitive[] = [];
 
 const LAWN_STRIPE = "#b2c193";
 
@@ -50,7 +53,7 @@ export const ConceptPreview = memo(function ConceptPreview({
 }) {
   const id = useId().replace(/:/g, "");
   const stairs = stairsOn(plan, level);
-  const scene = stairs ? labelsOffStairs(buildPlanScene(level), stairs) : buildPlanScene(level);
+  const scene = labelsClear(buildPlanScene(level), stairs ?? NO_STAIRS);
   const r = scene.outsideRect;
   if (!r) return <span className={className} aria-hidden />;
   const garden = site ? buildGarden(level) : null;

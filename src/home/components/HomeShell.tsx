@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, type ReactNode } from "react";
 import { Menu, MenuItem } from "@/components/ui/controls";
 import { BRAND, Logo } from "@/components/brand";
-import { ChevronDownIcon, CloseIcon, FolderIcon, HelpIcon, PlusIcon, SearchIcon, SettingsIcon, TemplateIcon } from "@/components/ui/icons";
+import { ChevronDownIcon, CloseIcon, FolderIcon, GridIcon, HelpIcon, PlusIcon, SearchIcon, SettingsIcon, TemplateIcon } from "@/components/ui/icons";
 import { refreshLibrary } from "../library";
 import { initials, useProfileName } from "../profile";
 import { homeUi, newProjectHref, useHomeUi } from "../ui";
@@ -13,6 +13,7 @@ import { homeUi, newProjectHref, useHomeUi } from "../ui";
 const NAV = [
   { href: "/", label: "Projects", Icon: FolderIcon, match: (p: string) => p === "/" || p.startsWith("/projects") },
   { href: "/new", label: "New project", Icon: PlusIcon, match: (p: string) => p.startsWith("/new") },
+  { href: "/house-plans", label: "House plans", Icon: GridIcon, match: (p: string) => p.startsWith("/house-plans") },
   { href: "/templates", label: "Templates", Icon: TemplateIcon, match: (p: string) => p.startsWith("/templates") },
   { href: "/help", label: "Help", Icon: HelpIcon, match: (p: string) => p.startsWith("/help") },
   { href: "/settings", label: "Settings", Icon: SettingsIcon, match: (p: string) => p.startsWith("/settings") },

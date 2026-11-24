@@ -1,11 +1,11 @@
 import { LIMITS } from "../../plan/defaults";
-import { EXTERNAL_WALL_PREFERENCES, FLOOR_MATERIALS, ROOM_TYPES } from "../../plan/schema";
+import { CIRCULATION_KINDS, EXTERNAL_WALL_PREFERENCES, FLOOR_MATERIALS, ROOM_TYPES } from "../../plan/schema";
 import type { Id, Level, Room } from "../../plan/types";
 import { fail } from "../ops";
 import type { RoomChanges } from "../types";
 
 const MAX_AREA = 10_000;
-type OptionalKey = "targetArea" | "minArea" | "maxArea" | "floorMaterial" | "externalWall" | "locked";
+type OptionalKey = "targetArea" | "minArea" | "maxArea" | "floorMaterial" | "externalWall" | "locked" | "circulation";
 
 export function updateRoom(level: Level, roomId: Id, changes: RoomChanges): Level {
   const room = level.rooms[roomId];
@@ -47,6 +47,8 @@ export function updateRoom(level: Level, roomId: Id, changes: RoomChanges): Leve
   if (changes.locked != null && typeof changes.locked !== "boolean") fail("invalid-value", "Pinned must be true or false.", [roomId]);
   // Unpinned rooms carry no flag, so files stay as they were.
   setOptional("locked", changes.locked === false ? null : changes.locked);
+  if (changes.circulation != null && !(CIRCULATION_KINDS as readonly string[]).includes(changes.circulation)) fail("invalid-value", "Unknown kind of hall.", [roomId]);
+  setOptional("circulation", changes.circulation);
   if (next.minArea !== undefined && next.maxArea !== undefined && next.minArea > next.maxArea) {
     fail("invalid-value", "Minimum area can't be larger than maximum area.", [roomId]);
   }

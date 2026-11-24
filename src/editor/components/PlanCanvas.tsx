@@ -18,6 +18,7 @@ const CURSORS = {
   window: "copy",
   furniture: "copy",
   stairs: "copy",
+  erase: "cell",
 } as const;
 
 /**

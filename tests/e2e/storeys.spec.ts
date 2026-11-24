@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { AXIS, clickAt, createHouse, drawWall, freshEditor, freshHome, getDoc, getProject, type DocShape } from "./support";
+import { AXIS, clickAt, createHouse, drawWall, freshEditor, freshHome, getDoc, getProject, type DocShape, openRoomPicker } from "./support";
 
 type Plan = DocShape & { levels: Array<DocShape["levels"][number] & { id: string; name: string; elevation: number }>; staircases?: Record<string, { id: string; fromLevelId: string; toLevelId: string }> };
 
@@ -78,12 +78,15 @@ test.describe("Houses of more than one floor", () => {
     page.on("console", (m) => m.type() === "error" && errors.push(m.text()));
     await freshHome(page);
     await page.getByTestId("start-rooms").click();
-    await expect(page.getByTestId("room-picker")).toBeVisible();
+    await openRoomPicker(page);
+    // The house's shape is under the Create bar's shape menu.
+    await page.getByTestId("studio-shape").click();
     await expect(page.getByTestId("brief-shape-rectangle")).toBeVisible();
 
     await page.getByTestId("brief-storeys-2").click();
     await expect(page.getByTestId("brief-storeys-2")).toHaveAttribute("aria-checked", "true");
     // A two-storey house can still be any shape.
+    await page.getByTestId("studio-shape").click();
     await expect(page.getByTestId("brief-shape-rectangle")).toBeVisible();
     // The live preview draws both floors.
     await expect(page.getByTestId("rooms-preview").getByText("First floor")).toBeVisible();
@@ -92,7 +95,7 @@ test.describe("Houses of more than one floor", () => {
 
     await page.getByTestId("generate-layouts").click();
     const cards = page.getByTestId("concept-board").locator(".layout-card:not(.is-loading)");
-    await expect(cards).toHaveCount(3);
+    await expect(cards).toHaveCount(5);
     await expect(cards.first().getByTestId("house-floors")).toBeVisible();
     await expect(cards.first()).toContainText("· 2 storeys");
     const project = await getProject(page);
@@ -120,6 +123,7 @@ test.describe("Houses of more than one floor", () => {
     await freshHome(page);
     await page.getByTestId("start-rooms").click();
     await page.getByTestId("brief-storeys-2").click();
+    await page.getByTestId("studio-shape").click();
     await page.getByTestId("brief-shape-L").click();
     await expect(page.getByTestId("brief-shape-L")).toHaveAttribute("aria-checked", "true");
     await expect(page.getByTestId("rooms-preview").getByText("First floor")).toBeVisible();

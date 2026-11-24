@@ -86,25 +86,48 @@ const rectPolygon = (r: Rect): PolygonWithHoles => ({
   holes: [],
 });
 
-/** Clearance from the walls and stairs a room name needs, m. */
+/** Clearance from the walls, stairs and door swings a room name needs, m. */
 const LABEL_CLEARANCE = 0.45;
+
+/** How close a door's swing may come to a name before the name moves, m. */
+const SWING_REACH = 0.85;
+
+/** Clearance a name moved off a door swing needs: about half the width of a name and its size, m. */
+const NAME_HALF_WIDTH = 0.8;
 
 const labelCache = new WeakMap<PlanScene, WeakMap<readonly StairPrimitive[], PlanScene>>();
 
+const boxOf = (points: Point2[]): Rect => ({
+  minX: Math.min(...points.map((p) => p.x)),
+  minY: Math.min(...points.map((p) => p.y)),
+  maxX: Math.max(...points.map((p) => p.x)),
+  maxY: Math.max(...points.map((p) => p.y)),
+});
+
+const near = (r: Rect, p: Point2, d: number) => p.x >= r.minX - d && p.x <= r.maxX + d && p.y >= r.minY - d && p.y <= r.maxY + d;
+
 /**
- * The scene with room names moved off the stairs: a hall or landing's name
- * goes to the roomiest part of its floor clear of the flight and of the floor
- * at either end, where UP and DOWN are written. The same object back when no
- * room has stairs in it.
+ * The scene with room names moved clear of what would sit on them: stair
+ * flights and the floor at either end (where UP and DOWN are written), and
+ * the sweep of a door. A name moves to the roomiest part of its floor clear
+ * of those, as near where it was as there's room for; if nothing is clear
+ * enough, off the stairs alone, else where it was. The same object back when
+ * no name needs to move.
+ *
+ *   ┌──────────────┐        obstacles = flights ∪ stair ends ∪ door swing boxes
+ *   │ ╭╮    name ◀─┼─ moved to the roomiest clear part, nearest the old spot
+ *   │ ││ swing     │
+ *   └─┘└───────────┘
  */
-export function labelsOffStairs(scene: PlanScene, stairs: readonly StairPrimitive[]): PlanScene {
-  if (!stairs.length) return scene;
+export function labelsClear(scene: PlanScene, stairs: readonly StairPrimitive[]): PlanScene {
   let byStairs = labelCache.get(scene);
   if (!byStairs) labelCache.set(scene, (byStairs = new WeakMap()));
   const cached = byStairs.get(stairs);
   if (cached) return cached;
   const flights = stairs.flatMap((s) => s.footprint);
   const ends = stairs.flatMap((s) => s.ends);
+  // A swinging door's sweep: its leaf and arc. Sliding doors and windows sweep nothing.
+  const swings = scene.openings.filter((o) => o.leaf && o.arc?.length).map((o) => boxOf([...o.leaf!, ...o.arc!]));
   const roomiest = (clear: MultiPolygon, rects: Rect[]): PolygonWithHoles | null => {
     const free = clear.flatMap((p) => difference(p, rects.map(rectPolygon)));
     const largest = free.reduce<PolygonWithHoles | null>((best, p) => (!best || polygonArea(p) > polygonArea(best) ? p : best), null);
@@ -113,13 +136,15 @@ export function labelsOffStairs(scene: PlanScene, stairs: readonly StairPrimitiv
   let moved = false;
   const rooms = scene.rooms.map((room) => {
     const under = flights.filter((r) => rectsOverlap(r, room.bounds));
-    if (!under.length) return room;
-    // Off the flight and its ends if there's room for that, else off the flight alone.
-    const spot = roomiest(room.clear, [...under, ...ends.filter((r) => rectsOverlap(r, room.bounds))]) ?? roomiest(room.clear, under);
+    const doors = swings.filter((r) => rectsOverlap(r, room.bounds) && near(r, room.label, SWING_REACH));
+    if (!under.length && !doors.length) return room;
+    const stairEnds = ends.filter((r) => rectsOverlap(r, room.bounds));
+    // Clear of everything if there's room for that; else off the flight and its ends; else off the flight alone.
+    const spot = roomiest(room.clear, [...under, ...stairEnds, ...doors]) ?? (under.length ? (roomiest(room.clear, [...under, ...stairEnds]) ?? roomiest(room.clear, under)) : null);
     if (!spot) return room;
     moved = true;
-    // Nearest where it was, of the spots roomy enough for a name.
-    return { ...room, label: interiorPoint(spot, { point: room.label, enough: LABEL_CLEARANCE }) };
+    // Nearest where it was, of the spots roomy enough for a name (a name beside a door needs its width clear).
+    return { ...room, label: interiorPoint(spot, { point: room.label, enough: doors.length ? NAME_HALF_WIDTH : LABEL_CLEARANCE }) };
   });
   const out = moved ? { ...scene, rooms } : scene;
   byStairs.set(stairs, out);

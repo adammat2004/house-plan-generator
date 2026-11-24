@@ -11,6 +11,7 @@ import { editor } from "../../state/editor";
 import { InspectorFrame, lowerFirst, MoreSettings, mm, run, Section } from "./frame";
 import { friendlyName } from "./names";
 import { DoorArt, WindowArt } from "./openingArt";
+import { lengthText } from "@/components/units";
 
 const M_FIELD = { unit: "m", decimals: 3 } as const;
 
@@ -73,7 +74,7 @@ export function OpeningInspector({ level, opening }: { level: Level; opening: Op
         />
         <Clearances level={level} opening={opening} onCentre={centre} />
         <ReadoutRow label="Wall" value={describeEntity(level, opening.wallId)} />
-        <ReadoutRow label="Wall length" value={axis ? `${axis.length.toFixed(3)} m` : "—"} />
+        <ReadoutRow label="Wall length" value={axis ? lengthText(axis.length, 3) : "—"} />
       </MoreSettings>
       <div className="card-footer">
         <Button variant="danger" className="btn-block" onClick={() => run({ type: "deleteOpening", openingId: id })} data-testid="delete-opening">
@@ -184,7 +185,7 @@ function PositionControl({ level, opening }: { level: Level; opening: Opening })
           }}
         />
         <output className="position-value" data-testid="opening-position-value">
-          {Math.max(before, 0).toFixed(3)} m
+          {lengthText(Math.max(before, 0), 3)}
         </output>
       </div>
     </div>

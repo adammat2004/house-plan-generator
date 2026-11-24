@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { freshHome } from "./support";
+import { freshHome, openRoomPicker } from "./support";
 
 /**
  * The copy rule (DESIGN.md): people read what happened and what to do. No
@@ -28,13 +28,13 @@ test("no vendor names or setup notes on any step", async ({ page }) => {
   }
   await page.goto("/");
   await page.getByTestId("start-rooms").click();
-  await expect(page.getByTestId("room-picker")).toBeVisible();
+  await openRoomPicker(page);
   await page.getByTestId("rooms-tab-presets").click();
   await expectCleanCopy(page, "Rooms");
   await page.getByTestId("rooms-tab-rooms").click();
 
   await page.getByTestId("generate-layouts").click();
-  await expect(page.getByTestId("concept-board").locator(".layout-card")).toHaveCount(3);
+  await expect(page.getByTestId("concept-board").locator(".layout-card")).toHaveCount(5);
   await expectCleanCopy(page, "Layouts");
   await page.getByTestId("detail-tab-rooms").click();
   await expectCleanCopy(page, "Layouts, rooms tab");

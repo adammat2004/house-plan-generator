@@ -413,25 +413,25 @@ function MethodArt({ method }: { method: StartMethod }) {
       <svg viewBox="0 0 80 64" width="80" height="64">
         {method === "scratch" && (
           <>
-            <path d="M18 48V16h30v14" fill="none" stroke="#1e2420" strokeWidth="3" strokeLinejoin="miter" />
+            <path d="M18 48V16h30v14" fill="none" stroke="#1c1a17" strokeWidth="3" strokeLinejoin="miter" />
             <path d="M48 30v18H18" fill="none" stroke="#2f6f5e" strokeWidth="2" strokeDasharray="3 3" />
             <circle cx="48" cy="30" r="3.2" fill="#2f6f5e" />
-            <path d="m54 22 9-9 4 4-9 9-5 1z" fill="#fff" stroke="#1e2420" strokeWidth="1.6" strokeLinejoin="round" />
+            <path d="m54 22 9-9 4 4-9 9-5 1z" fill="#fff" stroke="#1c1a17" strokeWidth="1.6" strokeLinejoin="round" />
           </>
         )}
         {method === "dimensions" && (
           <>
-            <rect x="20" y="22" width="40" height="28" fill="#f3ead8" stroke="#1e2420" strokeWidth="3" />
+            <rect x="20" y="22" width="40" height="28" fill="#f3ead8" stroke="#1c1a17" strokeWidth="3" />
             <path d="M20 13h40M20 9v8M60 9v8" fill="none" stroke="#2f6f5e" strokeWidth="1.6" />
             <path d="M68 22v28M64 22h8M64 50h8" fill="none" stroke="#2f6f5e" strokeWidth="1.6" />
-            <path d="M40 22v28M20 36h20" fill="none" stroke="#1e2420" strokeWidth="1.4" />
+            <path d="M40 22v28M20 36h20" fill="none" stroke="#1c1a17" strokeWidth="1.4" />
           </>
         )}
         {method === "import" && (
           <>
-            <path d="M24 10h22l10 10v34H24z" fill="#fff" stroke="#1e2420" strokeWidth="1.8" strokeLinejoin="round" />
-            <path d="M46 10v10h10" fill="none" stroke="#1e2420" strokeWidth="1.8" strokeLinejoin="round" />
-            <path d="M30 28h20v18H30zM40 28v9h10" fill="#f3ead8" stroke="#1e2420" strokeWidth="1.5" />
+            <path d="M24 10h22l10 10v34H24z" fill="#fff" stroke="#1c1a17" strokeWidth="1.8" strokeLinejoin="round" />
+            <path d="M46 10v10h10" fill="none" stroke="#1c1a17" strokeWidth="1.8" strokeLinejoin="round" />
+            <path d="M30 28h20v18H30zM40 28v9h10" fill="#f3ead8" stroke="#1c1a17" strokeWidth="1.5" />
             <circle cx="58" cy="50" r="9" fill="#2f6f5e" />
             <path d="M58 54.5v-9M54 49l4-4 4 4" fill="none" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
           </>

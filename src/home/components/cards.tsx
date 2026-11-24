@@ -11,9 +11,38 @@ import { templateArea } from "@/domain/project/templates";
 import { PlanThumbnail } from "@/editor/components/designer/PlanThumbnail";
 import { downloadProject } from "@/persistence/jsonFile";
 import type { ProjectSummary } from "@/persistence/planStorage";
+import { browserLibrary } from "@/persistence/browserLibrary";
+import { COVER_VIEW } from "@/editor/state/covers";
 import { createProjectFromTemplate, deleteProject, duplicateProject, editorHref, renameProject, startDesigning } from "../library";
 import { editedAgo, showHomeNotice } from "../ui";
 import { TemplateExterior, templatePreview } from "./illustrations";
+
+/** The project's cover (its chosen plan from the garden, drawn in the editor), or null to show the plan drawing. */
+function useCover(projectId: string, planId: string | undefined): string | null {
+  const [cover, setCover] = useState<{ key: string; url: string } | null>(null);
+  const key = `${projectId}/${planId}`;
+  useEffect(() => {
+    if (!planId) return;
+    let url: string | null = null;
+    let cancelled = false;
+    browserLibrary()
+      .renders.list(projectId)
+      .then((records) => {
+        const record = records.find((r) => r.view === COVER_VIEW && r.planId === planId);
+        if (!record || cancelled) return;
+        url = URL.createObjectURL(new Blob([record.bytes], { type: record.mimeType }));
+        setCover({ key, url });
+      })
+      .catch(() => {
+        // Storage blocked or full: the plan drawing stands in.
+      });
+    return () => {
+      cancelled = true;
+      if (url) URL.revokeObjectURL(url);
+    };
+  }, [projectId, planId, key]);
+  return cover && cover.key === key ? cover.url : null;
+}
 
 const fail = (what: string) => (error: unknown) => showHomeNotice("error", `${what}: ${(error as Error).message || "unknown problem"}`);
 
@@ -25,6 +54,7 @@ export function ProjectCard({ project }: { project: ProjectSummary }) {
   const plan = doc?.plans.find((p) => p.id === doc.activePlanId)?.document;
   const level = plan?.levels[0];
   const planCount = doc?.plans.length ?? 0;
+  const cover = useCover(project.id, doc?.activePlanId);
   const title = (
     <>
       <span className="card-title">{project.name || "Untitled project"}</span>
@@ -38,7 +68,14 @@ export function ProjectCard({ project }: { project: ProjectSummary }) {
     <article className="home-card project-card" data-testid="project-card">
       {doc ? (
         <Link href={editorHref(project.id)} className="card-link" aria-label={`Open ${project.name || "project"}`}>
-          <div className="card-media plan-paper">{level && <PlanThumbnail level={level} plan={plan} palette="warm" className="card-plan" pad={0.8} detail />}</div>
+          <div className="card-media plan-paper">
+            {cover ? (
+              // eslint-disable-next-line @next/next/no-img-element -- an object URL made in the browser
+              <img className="card-cover" src={cover} alt="" data-testid="project-cover" />
+            ) : (
+              level && <PlanThumbnail level={level} plan={plan} palette="warm" className="card-plan" pad={0.8} detail />
+            )}
+          </div>
           <div className="card-body">{title}</div>
         </Link>
       ) : (

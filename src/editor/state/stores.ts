@@ -32,7 +32,7 @@ import { newIdPrefix } from "./ids";
 /** "house" selects the envelope as a whole; its id is the level id. "stairs" are a staircase, by its id. */
 export type EntityKind = "wall" | "opening" | "room" | "house" | "furniture" | "stairs";
 export type Selection = { kind: EntityKind; id: Id } | null;
-export type ToolId = "select" | "wall" | "room" | "door" | "window" | "furniture" | "outline" | "stairs";
+export type ToolId = "select" | "wall" | "room" | "door" | "window" | "furniture" | "outline" | "stairs" | "erase";
 
 /** A house outline being drawn: outside-face corners so far, and where the next one would go. */
 export interface OutlineDraft {
@@ -57,6 +57,22 @@ export type Workspace = "site" | "brief" | "design" | "review";
  */
 export type PlanView = "plan" | "furnished";
 export type CameraMode = "orbit" | "pan" | "walk" | "interior" | "aerial" | "exterior";
+/**
+ * Where the Map step is in its wizard. Session-only: it isn't the real
+ * site data (`ProjectState.site`), only which screen to show. "ask" is the
+ * opening choice; it's skipped once the project already has a dream plot or
+ * a traced site, so returning to Map goes straight back to where you were.
+ */
+export interface SiteUiState {
+  mode: "ask" | "dream" | "trace";
+  /** Which guided task is open, while `mode` is "trace". */
+  stage: "find" | "trace" | "road" | "entrance" | "wastewater" | "done";
+  /** Set by SiteMap when the satellite map itself can't load, so the legacy plot form fills in (design review R4). */
+  mapFailed: boolean;
+}
+
+export const DEFAULT_SITE_UI: SiteUiState = { mode: "ask", stage: "find", mapFailed: false };
+
 export type LightingPreset = "morning" | "midday" | "evening" | "night";
 
 /** How the 3D view is set up. Session-only: the house's look itself is in the project's appearance. */
@@ -323,7 +339,16 @@ export interface SessionState {
   /** The two plans side by side in "compare", left and right. */
   comparePlans: [Id, Id] | null;
   view3d: View3DState;
+  site: SiteUiState;
   tool: ToolId;
+  /** Rooms brushed over with the Erase tool, to be laid out again together. */
+  erased: Id[];
+  /** The Furnish & Render panel is open over Refine. */
+  renderOpen: boolean;
+  /** Putting a camera down on the plan: waiting for where it stands (eye null), then for what it looks at. */
+  cameraPick: { eye: Point2 | null } | null;
+  /** Cameras put down this session, newest first, for the Furnish & Render panel. */
+  cameraSpots: Array<{ id: string; roomId: Id; eye: Point2; look: Point2 }>;
   selection: Selection;
   hover: Selection;
   viewport: Viewport;
@@ -413,7 +438,12 @@ export function createEditorStores(initial: PlanDocument | ProjectDocument): Edi
     variations: null,
     comparePlans: null,
     view3d: DEFAULT_VIEW3D,
+    site: DEFAULT_SITE_UI,
     tool: "select",
+    erased: [],
+    renderOpen: false,
+    cameraPick: null,
+    cameraSpots: [],
     selection: null,
     hover: null,
     viewport: DEFAULT_VIEWPORT,
@@ -481,6 +511,13 @@ let noticeCounter = 0;
 /** Refine: one plan open, with every part of it editable. */
 export const inRefine = (s: Pick<SessionState, "workspace" | "designView">) => s.workspace === "design" && s.designView === "plan";
 
+/**
+ * Whether the plan is drawn schematically: the 2D Plan view in Refine and
+ * Review, rooms filled by their use. Elsewhere (and in Furnished) the plan
+ * shows its floor finishes, furniture and garden.
+ */
+export const showsSchematic = (s: Pick<SessionState, "workspace" | "designView" | "view">) => s.view === "plan" && (inRefine(s) || s.workspace === "review");
+
 /** Whether the 3D view is on show: in Refine and Review, when chosen. */
 export const in3d = (s: Pick<SessionState, "workspace" | "designView" | "show3d">) => s.show3d && (inRefine(s) || s.workspace === "review");
 
@@ -533,7 +570,7 @@ export function createEditorActions({ documents, session, project }: EditorStore
   const showLevel = (levelId: Id | null) => {
     if (session.getState().activeLevelId === levelId) return;
     if (documents.getState().preview) documents.setState({ preview: null });
-    session.setState({ activeLevelId: levelId, selection: null, hover: null, wallDraft: null, openingDraft: null, furnitureDraft: null, stairsDraft: null, outlineDraft: null, snap: null, drag: null });
+    session.setState({ activeLevelId: levelId, selection: null, hover: null, erased: [], wallDraft: null, openingDraft: null, furnitureDraft: null, stairsDraft: null, outlineDraft: null, snap: null, drag: null });
   };
 
   /** After undo or redo, shows the floor that changed, and says so. */
@@ -728,7 +765,7 @@ export function createEditorActions({ documents, session, project }: EditorStore
       const { project: state, active } = projectState(next, project.getState().revision + 1);
       project.setState(state, true);
       documents.setState((s) => ({ history: createHistory(active), preview: null, staged: null, revision: s.revision + 1 }));
-      session.setState({ activeLevelId: null, selection: null, hover: null, wallDraft: null, openingDraft: null, furnitureDraft: null, stairsDraft: null, snap: null, drag: null });
+      session.setState({ activeLevelId: null, selection: null, hover: null, erased: [], wallDraft: null, openingDraft: null, furnitureDraft: null, stairsDraft: null, snap: null, drag: null });
     },
 
     renameProject(name: string): true | string {
@@ -759,7 +796,7 @@ export function createEditorActions({ documents, session, project }: EditorStore
       const sameFloor = floor > 0 ? history.present.levels[floor]?.id : undefined;
       project.setState({ activePlanId: planId, parked, revision: p.revision + 1 });
       documents.setState({ history, preview: null, staged: null, revision: state.revision + 1, notice: null });
-      session.setState({ activeLevelId: sameFloor ?? null, selection: null, hover: null, wallDraft: null, openingDraft: null, furnitureDraft: null, stairsDraft: null, snap: null, drag: null });
+      session.setState({ activeLevelId: sameFloor ?? null, selection: null, hover: null, erased: [], wallDraft: null, openingDraft: null, furnitureDraft: null, stairsDraft: null, snap: null, drag: null });
       return true;
     },
 
@@ -850,13 +887,23 @@ export function createEditorActions({ documents, session, project }: EditorStore
       session.setState({ selection });
     },
 
+    /** The rooms brushed with Erase. */
+    setErased(erased: Id[]) {
+      session.setState({ erased });
+    },
+
+    /** Opens or closes the Furnish & Render panel. */
+    setRenderOpen(renderOpen: boolean) {
+      session.setState({ renderOpen });
+    },
+
     setTool(tool: ToolId) {
       // Only Refine edits; elsewhere the plan is for looking at, as it is while an option is on show.
       if (tool !== "select" && (!canEditPlan(session.getState()) || staged())) return;
       if (documents.getState().preview) documents.setState({ preview: null });
       // Furniture is placed where it can be seen.
       if (tool === "furniture") setView("furnished");
-      session.setState({ tool, wallDraft: null, openingDraft: null, furnitureDraft: null, stairsDraft: null, outlineDraft: null, snap: null, hover: null });
+      session.setState({ tool, erased: [], wallDraft: null, openingDraft: null, furnitureDraft: null, stairsDraft: null, outlineDraft: null, snap: null, hover: null });
     },
 
     /** Touch-only phones look but don't edit. Turning it on drops any gesture in progress. */
@@ -930,6 +977,10 @@ export function createEditorActions({ documents, session, project }: EditorStore
       session.setState((s) => ({ view3d: { ...s.view3d, ...patch } }));
     },
 
+    setSiteUi(patch: Partial<SiteUiState>) {
+      session.setState((s) => ({ site: { ...s.site, ...patch } }));
+    },
+
     /** Shows the house in 3D, or the plan again. Covering the plan drops any tool or gesture in progress. */
     setShow3d(show3d: boolean) {
       const s = session.getState();
@@ -992,10 +1043,10 @@ export function createEditorActions({ documents, session, project }: EditorStore
     },
 
     /** Lays out every room on the floor being edited again (or only empty rooms), as one undoable step. */
-    furnishAll(replace: boolean): number {
+    furnishAll(replace: boolean, quiet = false): number {
       const command = furnishPlanCommand(current(), newIdPrefix(), replace, activeLevel().id);
       if (!command) {
-        notify("info", "Every room already has furniture, or none of them is a kind I can furnish.");
+        if (!quiet) notify("info", "Every room already has furniture, or none of them is a kind I can furnish.");
         return 0;
       }
       const result = this.dispatch(command);

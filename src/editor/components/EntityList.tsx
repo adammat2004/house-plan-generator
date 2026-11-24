@@ -6,6 +6,7 @@ import { roomAtPoint } from "@/domain/design/analysis";
 import { formatArea } from "@/domain/geometry/numeric";
 import { editor, editorStores, useActiveLevel, useSessionState } from "../state/editor";
 import type { EntityKind } from "../state/stores";
+import { lengthText } from "@/components/units";
 
 /** Keyboard-accessible list of everything on the plan; selecting here equals selecting on the canvas. */
 export function EntityList() {
@@ -62,7 +63,7 @@ export function EntityList() {
               "wall",
               wall.id,
               `${describeEntity(level, wall.id)}${level.rearWallId === wall.id ? " · rear" : ""}`,
-              `${(geometry.axes.get(wall.id)?.length ?? 0).toFixed(3)} m`,
+              lengthText(geometry.axes.get(wall.id)?.length ?? 0, 3),
             ),
           )}
         </ul>
@@ -73,7 +74,7 @@ export function EntityList() {
         </summary>
         <ul>
           {openings.length === 0 && <li className="empty">None yet — use the Door or Window tool.</li>}
-          {openings.map((o) => item("opening", o.id, describeEntity(level, o.id), `${o.width.toFixed(3)} m · ${describeEntity(level, o.wallId)}`))}
+          {openings.map((o) => item("opening", o.id, describeEntity(level, o.id), `${lengthText(o.width, 3)} · ${describeEntity(level, o.wallId)}`))}
         </ul>
       </details>
       <details>

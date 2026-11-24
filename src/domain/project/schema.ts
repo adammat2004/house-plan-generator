@@ -13,7 +13,7 @@ import { siteSchema, type Site } from "./site";
 
 export const PROJECT_FORMAT = "floor-plan-project" as const;
 export const PROJECT_SCHEMA_VERSION = 1 as const;
-export const MAX_PLANS = 40;
+export const MAX_PLANS = 60;
 
 const idSchema = z.string().min(1).max(200);
 
@@ -34,6 +34,10 @@ export const planOriginSchema = z.discriminatedUnion("kind", [
     variant: z.string().max(80).optional(),
     /** Why to pick it over the others generated with it ("Most compact"); see design/layoutNames.ts. */
     title: z.string().max(60).optional(),
+    /** The brief it was generated from, so Design history can bring the rooms back. Absent on plans made before history. */
+    brief: houseBriefSchema.optional(),
+    /** When it was generated, ISO 8601. */
+    at: z.string().max(40).optional(),
   }),
 ]);
 
@@ -58,7 +62,10 @@ export const PROJECT_TYPE_LABEL: Record<ProjectType, string> = { house: "House",
 /** How the house looks outside, for the 3D view. Recorded per project. */
 export const EXTERIOR_FINISHES = ["white_render", "brick", "timber", "dark_render"] as const;
 export const FRAME_FINISHES = ["black", "white", "oak"] as const;
-export const ROOF_FINISHES = ["membrane", "zinc"] as const;
+export const ROOF_FINISHES = ["membrane", "zinc", "slate", "tile"] as const;
+export const ROOF_FORMS = ["hipped", "gabled", "flat"] as const;
+/** The finishes each roof shape can take: a membrane only lies flat, slate and tile only on a slope. */
+export const ROOF_FINISHES_FOR: Record<(typeof ROOF_FORMS)[number], readonly (typeof ROOF_FINISHES)[number][]> = { flat: ["membrane", "zinc"], hipped: ["slate", "tile", "zinc"], gabled: ["slate", "tile", "zinc"] };
 
 /** How rooms are furnished and finished in photo renders. */
 export const INTERIOR_STYLES = ["modern", "scandinavian", "warm_minimal", "industrial", "farmhouse", "coastal"] as const;
@@ -71,12 +78,27 @@ export const INTERIOR_STYLE_LABEL: Record<InteriorStyle, string> = {
   coastal: "Coastal",
 };
 
+/** The house's architectural style in exterior photo renders. */
+export const EXTERIOR_STYLES = ["contemporary", "farmhouse", "cottage", "craftsman", "scandinavian", "mediterranean"] as const;
+export const EXTERIOR_STYLE_LABEL: Record<(typeof EXTERIOR_STYLES)[number], string> = {
+  contemporary: "Contemporary",
+  farmhouse: "Modern farmhouse",
+  cottage: "Cottage",
+  craftsman: "Craftsman",
+  scandinavian: "Scandinavian",
+  mediterranean: "Mediterranean",
+};
+
 export const appearanceSchema = z.object({
   exterior: z.enum(EXTERIOR_FINISHES),
   frames: z.enum(FRAME_FINISHES),
   roof: z.enum(ROOF_FINISHES),
+  /** Optional: projects saved before pitched roofs stay flat. */
+  roofForm: z.enum(ROOF_FORMS).optional(),
   /** Optional: projects saved before photo renders use the default style. */
   interiorStyle: z.enum(INTERIOR_STYLES).optional(),
+  /** Optional: absent means no particular style, as before styles existed. */
+  exteriorStyle: z.enum(EXTERIOR_STYLES).optional(),
 });
 
 /**
@@ -86,7 +108,10 @@ export const appearanceSchema = z.object({
 export const plotSchema = z.object({ maxWidth: z.number().min(4).max(200).optional(), maxDepth: z.number().min(4).max(200).optional() });
 export const sizingSchema = z.object({ footprint: z.enum(["source", "auto"]), plot: plotSchema.optional() });
 
+/** How a project with no appearance looks: flat-roofed, as every project was before pitched roofs. */
 export const DEFAULT_APPEARANCE: Appearance = { exterior: "white_render", frames: "black", roof: "membrane" };
+/** How a project made now starts out: a hipped slate roof. */
+export const NEW_PROJECT_APPEARANCE: Appearance = { ...DEFAULT_APPEARANCE, roof: "slate", roofForm: "hipped" };
 
 const planVariantShape = {
   id: idSchema,
@@ -127,6 +152,7 @@ export type ExteriorFinish = Appearance["exterior"];
 export type FrameFinish = Appearance["frames"];
 export type RoofFinish = Appearance["roof"];
 export type InteriorStyle = (typeof INTERIOR_STYLES)[number];
+export type ExteriorStyle = (typeof EXTERIOR_STYLES)[number];
 export type Sizing = z.infer<typeof sizingSchema>;
 export type PlanScope = z.infer<typeof planScopeSchema>;
 export type PlanVariantMeta = Omit<z.infer<typeof rawProjectSchema>["plans"][number], "document">;

@@ -11,6 +11,7 @@ import { furnishRoom } from "@/domain/furniture/furnish";
 import { levelKeepOut } from "@/domain/geometry/stairs";
 import { levelIndex, levelOf, levelView, spliceLevel } from "@/domain/plan/levels";
 import { generationPlot } from "@/domain/project/site";
+import { tracedSite, type SiteFit } from "@/domain/site/fit";
 import { assessSense } from "@/domain/design/sense";
 import type { Id, Level, PlanDocument } from "@/domain/plan/types";
 import type { AiInterpreter } from "./aiInterpreter";
@@ -18,6 +19,9 @@ import { newIdPrefix } from "./ids";
 import type { ChatMessage, EditorActions, EditorStores, Generation, Proposal } from "./stores";
 
 /** What people see when generating breaks; the error itself goes to the console. */
+/** Whole-house layouts per run, lettered A–E. */
+export const LAYOUTS_PER_RUN = 5;
+
 export const GENERATION_FAILED = "Something went wrong laying out these rooms. Try again, or change a room.";
 
 /** Lets the page paint (the Layouts loading state) before the planner takes the main thread. */
@@ -85,7 +89,7 @@ export function createDesignActions({ session, project }: EditorStores, actions:
     actions.setDesigner({ chat: [...session.getState().designer.chat, { ...message, id: ++messageCounter }] });
 
   /** Runs the planner with the UI showing progress. Null if the request was refused or another is running. */
-  async function plan(intent: DesignIntent, source = actions.current(), instructionsRead = false): Promise<PlanningResult | null> {
+  async function plan(intent: DesignIntent, source = actions.current(), instructionsRead = false, site?: SiteFit): Promise<PlanningResult | null> {
     if (running()) return null;
     const parsed = designIntentSchema.safeParse(intent);
     if (!parsed.success) {
@@ -96,7 +100,7 @@ export function createDesignActions({ session, project }: EditorStores, actions:
     // Let the UI show progress before planning starts.
     await nextPaint();
     try {
-      return await planner.plan({ intent: parsed.data, source, brief: project.getState().brief, idPrefix: newIdPrefix(), instructionsRead });
+      return await planner.plan({ intent: parsed.data, source, brief: project.getState().brief, idPrefix: newIdPrefix(), instructionsRead, ...(site ? { site } : {}) });
     } catch (error) {
       console.error("Planner failed", error);
       actions.setDesigner({ lastResult: { tone: "error", message: GENERATION_FAILED, notes: [] } });
@@ -238,7 +242,9 @@ export function createDesignActions({ session, project }: EditorStores, actions:
         // Projects started from rooms size every house from the rooms, within the plot.
         ...(sizing?.footprint === "auto" ? { footprint: "auto" as const, ...(plot ? { plot } : {}) } : {}),
       };
-      const result = await plan(intent, actions.planDocument(sourcePlanId) ?? actions.current(), instructions.read);
+      // On a traced site, houses sized from the rooms must also fit somewhere on it.
+      const siteFit = sizing?.footprint === "auto" ? tracedSite(site)?.fit : undefined;
+      const result = await plan(intent, actions.planDocument(sourcePlanId) ?? actions.current(), instructions.read, siteFit);
       if (!result) {
         setGeneration({ phase: "failed", startedAt, message: GENERATION_FAILED });
         return null;
@@ -263,6 +269,9 @@ export function createDesignActions({ session, project }: EditorStores, actions:
   function addSet({ result, sourcePlanId, notes: readNotes, startedAt }: PlannedSet, describe: (n: number) => string): Id[] {
     const requestId = newIdPrefix();
     const titles = layoutNames(result.candidates.map((c) => c.document.levels[0]));
+    // Design history: the rooms these came from, and when.
+    const brief = project.getState().brief;
+    const at = new Date().toISOString();
     const ids = actions.addPlans(
       result.candidates.map((c, i) => ({
         document: c.document,
@@ -278,6 +287,8 @@ export function createDesignActions({ session, project }: EditorStores, actions:
             arrangement: c.arrangement,
             ...(c.variant && c.footprint ? { variant: c.variant } : {}),
             title: titles[i],
+            brief,
+            at,
           },
           scope: { kind: "plan" },
         },
@@ -378,18 +389,18 @@ export function createDesignActions({ session, project }: EditorStores, actions:
      * When the user's house is too small for the brief: size each house from
      * the rooms from now on, and generate. The user's own plan is unchanged.
      */
-    sizeFromRooms(count = 3): Promise<Id[]> {
+    sizeFromRooms(count = LAYOUTS_PER_RUN): Promise<Id[]> {
       actions.setSizing({ footprint: "auto" });
       return layouts(count, {}, (n) => `${n} layout${n === 1 ? "" : "s"} sized from your rooms. Your original plan is unchanged.`);
     },
 
     /** Generates whole-plan layouts from the project brief, added as new plans. */
-    generateLayouts(count = 3): Promise<Id[]> {
+    generateLayouts(count = LAYOUTS_PER_RUN): Promise<Id[]> {
       return layouts(count, {}, (n) => `${n} layout${n === 1 ? "" : "s"} generated from your brief. Your original plan is unchanged.`);
     },
 
     /** More layouts in arrangements not yet offered in this project. */
-    generateMore(count = 3): Promise<Id[]> {
+    generateMore(count = LAYOUTS_PER_RUN): Promise<Id[]> {
       return layouts(count, { exclude: offeredArrangements() }, (n) => `${n} more layout${n === 1 ? "" : "s"} added.`);
     },
 
@@ -408,7 +419,7 @@ export function createDesignActions({ session, project }: EditorStores, actions:
      * A fresh set from the current brief. Generated concepts nobody has
      * edited are replaced; edited ones and the user's own plans are kept.
      */
-    async regenerate(count = 3): Promise<Id[]> {
+    async regenerate(count = LAYOUTS_PER_RUN): Promise<Id[]> {
       if (running()) return [];
       const staleIds = () => project.getState().plans.filter((p) => p.origin.kind === "generated" && p.scope.kind === "plan" && !actions.planEdited(p.id)).map((p) => p.id);
       if (staleIds().length && project.getState().plans.length - staleIds().length < 1) return [];

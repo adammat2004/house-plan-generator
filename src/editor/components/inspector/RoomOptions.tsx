@@ -155,6 +155,8 @@ export function AiOptions({ level, roomId, picked, onPick }: { level: Level; roo
         </div>
       )}
       {cards.length > 0 && (
+        // Stays in view at the foot of the panel while the options above scroll.
+        <div className="inspector-sticky-footer">
         <button
           type="button"
           className="btn btn-primary btn-block"
@@ -171,6 +173,7 @@ export function AiOptions({ level, roomId, picked, onPick }: { level: Level; roo
           {chosen ? `Apply ${chosen.letter}` : "Pick an option to see it on the plan"}
           {chosen && <ArrowRightIcon width={16} height={16} />}
         </button>
+        </div>
       )}
       {focus && (
         <button type="button" className="link-btn" onClick={() => onPick(null)}>

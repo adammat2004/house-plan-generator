@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { freshHome } from "./support";
+import { freshHome, openRoomPicker } from "./support";
 
 /**
  * Pixel baselines for the main flow: Home, Requirements, Explore, Refine (furnished and in 3D), Review and Map at
@@ -33,12 +33,12 @@ async function mainFlow(page: Page, name: string, phone = false) {
   await expect(page).toHaveScreenshot(`${name}-home.png`);
 
   await page.getByTestId("start-rooms").click();
-  await expect(page.getByTestId("room-picker")).toBeVisible();
+  await openRoomPicker(page);
   await settle(page);
   await expect(page).toHaveScreenshot(`${name}-rooms.png`);
 
   await page.getByTestId("generate-layouts").click();
-  await expect(page.getByTestId("concept-board").locator(".layout-card")).toHaveCount(3);
+  await expect(page.getByTestId("concept-board").locator(".layout-card")).toHaveCount(5);
   await settle(page);
   await expect(page).toHaveScreenshot(`${name}-layouts.png`);
 

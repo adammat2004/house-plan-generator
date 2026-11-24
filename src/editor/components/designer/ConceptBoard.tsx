@@ -4,12 +4,15 @@ import { useEffect, useState, type KeyboardEvent } from "react";
 import { PLAN_FEATURE_LABEL } from "@/domain/design/analysis";
 import { Menu, MenuItem } from "@/components/ui/controls";
 import { MoreIcon, SparkleIcon, WarningIcon } from "@/components/ui/icons";
-import { useAreaText } from "@/components/units";
+import { sizeText, useAreaText } from "@/components/units";
 import { design, editor, useProjectState, useSessionState } from "../../state/editor";
 import type { Generation } from "../../state/stores";
+import { LAYOUTS_PER_RUN } from "../../state/design";
 import { generateFromRooms, goToStep, openConcept } from "../shell/tools";
 import { revealPlot } from "../site/MapWorkspace";
 import { ConceptDetail } from "./ConceptDetail";
+import { ExteriorPicture } from "./ExteriorPicture";
+import { checkPlacements, missNote } from "@/domain/design/placement";
 import { HousePreview } from "./ConceptPreview";
 import { useConcepts, type Concept } from "./concepts";
 
@@ -134,7 +137,7 @@ function LayoutsPage() {
             </button>
             {concepts.length > 0 && (
               <button type="button" className="btn btn-secondary btn-md" disabled={running || loading} onClick={() => void design.generateMore()} data-testid="generate-more">
-                Show three more
+                More layouts
               </button>
             )}
             {concepts.length > 0 && (
@@ -178,7 +181,7 @@ function LayoutsPage() {
           ) : (
             <EmptyState
               title="No layouts yet"
-              text="Choose your rooms and we'll lay out three options to compare."
+              text="Choose your rooms and we'll lay out five options to compare."
               actions={
                 <button type="button" className="btn btn-primary btn-md" onClick={() => goToStep("requirements")} data-testid="board-go-brief">
                   Choose your rooms
@@ -219,13 +222,13 @@ function EmptyState({ title, text, actions }: { title: string; text: string; act
   );
 }
 
-/** Three card outlines while layouts are made, with what's happening. */
+/** A card outline for each layout being made, with what's happening. */
 function LoadingSet({ reading }: { reading: boolean }) {
   return (
     <section className="layouts-group" aria-busy="true" aria-live="polite" data-testid="layouts-loading">
       <h2>{reading ? "Reading your notes…" : "Laying out your rooms…"}</h2>
       <div className="layouts-grid">
-        {[0, 1, 2].map((i) => (
+        {Array.from({ length: LAYOUTS_PER_RUN }, (_, i) => (
           <div key={i} className="layout-card is-loading" aria-hidden>
             <span className="layout-art skeleton" />
             <span className="layout-meta">
@@ -239,6 +242,9 @@ function LoadingSet({ reading }: { reading: boolean }) {
   );
 }
 
+/** The exterior still on a card: 16:9, twice its shown size. */
+const CARD_STILL = { width: 640, height: 360 };
+
 function LayoutCard({ concept, frame, recommended, selected, onFocus }: { concept: Concept; frame: { w: number; h: number }; recommended: boolean; selected: boolean; onFocus: () => void }) {
   const { meta, assessment: a } = concept;
   const [renaming, setRenaming] = useState(false);
@@ -246,11 +252,15 @@ function LayoutCard({ concept, frame, recommended, selected, onFocus }: { concep
   const areaText = useAreaText();
   const open = () => openConcept(meta.id);
   const findings = concept.sense.findings.length;
+  // A room placed on the house that this layout puts somewhere else.
+  const brief = useProjectState((s) => s.brief);
+  const miss = brief.placements && brief.rooms ? checkPlacements(concept.plan, brief.placements, brief.rooms).find((c) => !c.honoured) : undefined;
   return (
     <label className={`layout-card${selected ? " is-selected" : ""}`} onDoubleClick={open} data-testid={`concept-${meta.label}`}>
       <input type="radio" name="layout" className="visually-hidden" checked={selected} onChange={onFocus} aria-label={`${concept.letter}: ${concept.title}`} />
+      <ExteriorPicture planId={meta.id} level={concept.plan} size={CARD_STILL} badge={false} className="layout-exterior" />
       <span className="layout-art">
-        <HousePreview plan={concept.plan} site={false} frame={frame} margin={0.8} className="layout-preview" />
+        <HousePreview plan={concept.plan} palette="schematic" site={false} frame={frame} margin={0.8} className="layout-preview" />
         <span className="layout-badges">
           <span className="layout-letter">{concept.letter}</span>
           {recommended && (
@@ -303,17 +313,22 @@ function LayoutCard({ concept, frame, recommended, selected, onFocus }: { concep
           </span>
         </span>
         <span className="layout-facts">
-          {areaText(a.totalArea)}
-          {a.outside ? ` · ${a.outside.width.toFixed(1)} × ${a.outside.depth.toFixed(1)} m` : ""}
+          {a.bedrooms} bed · {a.bathrooms} bath · {areaText(a.totalArea)}
           {a.storeys ? ` · ${a.storeys} storeys` : ""}
+          {a.outside ? ` · ${sizeText(a.outside.width, a.outside.depth, 1)}` : ""}
         </span>
         <span className="chips layout-chips">
-          {a.features.slice(0, 3).map((f) => (
+          {a.features.slice(0, 2).map((f) => (
             <span key={f} className="chip is-static">
               {PLAN_FEATURE_LABEL[f]}
             </span>
           ))}
         </span>
+        {miss && (
+          <span className="layout-miss" data-testid={`concept-miss-${meta.label}`}>
+            {missNote(miss)}
+          </span>
+        )}
         {findings > 0 && (
           <span className="layout-check" data-testid={`concept-check-${meta.label}`}>
             <WarningIcon width={14} height={14} /> {findings === 1 ? "1 thing to check" : `${findings} things to check`}

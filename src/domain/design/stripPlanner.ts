@@ -12,15 +12,21 @@ import { dot, sub } from "../geometry/vector";
 import { axialParam, distanceToAxis } from "../geometry/walls";
 import { DEFAULT_HOUSE, DOOR_PRESET } from "../plan/defaults";
 import type { Id, Opening, PlanDocument, Point2, RoomType } from "../plan/types";
+import type { HouseBrief } from "../brief/schema";
 import type { LayoutPlanner, PlanCandidate, PlanningRequest, PlanningResult } from "./planner";
+import { fitToSite, NOTHING_FITS_ON_SITE, type SiteFit } from "../site/fit";
 import { floorFor, programFromBrief, type Program, type Relaxation, type SpaceSpec, type WindowSize } from "./program";
 import { ENSUITE_TARGET } from "./roomRules";
 import { planRoomChange } from "./roomPlanner";
 import { footprintsFor, minimumFootprint, type Footprint, type FootprintShape } from "./footprint";
 import { assessSense } from "./sense";
-import { isStoreyLayout, planStoreyLayouts, storeyTitle } from "./storeyLayouts";
-import { planAutoShapes, planWingLayouts, shellFrom, WING_TITLE, wingArrangementOf } from "./wingPlanner";
-import { autoZoneCandidates, furnishZones, isZoneLayout, pickVaried, ZONE_TITLE, zoneCandidates, zoneFamily } from "./zoneLayouts";
+import { planStoreyLayouts } from "./storeyLayouts";
+import { planAutoShapes, planWingLayouts, shellFrom } from "./wingPlanner";
+import { conceptOf, likeBase } from "./concept/descriptor";
+import { chargeFurniture, pickIdeas } from "./select/pick";
+import { placedBy } from "./placement";
+import { labelCirculation } from "./circulation";
+import { autoZoneCandidates, furnishZones, zoneCandidates } from "./zoneLayouts";
 import { ARRANGEMENTS, hallWidthFor, minBandDepth, zoneProgram, type Arrangement } from "./zoning";
 
 /**
@@ -36,28 +42,27 @@ import { ARRANGEMENTS, hallWidthFor, minBandDepth, zoneProgram, type Arrangement
  * "along" runs the length of the band and "cross" towards the hall.
  */
 
-/** Card titles for each arrangement, keyed by id. */
-export const ARRANGEMENT_TITLE: Record<string, string> = Object.fromEntries(ARRANGEMENTS.map((a) => [a.id, a.title]));
-
-/** The card title for a layout's arrangement id, from any planner. */
+/** The card title for a layout's arrangement id, from any planner (concept/descriptor.ts). */
 export function arrangementTitle(id: string): string | null {
-  if (isZoneLayout(id)) return ZONE_TITLE;
-  if (isStoreyLayout(id)) return storeyTitle(id);
-  const wing = wingArrangementOf(id);
-  return ARRANGEMENT_TITLE[id] ?? (wing ? WING_TITLE[wing] : null);
+  return conceptOf(id)?.title ?? null;
 }
 
 /**
  * Zone and strip candidates together: with `similarTo`, the ones like it
  * first, in the order they were planned; then the plans that make the most
- * sense, spread across layout families. Seeds number the result.
+ * sense, each a different design idea where one is nearly as good
+ * (`pickIdeas`). Seeds number the result. On a traced site, layouts that
+ * fit nowhere on it are left out first.
  */
-function merge(candidates: PlanCandidate[], count: number, similarTo?: string): PlanCandidate[] {
+function merge(all: PlanCandidate[], count: number, similarTo?: string, brief?: HouseBrief, site?: SiteFit): PlanCandidate[] {
+  // On a traced site, only the layouts that fit somewhere on it, before any are picked.
+  const candidates = fitToSite(all, site);
   const base = similarTo?.split("@")[0];
-  const like = (c: PlanCandidate) => (isZoneLayout(base) ? isZoneLayout(c.arrangement) && zoneFamily(c.arrangement!) === zoneFamily(base!) : !isZoneLayout(c.arrangement));
+  const like = (c: PlanCandidate) => likeBase(c.arrangement, base!);
   const first = base ? candidates.filter(like).slice(0, count) : [];
   const judged = candidates.filter((c) => !first.includes(c)).map((c) => ({ ...c, sense: assessSense(c.document.levels[0]) }));
-  const rest = pickVaried(judged, count - first.length).map((c): PlanCandidate => {
+  // Several to show: the best few are charged for furniture that won't fit (the live preview skips it).
+  const rest = pickIdeas(count > 1 ? chargeFurniture(judged) : judged, count - first.length, placedBy(brief)).map((c): PlanCandidate => {
     const copy: PlanCandidate & { sense?: unknown } = { ...c };
     delete copy.sense;
     return copy;
@@ -75,6 +80,9 @@ function similarOrder(baseId: string, all: readonly Arrangement[]): Arrangement[
   const rank = (a: Arrangement) => (a.split !== base.split ? 3 : a.dayFirst === base.dayFirst ? 1 : 2);
   return all.filter((a) => a.id !== base.id).sort((a, b) => rank(a) - rank(b));
 }
+
+/** How many to build when `count` are asked for: a couple to spare, since picking drops a plan that repeats another. */
+const withSpares = (count: number) => (count > 1 ? Math.min(6, count + 2) : count);
 
 const GRID = 0.05;
 const snap = (v: number) => roundToPrecision(Math.round(v / GRID) * GRID);
@@ -94,6 +102,15 @@ export function createStripPlanner(): LayoutPlanner {
 export function planLayouts(request: PlanningRequest): PlanningResult {
   const { intent } = request;
   if (intent.action !== "generate_layouts") return planRoomChange(request);
+  const result = planGenerated(request);
+  // Layouts were made but none fits on the traced site.
+  if (request.site && !result.candidates.length && !result.issues.length) return { candidates: [], issues: [{ code: "does-not-fit", message: NOTHING_FITS_ON_SITE }] };
+  // Every hall says what it's for: entrance hall, corridor, landing or hub.
+  return { ...result, candidates: result.candidates.map((c) => ({ ...c, document: labelCirculation(c.document) })) };
+}
+
+function planGenerated(request: PlanningRequest): PlanningResult {
+  const intent = request.intent as Extract<PlanningRequest["intent"], { action: "generate_layouts" }>;
   // Two storeys have their own planner; a brief without storeys plans exactly as before.
   if (intent.brief.storeys === 2) return planStoreyLayouts(request);
   const result = planWholeLayouts(request);
@@ -118,10 +135,11 @@ function planWholeLayouts(request: PlanningRequest): PlanningResult {
   // Houses that aren't rectangles: wing by wing, and in zones where the outline is two columns side by side.
   const sourceEnv = analyzeEnvelope(request.source.levels[0]);
   if (sourceEnv.ok && !sourceEnv.info.isRectangle) {
-    const wings = planWingLayouts(request);
+    // A couple to spare: picking drops a wing layout that repeats a zone layout.
+    const wings = planWingLayouts({ ...request, intent: { ...intent, count: withSpares(intent.count) } });
     const zoned = zoneCandidates(shellFrom(request.source, sourceEnv.info, `${request.idPrefix}-z`)!, request, `${request.idPrefix}-`, (id) => excluded.has(id)).candidates;
     const all = [...zoned, ...wings.candidates];
-    return all.length ? { candidates: merge(all, intent.count, intent.similarTo), issues: [] } : wings;
+    return all.length ? { candidates: merge(all, intent.count, intent.similarTo, intent.brief, request.site), issues: [] } : wings;
   }
   const fresh = allowed.filter((a) => !excluded.has(a.id));
   const arrangements = intent.similarTo ? similarOrder(intent.similarTo, fresh) : fresh;
@@ -131,7 +149,7 @@ function planWholeLayouts(request: PlanningRequest): PlanningResult {
   const zoneShell = sourceEnv.ok ? shellFrom(request.source, sourceEnv.info, `${request.idPrefix}-z`) : null;
   const zones = zoneShell ? zoneCandidates(zoneShell, request, `${request.idPrefix}-`, (id) => excluded.has(id)).candidates : [];
   for (const arrangement of arrangements) {
-    if (candidates.length >= intent.count) break;
+    if (candidates.length >= withSpares(intent.count)) break;
     for (const relax of [0, 1, 2] as Relaxation[]) {
       const program = programFromBrief(intent.brief, relax);
       const built = buildLayout(request.source, program, arrangement, `${request.idPrefix}-${candidates.length + 1}`);
@@ -149,7 +167,7 @@ function planWholeLayouts(request: PlanningRequest): PlanningResult {
     }
   }
   const exhausted = excluded.size > 0 && !arrangements.length && !zones.length;
-  if (candidates.length || zones.length) return { candidates: merge([...zones, ...candidates], intent.count, intent.similarTo), issues: [] };
+  if (candidates.length || zones.length) return { candidates: merge([...zones, ...candidates], intent.count, intent.similarTo, intent.brief, request.site), issues: [] };
   if (exhausted) return { candidates, issues: [{ code: "does-not-fit", message: "There are no more distinct layouts for this brief. Change the brief to explore other options." }] };
   return { candidates, issues: [{ code: "does-not-fit", message: tooSmallMessage(request, allowed) ?? `No layout fits: ${lastProblem}`, tooSmall: true }] };
 }
@@ -186,13 +204,19 @@ function planAuto(request: PlanningRequest, allowed: readonly Arrangement[], exc
   const intent = request.intent as Extract<PlanningRequest["intent"], { action: "generate_layouts" }>;
   const shape = intent.brief.houseShape;
   if (!shape || shape === "rectangle") return planAutoRectangles(request, allowed, excluded);
-  if (shape === "T" || shape === "U") return planAutoShapes(request, [shape], excluded);
+  if (shape === "T" || shape === "U") {
+    // Split-bedroom zone layouts in Us and Ts sized for them compete with the wing planner's.
+    const zones = autoZoneCandidates(request, excluded, shape);
+    const shaped = planAutoShapes(request, [shape], excluded);
+    const all = [...zones, ...shaped.candidates];
+    return all.length ? { candidates: merge(all, intent.count, intent.similarTo, intent.brief, request.site), issues: [] } : shaped;
+  }
   // L, or any shape: zone layouts in L houses compete with the wing planner's, and with rectangles when the shape is open.
   const ls = autoZoneCandidates(request, excluded, "L");
   const shaped = planAutoShapes(request, shape === "L" ? ["L"] : ["L", "U", "T"], excluded);
   const boxes = shape === "any" ? planAutoRectangles(request, allowed, excluded) : { candidates: [], issues: [] };
   const all = [...ls, ...boxes.candidates, ...shaped.candidates];
-  if (all.length) return { candidates: merge(all, intent.count, intent.similarTo), issues: [] };
+  if (all.length) return { candidates: merge(all, intent.count, intent.similarTo, intent.brief, request.site), issues: [] };
   return { candidates: [], issues: boxes.issues.length ? boxes.issues : shaped.issues };
 }
 
@@ -246,7 +270,7 @@ function planAutoRectangles(request: PlanningRequest, allowed: readonly Arrangem
   let lastProblem = "these rooms don't fit any house the planner can draw.";
   let attempts = 0;
   for (const option of queue) {
-    if (candidates.length >= intent.count || attempts >= MAX_ATTEMPTS) break;
+    if (candidates.length >= withSpares(intent.count) || attempts >= MAX_ATTEMPTS) break;
     const prefix = `${request.idPrefix}-${candidates.length + 1}`;
     for (const relax of [0, 1, 2] as Relaxation[]) {
       attempts++;
@@ -283,7 +307,7 @@ function planAutoRectangles(request: PlanningRequest, allowed: readonly Arrangem
     }
   }
   const zones = autoZoneCandidates(request, excluded);
-  if (candidates.length || zones.length) return { candidates: merge([...zones, ...candidates], intent.count, intent.similarTo), issues: [] };
+  if (candidates.length || zones.length) return { candidates: merge([...zones, ...candidates], intent.count, intent.similarTo, intent.brief, request.site), issues: [] };
   if (excluded.size && !queue.length) {
     return { candidates, issues: [{ code: "does-not-fit", message: "There are no more distinct layouts for these rooms. Change the rooms to explore other options." }] };
   }

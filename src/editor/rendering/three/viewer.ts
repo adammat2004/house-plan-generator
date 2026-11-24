@@ -153,7 +153,15 @@ export class HouseViewer {
   private rebuild() {
     const state = this.state!;
     clearGroup(this.house, this.textures);
-    const model = buildBuildingModel(state.plan, { ...state.display, upTo: state.upTo });
+    const options = { ...state.display, roofForm: state.appearance.roofForm, upTo: state.upTo };
+    let model: ReturnType<typeof buildBuildingModel>;
+    try {
+      model = buildBuildingModel(state.plan, options);
+    } catch (error) {
+      // The roof is the fragile part (polygon unions); the house still shows without it.
+      console.warn("The roof couldn't be built, so the house is shown without it.", error);
+      model = buildBuildingModel(state.plan, { ...options, roof: false });
+    }
     this.model = model;
     this.floors = buildHouse(this.house, model, { appearance: state.appearance, ground: state.ground, landscape: state.display.landscape, labels: true }, this.textures, furnitureModels);
     // Furniture shows as boxes until its models arrive, then the house is built again with them.

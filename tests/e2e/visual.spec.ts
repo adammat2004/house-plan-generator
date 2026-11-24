@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { serializePlanDocument } from "@/domain/commands";
 import { buildSamplePlan } from "../fixtures/samplePlan";
-import { clickAt, createHouse, freshEditor, freshHome, getDoc, level } from "./support";
+import { clickAt, createHouse, freshEditor, freshHome, getDoc, level, openRoomPicker } from "./support";
 
 /**
  * Captures the real UI at several desktop sizes and zoom levels for visual
@@ -88,7 +88,7 @@ for (const size of [
     await expect(page.getByTestId("start-rooms")).toBeVisible();
     if (!(await step("rooms", async () => {
       await page.getByTestId("start-rooms").click();
-      await expect(page.getByTestId("room-picker")).toBeVisible();
+      await openRoomPicker(page);
     }))) return;
     if (!(await step("layouts", async () => {
       await page.getByTestId("generate-layouts").click();

@@ -6,14 +6,14 @@ Tokens live in `src/app/tokens.css`. Canvas and 3D colours mirror them in `src/d
 
 ## Type
 
-Two faces, loaded with `next/font` in `src/app/layout.tsx`: **Newsreader** for page and panel titles, **Inter** for everything else. Weights 400, 500 and 600 only. Numbers that measure anything (areas, lengths, counts in a row) use `font-variant-numeric: tabular-nums`.
+One serif family in two cuts and one sans, loaded with `next/font` in `src/app/layout.tsx`: **DM Serif Display** (`--font-serif`) for titles of 24px and up, **DM Serif Text** (`--font-serif-text`) for the serif at small sizes (room names on the plan, card titles), and **Inter** for everything else. The serifs come in 400 only; Inter in 400, 500 and 600. Numbers that measure anything (areas, lengths, counts in a row) use `font-variant-numeric: tabular-nums`. The plan canvas reads the serif from its token and waits for it to load (`loadPlanSerif()`), since nothing else on the page asks the browser for it.
 
 | Token | Size | Face | Use |
 |---|---|---|---|
-| `--fs-display-xl` | 56px / 1.02 | Newsreader 400 | Home hero only |
-| `--fs-display-l` | 40px / 1.08 | Newsreader 400 | Page titles (Projects, Templates, Help, Settings) |
-| `--fs-display-m` | 32px / 1.1 | Newsreader 400 | Step titles (Choose your rooms, Your layouts) |
-| `--fs-display-s` | 24px / 1.15 | Newsreader 400 | Panel titles (the selected layout or room) |
+| `--fs-display-xl` | 56px / 1.02 | DM Serif Display | Home hero only |
+| `--fs-display-l` | 40px / 1.08 | DM Serif Display | Page titles (Projects, Templates, Help, Settings) |
+| `--fs-display-m` | 32px / 1.1 | DM Serif Display | Step titles (Choose your rooms, Your layouts) |
+| `--fs-display-s` | 24px / 1.15 | DM Serif Display | Panel titles (the selected layout or room, the inspector) |
 | `--fs-title` | 16px / 1.35 | Inter 600 | Card titles, section headings |
 | `--fs-body` | 14px / 1.5 | Inter 400 | Default text and controls |
 | `--fs-small` | 13px / 1.45 | Inter 400/500 | Secondary text, small buttons, group labels (600, sentence case) |
@@ -29,9 +29,9 @@ Group labels are sentence case. The only tracked capitals are plan annotations (
 | `--canvas` | `#f2f0ea` | Behind the plan and boards |
 | `--surface` / `--surface-2` / `--surface-3` | `#fff` / `#f4f3ef` / `#ecebe5` | Panels and cards / hover and tracks / pressed |
 | `--line` / `--line-strong` | `#e6e3db` / `#d4d0c6` | Dividers / control borders |
-| `--ink` / `--ink-2` / `--ink-3` | `#1e2420` / `#525852` / `#646962` | Text; `--ink-3` passes 4.5:1 on every background, the canvas and pressed surfaces included |
-| `--ink-disabled` | `#a4a8a1` | Disabled text only |
-| `--brand` / `--brand-hover` / `--brand-soft` | `#1f3a32` / `#2a4a40` / `#edf2ef` | Primary buttons, the current step |
+| `--ink` / `--ink-2` / `--ink-3` | `#1c1a17` / `#57524a` / `#6b665e` | One warm ink for text, walls and the primary button; `--ink-3` passes 4.5:1 on every background, the canvas and pressed surfaces included |
+| `--ink-disabled` | `#a8a39a` | Disabled text only |
+| `--brand` / `--brand-hover` / `--brand-soft` | `#1c1a17` / `#3a3733` / `#efece6` | Primary buttons and the current step: the ink itself, so the product's one strong colour is the plan's walls |
 | `--on-brand` | `#fff` | Text on brand |
 | `--accent` / `--accent-ink` / `--accent-soft` / `--accent-line` | `#2f6f5e` / `#245848` / `#e5efeb` / `#c5dcd4` | Links, focus, selection, success, Recommended |
 | `--danger` / `--danger-ink` / `--danger-soft` / `--danger-line` | `#b8432f` / `#86301f` / `#f6e3df` / `#e9c4bb` | Destructive actions and errors |
@@ -39,14 +39,15 @@ Group labels are sentence case. The only tracked capitals are plan annotations (
 | `--media` | `#e7e0d2` | Behind photos and 3D stills while they load |
 | `--sky` | `#e9eef1` | The 3D daylight sky, and the 3D pane before it draws |
 | `--glass` | 92% white | Labels and controls over pictures |
-| `--grid-line` | 5% ink | The drafting grid on plan paper |
+| `--grid-line` | 5% ink | Hairline grids on pictures |
+| `--grid-dot` | `#d6dbcc` | The dots on the plan paper |
 | `--scrim` / `--scrim-strong` | 24% / 82% ink | Behind dialogs / behind the photo lightbox |
-| Room families | day `#f3e7cf`, night `#dfe7ef`, wet `#d9ebe6`, service `#ece8e0`, hall `#f1eee8` | Plan fills; each room type takes its family's tint |
+| `--room-*` | living `#f0dfc4`, kitchen (and kitchen/dining, dining) `#f4dd97`, bedroom `#f2cbbe`, primary bedroom `#ecbbaa`, office `#dad0c5`, bathroom (and ensuite) `#c7dcee`, WC `#d5e4f0`, utility `#d1cfd2`, storage `#e6e0e6`, garage `#d8d6dc`, hall `#eae4d8`, other `#e8e5dd`, paper `#f7f4ec` (no use yet) | Room colours on the schematic plan, read through `roomColour()` (`src/design/roomColours.ts`). Related types share a hue and differ in lightness; families stay apart for colour-blind viewers; nothing is green, which means selection. `tests/design/roomColours.test.ts` checks contrast for ink and ink-2 on every fill and the deuteranopia separation |
 
 ## Space, shape, depth
 
 - **Space:** `--space-1` … `--space-10` = 4, 8, 12, 16, 20, 24, 32, 40, 48, 64px. Panels pad 20-24, cards 16-18, list rows 10 vertically.
-- **Radii:** `--r-xs` 3 (thin bars, skeleton lines), `--r-sm` 6 (chips, small inputs), `--r-md` 10 (buttons, inputs, rows), `--r-lg` 14 (cards, floating panels), `--r-xl` 20 (hero media, dialogs), `--r-pill`.
+- **Radii:** `--r-xs` 3 (thin bars, skeleton lines), `--r-sm` 6 (chips, small inputs), `--r-md` 8 (buttons, inputs, rows), `--r-lg` 14 (cards, floating panels), `--r-xl` 20 (hero media, dialogs), `--r-pill`.
 - **Shadows:** `--shadow-1` resting cards, `--shadow-2` panels floating over the canvas, `--shadow-3` menus, popovers and dialogs. Always an offset plus a soft blur; never a coloured glow. A selected card may add a ring (`box-shadow: 0 0 0 1px var(--brand)`), which is a border, not depth.
 - **Gutter:** `--gutter` (24px) between the canvas edge and floating panels.
 - **Layers:** `--z-chrome` 10 (floating canvas panels, which sit under the top bar's menus), `--z-panel` 20, `--z-popover` 30, `--z-toast` 40, `--z-modal` 50, `--z-tooltip` 60.
@@ -72,7 +73,7 @@ One focus ring everywhere, fields included: `outline: 2px solid var(--accent); o
 
 Home and editor share them. Keep every `data-testid` when replacing markup.
 
-- **Button:** primary, secondary, ghost, danger; sizes sm 32, md 40, lg 48. **One primary per screen region.**
+- **Button:** primary (ink), secondary, ghost, danger; sizes sm 32, md 40, lg 48. **One primary per screen region.** In the top bar the selected view is the ink, so Export is secondary.
 - **IconButton:** 32px, 44px on touch screens (`pointer: coarse`).
 - **SegmentedControl** for 2-4 views of the same thing; **Tabs** (underline) for panel sections.
 - **CountStepper**, **Select**, **TextField** (always a visible label; a placeholder is never the label), **Toggle**, **Chip**.
@@ -90,11 +91,15 @@ Home and editor share them. Keep every `data-testid` when replacing markup.
 
 The plan is drawn like a home, not a drawing sheet, and stays exact: everything is drawn from the plan's own geometry in code, never from pictures.
 
-- **Floors show their finish**: herringbone wood, wood boards, tiles, stone, carpet, concrete or vinyl. A room with no finish set shows the one its use usually has (tiles in a bathroom, wood elsewhere); a room with no use is a plain tint. The same finishes are painted on the 3D floors and in the layout pictures (`rendering/scene/finishes.ts`).
+- **Two looks.** The **2D Plan** view is schematic: each room filled with its colour by use (`--room-*`), no finishes and no furniture, on paper with a dot grid; the terrace and the path are dashed and there's no lawn. **Furnished** (and 3D and photos) shows the floor finishes, furniture and garden. Map draws the furnished look. The plain plan image is always schematic and the presentation image always furnished, whatever the view on screen: each draws its own look off screen (`rendering/konva/exportStage.tsx`).
+- **On the schematic plan** a room's name sits on its floor in DM Serif Text, with its size underneath (`3.60 × 6.53 m` for a plain rectangle, else its area), with no pill; a halo in the room's colour keeps them clear of lines. Rooms under 3 m² show the name only. A pinned room has a pin before its name; a room with something to check has a warning dot after it. Hover deepens the colour 6%; a picked room gets a 2.5px accent edge, an accent wash and its grips. The floor below shows as an outline only. A room with no use is paper with a dashed edge inside its walls.
+- **Names keep clear** of stairs and door swings (`labelsClear`).
+- **Sizes on the outside faces:** a white pill on every outside face (`8.50 m`); exports keep the architect's overall lines and scale bar.
+- **Floors show their finish** on the furnished plan: herringbone wood, wood boards, tiles, stone, carpet, concrete or vinyl. A room with no finish set shows the one its use usually has (tiles in a bathroom, wood elsewhere); a room with no use is a plain tint. The same finishes are painted on the 3D floors and in the layout pictures (`rendering/scene/finishes.ts`).
 - **Walls** are near-black with a soft shadow at their feet. Doors and windows are real gaps: the floor runs through a doorway, a door is a thin leaf with a quiet swing, wide outside doors slide, and a window is a white frame with its glass and an outside sill.
-- **Room names** sit on a soft white pill with the area underneath, and keep off the stairs. A picked room's pill gets an accent edge.
+- **Room names on the furnished plan** sit on a soft white pill with the area underneath. A picked room's pill gets an accent edge.
 - **Furniture** is drawn in what it's made of (wood, fabric, linen, white, metal), coloured by the house's interior style, with a small shadow to the south-east and no blur. Coffee tables and beds stand on rugs, which stop at the walls. The style sets woods, fabrics, bedding and rugs only (`rendering/scene/style.ts`); the plan uses light versions so floors and labels still read.
-- **The garden** is worked out from the house (`rendering/scene/garden.ts`): mown lawn to the plot's edge, gravel at the foot of the walls, a terrace across the garden doors, a path from the front door to the street, hedges on the boundary, and trees kept clear of the walls and the dimension lines. Without a plot of its own, the plot reaches 9 m past the garden side, 5 m past the street side and 4.5 m past each end. The same garden is drawn on the plan, in 3D and in the layout pictures, and plain plan images leave it out.
+- **The garden** is worked out from the house (`rendering/scene/garden.ts`): faintly mown lawn to the plot's edge, gravel at the foot of the walls, a terrace across the garden doors, a path from the front door to the street, and trees kept clear of the walls and the dimension lines. A site's own plot is hedged; a garden made up round the house has no hedge and fades into the paper over its last 3 m. Without a plot of its own, the plot reaches 9 m past the garden side, 5 m past the street side and 4.5 m past each end. The same garden is drawn on the plan, in 3D and in the layout pictures, and plain plan images leave it out.
 
 ## Floors
 

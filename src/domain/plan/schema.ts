@@ -84,6 +84,9 @@ const areaSchema = z.number().positive().max(10_000);
  * actual connections are derived from walls and doors, never stored.
  * Program fields are optional and absent when unset.
  */
+/** What a hall is for: the way in, a passage, the top of the stairs, or a space many rooms open off. */
+export const CIRCULATION_KINDS = ["entry", "corridor", "landing", "hub"] as const;
+
 export const roomSchema = z.object({
   id: idSchema,
   name: z.string().trim().min(1).max(80),
@@ -98,6 +101,8 @@ export const roomSchema = z.object({
   externalWall: z.enum(EXTERNAL_WALL_PREFERENCES).optional(),
   /** Pinned: edits and proposals that would change its shape, doors or windows are refused. */
   locked: z.boolean().optional(),
+  /** Optional: for a hall, what it's for (generated plans say; absent elsewhere). */
+  circulation: z.enum(CIRCULATION_KINDS).optional(),
 });
 
 /** Furniture and fittings in the catalog (src/domain/furniture/catalog.ts). */
