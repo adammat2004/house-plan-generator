@@ -38,6 +38,13 @@ export interface RendersState {
   batch: RenderBatch | null;
   /** The last problem, shown beside the button. */
   error: string | null;
+  /** planId → view → the 3D still shown while a photo is missing or its render failed. Session only. */
+  fallbacks: Record<Id, Record<string, FallbackEntry>>;
+}
+
+export interface FallbackEntry {
+  url: string;
+  sourceHash: string;
 }
 
 export interface RenderDeps {
@@ -66,7 +73,7 @@ const fromBase64 = (data: string, mimeType: string) => {
 };
 
 export function createRenders(deps: RenderDeps) {
-  const store = createStore<RendersState>(() => ({ projectId: null, available: "unknown", byPlan: {}, batch: null, error: null }));
+  const store = createStore<RendersState>(() => ({ projectId: null, available: "unknown", byPlan: {}, batch: null, error: null, fallbacks: {} }));
   let abort: AbortController | null = null;
   const urls = new Set<string>();
   const oneOffs = new Map<string, string>();
@@ -84,8 +91,29 @@ export function createRenders(deps: RenderDeps) {
     });
   };
 
+  const keepFallback = (planId: Id, view: string, sourceHash: string, blob: Blob) => {
+    const url = URL.createObjectURL(blob);
+    urls.add(url);
+    store.setState((s) => {
+      const old = s.fallbacks[planId]?.[view]?.url;
+      if (old) {
+        URL.revokeObjectURL(old);
+        urls.delete(old);
+      }
+      return { fallbacks: { ...s.fallbacks, [planId]: { ...s.fallbacks[planId], [view]: { url, sourceHash } } } };
+    });
+  };
+
   return {
     store,
+
+    /** Shows the 3D still of a view where its photo isn't there yet (no image-model call). */
+    async showStill(planId: Id, level: Level | PlanDocument, target: StillTarget, appearance: Appearance, style: InteriorStyle): Promise<void> {
+      const hash = renderKey(level, target, appearance, style);
+      if (store.getState().fallbacks[planId]?.[targetKey(target)]?.sourceHash === hash) return;
+      const still = await deps.still(level, target, appearance);
+      if (still) keepFallback(planId, targetKey(target), hash, still);
+    },
 
     /** Loads a project's stored photos, dropping those of plans it no longer has. */
     async load(projectId: Id, livePlanIds: ReadonlySet<Id>) {
@@ -128,9 +156,12 @@ export function createRenders(deps: RenderDeps) {
         const view = renderViewFor(level, target, appearance);
         const still = view && (await deps.still(level, target, appearance));
         if (!view || !still) throw new Error("This browser couldn't draw the 3D view to start from.");
-        const result = await deps.renderer.render({ view, style, image: await toBase64(still) }, signal);
+        const hash = renderKey(level, target, appearance, style);
+        // When the image model can't help, the view keeps its 3D still.
+        const result = await deps.renderer.render({ view, style, image: await toBase64(still) }, signal).catch((e: Error) => ({ ok: false as const, offline: false, message: e.message || "The render failed." }));
         if (!result.ok) {
           if (result.offline) store.setState({ available: "no" });
+          if (!signal.aborted) keepFallback(planId, targetKey(target), hash, still);
           throw new Error(result.message);
         }
         const photo = fromBase64(result.image, result.mimeType);
@@ -207,7 +238,7 @@ export function createRenders(deps: RenderDeps) {
       for (const url of urls) URL.revokeObjectURL(url);
       urls.clear();
       oneOffs.clear();
-      store.setState({ projectId: null, byPlan: {}, batch: null, error: null });
+      store.setState({ projectId: null, byPlan: {}, batch: null, error: null, fallbacks: {} });
     },
   };
 }
