@@ -94,3 +94,19 @@ test("without an AI key the assistant says it's unavailable and the quick chat s
   await page.getByRole("button", { name: "Use the quick chat" }).click();
   await expect(page.getByTestId("ai-input")).toBeVisible();
 });
+
+test("the assistant is docked in every step and says where it can't edit yet", async ({ page }) => {
+  await page.route("**/api/design/agent", (route) => route.fulfill({ json: { available: true } }));
+  await openRefine(page);
+  for (const step of ["step-explore", "step-requirements", "step-map", "step-review"]) {
+    await page.getByTestId(step).click();
+    const open = page.getByTestId("open-ai");
+    if (await open.isVisible()) await open.click();
+    await expect(page.getByTestId("ai-panel")).toBeVisible();
+    await expect(page.getByTestId("assistant-step-note")).toContainText("can't make changes");
+    await expect(page.getByTestId("assistant-input")).toBeDisabled();
+  }
+  await page.getByTestId("step-refine").click();
+  await expect(page.getByTestId("assistant-step-note")).toHaveCount(0);
+  await expect(page.getByTestId("assistant-input")).toBeEnabled();
+});

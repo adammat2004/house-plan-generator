@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { CheckIcon, ChevronRightIcon, RedoIcon, SendIcon, UndoIcon, WarningIcon } from "@/components/ui/icons";
-import { assistant, useAssistantState, useDocumentState } from "../../state/editor";
+import { assistant, useAssistantState, useDocumentState, useSessionState } from "../../state/editor";
+import type { DesignView, Workspace } from "../../state/stores";
 import type { AssistantTurn } from "../../state/assistant";
 
 /** What the assistant can be asked, shown until the first message. */
@@ -14,7 +15,8 @@ export const ASSISTANT_EXAMPLES = ["Make the kitchen bigger", "Add a downstairs 
  * once as one undo step; nothing is hidden and nothing is claimed that a
  * tool didn't do.
  */
-export function AssistantTab({ onUseQuickChat }: { onUseQuickChat: () => void }) {
+export function AssistantTab({ onUseQuickChat, canEdit = true }: { onUseQuickChat: () => void; canEdit?: boolean }) {
+  const step = useSessionState((s) => stepOf(s.workspace, s.designView));
   const turns = useAssistantState((s) => s.turns);
   const running = useAssistantState((s) => s.running);
   const available = useAssistantState((s) => s.available);
@@ -27,7 +29,7 @@ export function AssistantTab({ onUseQuickChat }: { onUseQuickChat: () => void })
   }, [turns.length, running, progress]);
 
   const send = (value = text) => {
-    if (!value.trim() || running || available === "no") return;
+    if (!value.trim() || running || available === "no" || !canEdit) return;
     setText("");
     void assistant.ask(value);
   };
@@ -46,7 +48,15 @@ export function AssistantTab({ onUseQuickChat }: { onUseQuickChat: () => void })
             </button>
           </div>
         )}
-        {available !== "no" && !turns.length && (
+        {!canEdit && (
+          <div className="assistant-unavailable" data-testid="assistant-step-note">
+            <p>
+              <WarningIcon width={16} height={16} /> I can&apos;t make changes in {step} yet.
+            </p>
+            <p className="ai-note">For now I edit a plan in Refine: rooms, doors, windows and floors. Open a layout in Refine and ask me there.</p>
+          </div>
+        )}
+        {canEdit && available !== "no" && !turns.length && (
           <div className="ai-intro">
             <p className="ai-note">Tell me what to change and I&apos;ll change the plan. You can undo any step.</p>
             <div className="ai-examples">
@@ -72,11 +82,11 @@ export function AssistantTab({ onUseQuickChat }: { onUseQuickChat: () => void })
       >
         <textarea
           aria-label="Ask the assistant"
-          placeholder={available === "no" ? "The assistant isn't available" : "Ask for a change…"}
+          placeholder={available === "no" ? "The assistant isn't available" : canEdit ? "Ask for a change…" : `Changes open up in Refine`}
           rows={3}
           value={text}
           maxLength={1000}
-          disabled={available === "no"}
+          disabled={available === "no" || !canEdit}
           data-testid="assistant-input"
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => {
@@ -86,7 +96,7 @@ export function AssistantTab({ onUseQuickChat }: { onUseQuickChat: () => void })
             }
           }}
         />
-        <button type="submit" className="ai-send" aria-label="Send" disabled={!text.trim() || running || available === "no"} data-testid="assistant-send">
+        <button type="submit" className="ai-send" aria-label="Send" disabled={!text.trim() || running || available === "no" || !canEdit} data-testid="assistant-send">
           <SendIcon width={18} height={18} />
         </button>
       </form>
@@ -199,3 +209,5 @@ function Turn({ turn }: { turn: AssistantTurn }) {
     </>
   );
 }
+
+const stepOf = (workspace: Workspace, view: DesignView) => (workspace === "site" ? "Map" : workspace === "brief" ? "Requirements" : workspace === "review" ? "Review" : view === "plan" ? "Refine" : "Explore");

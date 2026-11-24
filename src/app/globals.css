@@ -5784,3 +5784,26 @@ button.action-row:hover:not(:disabled),
   }
 }
 
+
+/* ── Assistant dock (every step but Refine) ────────────────────────────── */
+/* Anchored to a bottom corner above the step's own panels, on the side they leave free. */
+.right-stack.ai-dock {
+  top: auto;
+  bottom: var(--space-8);
+  z-index: 30;
+  width: auto;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.right-stack.ai-dock.is-left {
+  right: auto;
+  left: var(--gutter);
+  align-items: flex-start;
+}
+
+.right-stack.ai-dock > .ai-panel {
+  width: 300px;
+  height: min(440px, 60vh);
+  max-height: none;
+}

@@ -10,7 +10,7 @@ import { CheckIcon, ChevronRightIcon, CloseIcon, SendIcon, SparkleIcon } from "@
 import { useAreaText } from "@/components/units";
 import { assistant, design, editor, useAssistantState, useDocumentState, useSessionState } from "../../state/editor";
 import { AssistantTab } from "../assistant/AssistantTab";
-import type { ChatMessage, Proposal } from "../../state/stores";
+import { inRefine, type ChatMessage, type Proposal } from "../../state/stores";
 import { showConcepts } from "../shell/tools";
 import { PlanThumbnail } from "./PlanThumbnail";
 
@@ -23,10 +23,7 @@ const TAB_LABEL: Record<Tab, string> = { assistant: "Assistant", chat: "Chat", s
  * keep, never as silent edits.
  */
 export function AiDesignerPanel() {
-  const workspace = useSessionState((s) => s.workspace);
-  const view = useSessionState((s) => s.designView);
   const open = useSessionState((s) => s.designer.panelOpen);
-  if (workspace !== "design" || view !== "plan") return null;
   if (!open) {
     return (
       <button type="button" className="ai-launcher floating" onClick={() => editor.setDesigner({ panelOpen: true })} data-testid="open-ai">
@@ -38,10 +35,12 @@ export function AiDesignerPanel() {
 }
 
 function Panel() {
+  const refining = useSessionState(inRefine);
   // The assistant leads once the server says it has an AI key; until then, and without one, the quick chat stays first.
   const assistantAvailable = useAssistantState((s) => s.available);
   const [chosen, setTab] = useState<Tab | null>(null);
-  const tab: Tab = chosen ?? (assistantAvailable === "yes" ? "assistant" : "chat");
+  // The quick chat and suggestions edit the open plan, so they live in Refine; the other steps get the assistant alone.
+  const tab: Tab = !refining ? "assistant" : (chosen ?? (assistantAvailable === "yes" ? "assistant" : "chat"));
   useEffect(() => {
     if (assistant.store.getState().available === "unknown") void assistant.checkAvailable();
   }, []);
@@ -81,7 +80,7 @@ function Panel() {
         </IconButton>
       </header>
       <div className="panel-tabs" role="tablist">
-        {(["assistant", "chat", "suggestions"] as Tab[]).map((t) => (
+        {(refining ? (["assistant", "chat", "suggestions"] as Tab[]) : (["assistant"] as Tab[])).map((t) => (
           <button key={t} type="button" role="tab" aria-selected={tab === t} className={tab === t ? "is-active" : undefined} onClick={() => setTab(t)} data-testid={`ai-tab-${t}`}>
             {TAB_LABEL[t]}
           </button>
@@ -89,7 +88,7 @@ function Panel() {
       </div>
 
       {tab === "assistant" ? (
-        <AssistantTab onUseQuickChat={() => setTab("chat")} />
+        <AssistantTab onUseQuickChat={() => setTab("chat")} canEdit={refining} />
       ) : tab === "chat" ? (
         <div className="ai-log" ref={log} aria-live="polite" data-testid="ai-log">
           {!chat.length && (

@@ -329,6 +329,11 @@ export default function EditorApp({ projectId, start }: EditorAppProps) {
           <ToolOptions />
           <LayersPanel />
         </div>
+        {!refining && (
+          <div className={`right-stack ai-dock${workspace === "design" || workspace === "review" ? " is-left" : ""}`} data-chrome={workspace === "design" || workspace === "review" ? "left" : "right"}>
+            <AiDesignerPanel />
+          </div>
+        )}
         {refining && (
           <div className="right-stack" data-chrome="right" data-chrome-min="340">
             <FurnishRenderButton />
