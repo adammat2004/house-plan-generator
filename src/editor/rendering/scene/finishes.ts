@@ -231,3 +231,13 @@ export const FINISH_TONE: Record<FinishId, string> = {
   concrete: "#dedcd7",
   vinyl: "#e2d5c0",
 };
+
+const channel = (hex: string, i: number) => parseInt(hex.slice(1 + i * 2, 3 + i * 2), 16);
+
+/** A room's use colour with a hint of its chosen floor: subtle enough that the plan still reads by use. */
+export function floorTinted(base: string, material: FloorMaterial | null | undefined, amount = 0.28): string {
+  if (!material) return base;
+  const tone = FINISH_TONE[FINISH_OF_MATERIAL[material]];
+  const mix = (i: number) => Math.round(channel(base, i) * (1 - amount) + channel(tone, i) * amount);
+  return `#${[0, 1, 2].map((i) => mix(i).toString(16).padStart(2, "0")).join("")}`;
+}

@@ -6,7 +6,7 @@ import { PAINT_SWATCH } from "@/domain/interior/paint";
 import type { RoomPaint } from "@/domain/plan/types";
 import { takesWallColour } from "@/domain/project/exterior";
 import { DOOR_COLOUR, EXTERIOR, FRAMES, ROOF, WALL_COLOUR } from "./exteriorPalette";
-import type { Appearance } from "@/domain/project/schema";
+import type { Appearance, InteriorStyle } from "@/domain/project/schema";
 import { MATERIAL_FILL, PLAN_THEME, SITE_THEME } from "../konva/theme";
 import { FINISH_TONE, finishTile, roomFinish, type FinishId, type OutdoorId } from "../scene/finishes";
 import { finishCanvas } from "../scene/paintFinish";
@@ -259,19 +259,21 @@ export function buildHouse(group: THREE.Group, model: HouseModel, opts: BuildOpt
     return paints.get(colour)!;
   };
 
-  const furniture = new Map<FurnitureTone, THREE.Material>();
-  const furnitureMaterial = (tone: FurnitureTone) => {
-    if (!furniture.has(tone)) {
+  const furniture = new Map<string, THREE.Material>();
+  const furnitureMaterial = (tone: FurnitureTone, roomStyle?: InteriorStyle) => {
+    const style = roomStyle ?? appearance.interiorStyle;
+    const key = `${style ?? ""}/${tone}`;
+    if (!furniture.has(key)) {
       const { color, roughness } = FURNITURE[tone];
-      // Woods, fabrics and bedding follow the interior style.
-      furniture.set(tone, tone === "glass" ? glass : std(modelFurnitureColour(appearance.interiorStyle, tone) ?? color, { roughness }));
+      // Woods, fabrics and bedding follow the interior style, the room's own where it has one.
+      furniture.set(key, tone === "glass" ? glass : std(modelFurnitureColour(style, tone) ?? color, { roughness }));
     }
-    return furniture.get(tone)!;
+    return furniture.get(key)!;
   };
   // Furniture from the asset library where its model has loaded; the rest stays boxes.
   const modelled = new Set<string>();
-  for (const { item, z, cap } of models ? (model.furniture ?? []) : []) {
-    const object = models!.instance(item, appearance.interiorStyle);
+  for (const { item, z, cap, style } of models ? (model.furniture ?? []) : []) {
+    const object = models!.instance(item, style ?? appearance.interiorStyle);
     if (!object) continue;
     object.position.y = z;
     if (Number.isFinite(cap)) cutModel(object, z + cap);
@@ -399,7 +401,7 @@ function boxMesh(
     outsideWalls?: ReadonlySet<string>;
     roof: THREE.Material;
     stair: THREE.Material;
-    furniture: (tone: FurnitureTone) => THREE.Material;
+    furniture: (tone: FurnitureTone, style?: InteriorStyle) => THREE.Material;
   },
 ): THREE.Mesh {
   const geometry = new THREE.BoxGeometry(box.length, box.height, box.depth);
@@ -419,7 +421,7 @@ function boxMesh(
       if (m.exteriorTiled) worldUVs(geometry, box.length, box.height, box.depth, WALL_TILE);
     }
     material = faces;
-  } else if (box.kind === "furniture") material = m.furniture(box.tone ?? "white");
+  } else if (box.kind === "furniture") material = m.furniture(box.tone ?? "white", box.style);
   else if (box.kind === "parapet") material = [m.exterior, m.exterior, m.top, m.exterior, m.exterior, m.exterior];
   // The floor between storeys shows as a band of the outside finish; its underside is the ceiling below.
   else if (box.kind === "slab") material = [m.exterior, m.exterior, m.interior, m.interior, m.exterior, m.exterior];

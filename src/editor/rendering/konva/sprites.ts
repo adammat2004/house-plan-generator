@@ -1,6 +1,6 @@
 import { useEffect, useSyncExternalStore } from "react";
 import type { Furniture } from "@/domain/plan/types";
-import type { InteriorStyle } from "@/domain/project/schema";
+import { styleOfItem, type StyleArg } from "@/domain/interior/itemStyles";
 import { assetForItem, assetScale, type FurnitureAsset } from "../assets/manifest";
 
 /**
@@ -36,10 +36,10 @@ function load(url: string): Promise<void> {
 }
 
 /** Loads the pictures a set of furniture needs. Never rejects. */
-export function loadFurnitureSprites(items: Iterable<Furniture>, style: InteriorStyle | undefined): Promise<void> {
+export function loadFurnitureSprites(items: Iterable<Furniture>, style: StyleArg): Promise<void> {
   const urls = new Set<string>();
   for (const item of items) {
-    const asset = assetForItem(item, style);
+    const asset = assetForItem(item, styleOfItem(style, item));
     if (asset) urls.add(asset.sprite.url);
   }
   return Promise.all([...urls].map(load)).then(() => undefined);
@@ -56,7 +56,7 @@ const subscribe = (fn: () => void) => {
 };
 
 /** Loads the pictures for the furniture shown, and changes whenever one arrives so the plan redraws. */
-export function useFurnitureSprites(items: Furniture[], style: InteriorStyle | undefined, enabled: boolean): number {
+export function useFurnitureSprites(items: Furniture[], style: StyleArg, enabled: boolean): number {
   useEffect(() => {
     if (enabled) void loadFurnitureSprites(items, style);
   }, [items, style, enabled]);
@@ -92,8 +92,8 @@ export function spriteTransform(item: Furniture, asset: FurnitureAsset): Omit<Sp
 }
 
 /** An item's picture and where it goes, or null to draw its symbol. */
-export function spriteFor(item: Furniture, style: InteriorStyle | undefined): SpritePlacement | null {
-  const asset = assetForItem(item, style);
+export function spriteFor(item: Furniture, style: StyleArg): SpritePlacement | null {
+  const asset = assetForItem(item, styleOfItem(style, item));
   const image = asset && images.get(asset.sprite.url);
   return asset && image ? { image, ...spriteTransform(item, asset) } : null;
 }

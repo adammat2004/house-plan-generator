@@ -1,4 +1,6 @@
 import { roomAtPoint } from "@/domain/design/analysis";
+import { itemRoomStyles } from "@/domain/interior/itemStyles";
+import type { InteriorStyle } from "@/domain/project/schema";
 import { deriveLevelGeometry, deriveRoomRegions, roomFaceIndices } from "@/domain/geometry/derive";
 import { analyzeEnvelope } from "@/domain/geometry/envelope";
 import { outlineEdges, reflexVertices, SIDE_NORMAL, slabPartition } from "@/domain/geometry/outline";
@@ -36,6 +38,8 @@ export interface Box {
   /** For furniture: what it's made of, and which piece it belongs to. */
   tone?: FurnitureTone;
   furnitureId?: Id;
+  /** For furniture in a room with its own interior style: that style. */
+  style?: InteriorStyle;
 }
 
 export interface FloorPiece {
@@ -92,6 +96,8 @@ export interface FurniturePlacement {
   item: Furniture;
   /** The floor it stands on, m. */
   z: number;
+  /** The style of the room it stands in, when the room has its own. */
+  style?: InteriorStyle;
   /** In a cutaway, nothing rises more than this above its floor. */
   cap: number;
 }
@@ -174,9 +180,11 @@ function build(level: Level, options: HouseModelOptions): HouseModel {
   const furniture: FurniturePlacement[] = [];
   if (options.furniture) {
     const cap = options.cutaway ? CUTAWAY_HEIGHT : Infinity;
+    const ownStyles = itemRoomStyles(level);
     for (const item of Object.values(level.furniture)) {
-      boxes.push(...furnitureBoxes(item, cap));
-      furniture.push({ item, z: 0, cap });
+      const style = ownStyles.get(item.id);
+      boxes.push(...furnitureBoxes(item, cap).map((b) => (style ? { ...b, style } : b)));
+      furniture.push({ item, z: 0, cap, ...(style ? { style } : {}) });
     }
   }
 
